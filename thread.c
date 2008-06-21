@@ -340,12 +340,19 @@ void
 rb_thread_terminate_all(void)
 {
     rb_thread_t *th = GET_THREAD(); /* main thread */
-    rb_vm_t *vm = th->vm;
+    rb_vm_t *vm = GET_VM();
 
     if (vm->main_thread != th) {
 	rb_bug("rb_thread_terminate_all: called by child thread (%p, %p)",
 	       (void *)vm->main_thread, (void *)th);
     }
+    rb_vm_thread_terminate_all(vm);
+}
+
+void
+rb_vm_thread_terminate_all(rb_vm_t *vm)
+{
+    rb_thread_t *th = vm->main_thread;
 
     /* unlock all locking mutexes */
     if (th->keeping_mutexes) {
@@ -1286,6 +1293,9 @@ rb_threadptr_execute_interrupts_rec(rb_thread_t *th, int sched_depth)
 		TH_JUMP_TAG(th, TAG_FATAL);
 	    }
 	    else {
+		if (TYPE(err) == T_CLASS) {
+		    err = rb_make_exception(1, &err);
+		}
 		rb_exc_raise(err);
 	    }
 	}
@@ -3022,6 +3032,8 @@ thgroup_add(VALUE group, VALUE thread)
  *
  */
 
+static VALUE rb_eMutex_OrphanLock;
+
 #define GetMutexPtr(obj, tobj) \
     TypedData_Get_Struct(obj, mutex_t, &mutex_data_type, tobj)
 
@@ -3853,9 +3865,8 @@ rb_thread_remove_event_hook(VALUE thval, rb_event_hook_func_t func)
 }
 
 int
-rb_remove_event_hook(rb_event_hook_func_t func)
+rb_vm_remove_event_hook(rb_vm_t *vm, rb_event_hook_func_t func)
 {
-    rb_vm_t *vm = GET_VM();
     rb_event_hook_t *hook = vm->event_hooks;
     int ret = remove_event_hook(&vm->event_hooks, func);
 
@@ -3864,6 +3875,12 @@ rb_remove_event_hook(rb_event_hook_func_t func)
     }
 
     return ret;
+}
+
+int
+rb_remove_event_hook(rb_event_hook_func_t func)
+{
+    return rb_vm_remove_event_hook(GET_VM(), func);
 }
 
 static int
@@ -3876,10 +3893,16 @@ clear_trace_func_i(st_data_t key, st_data_t val, st_data_t flag)
 }
 
 void
+rb_vm_clear_trace_func(rb_vm_t *vm)
+{
+    st_foreach(vm->living_threads, clear_trace_func_i, (st_data_t) 0);
+    rb_vm_remove_event_hook(vm, 0);
+}
+
+void
 rb_clear_trace_func(void)
 {
-    st_foreach(GET_VM()->living_threads, clear_trace_func_i, (st_data_t) 0);
-    rb_remove_event_hook(0);
+    rb_vm_clear_trace_func(GET_VM());
 }
 
 static void call_trace_func(rb_event_flag_t, VALUE data, VALUE self, ID id, VALUE klass);
@@ -4232,6 +4255,7 @@ Init_Thread(void)
 
     recursive_key = rb_intern("__recursive_key__");
     rb_eThreadError = rb_define_class("ThreadError", rb_eStandardError);
+    rb_eMutex_OrphanLock = rb_define_class_under(rb_cMutex, "OrphanLock", rb_eThreadError);
 
     /* trace */
     rb_define_global_function("set_trace_func", set_trace_func, 1);
@@ -4369,4 +4393,41 @@ rb_reset_coverages(void)
 {
     GET_VM()->coverages = Qfalse;
     rb_remove_event_hook(update_coverage);
+}
+
+static struct {
+    rb_thread_lock_t lock;
+    int last;
+} specific_key;
+
+int
+rb_vm_key_create(void)
+{
+    int key;
+    native_mutex_lock(&specific_key.lock);
+    key = specific_key.last++;
+    native_mutex_unlock(&specific_key.lock);
+    return key;
+}
+
+VALUE *
+ruby_vm_specific_ptr(rb_vm_t *vm, int key)
+{
+    VALUE *ptr;
+
+    native_mutex_lock(&vm->global_vm_lock);
+    ptr = vm->specific_storage.ptr;
+    if (!ptr || vm->specific_storage.len <= key) {
+	ptr = realloc(vm->specific_storage.ptr, sizeof(VALUE) * (key + 1));
+	vm->specific_storage.ptr = ptr;
+	vm->specific_storage.len = key + 1;
+    }
+    native_mutex_unlock(&vm->global_vm_lock);
+    return &ptr[key];
+}
+
+VALUE *
+rb_vm_specific_ptr(int key)
+{
+    return ruby_vm_specific_ptr(GET_VM(), key);
 }

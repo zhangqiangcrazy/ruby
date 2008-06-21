@@ -13,6 +13,7 @@
 
 #include "ruby/ruby.h"
 #include "ruby/io.h"
+#include "vm_core.h"
 #include "dln.h"
 #include <ctype.h>
 #include <errno.h>
@@ -135,8 +136,6 @@ VALUE rb_rs;
 VALUE rb_output_rs;
 VALUE rb_default_rs;
 
-static VALUE argf;
-
 static ID id_write, id_read, id_getc, id_flush, id_readpartial;
 static VALUE sym_mode, sym_perm, sym_extenc, sym_intenc, sym_encoding, sym_open_args;
 static VALUE sym_textmode, sym_binmode, sym_autoclose;
@@ -161,7 +160,8 @@ static int max_file_descriptor = NOFILE;
     } while (0)
 
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
-#define ARGF argf_of(argf)
+#define ruby_vm_argf(vm) ((vm)->argf)
+#define ARGF argf_of(ruby_vm_argf(GET_VM()))
 
 #ifdef _STDIO_USES_IOSTREAM  /* GNU libc */
 #  ifdef _IO_fpos_t
@@ -6635,8 +6635,8 @@ argf_alloc(VALUE klass)
 static VALUE
 argf_initialize(VALUE argf, VALUE argv)
 {
-    memset(&ARGF, 0, sizeof(ARGF));
-    argf_init(&ARGF, argv);
+    memset(&argf_of(argf), 0, sizeof(argf_of(argf)));
+    argf_init(&argf_of(argf), argv);
 
     return argf;
 }
@@ -6938,6 +6938,7 @@ static VALUE argf_gets(int, VALUE *, VALUE);
 static VALUE
 rb_f_gets(int argc, VALUE *argv, VALUE recv)
 {
+    VALUE argf = ruby_vm_argf(GET_VM());
     if (recv == argf) {
 	return argf_gets(argc, argv, argf);
     }
@@ -6974,6 +6975,7 @@ VALUE
 rb_gets(void)
 {
     VALUE line;
+    VALUE argf = ruby_vm_argf(GET_VM());
 
     if (rb_rs != rb_default_rs) {
 	return rb_f_gets(0, 0, argf);
@@ -7011,6 +7013,7 @@ static VALUE argf_readline(int, VALUE *, VALUE);
 static VALUE
 rb_f_readline(int argc, VALUE *argv, VALUE recv)
 {
+    VALUE argf = ruby_vm_argf(GET_VM());
     if (recv == argf) {
 	return argf_readline(argc, argv, argf);
     }
@@ -7064,6 +7067,7 @@ static VALUE argf_readlines(int, VALUE *, VALUE);
 static VALUE
 rb_f_readlines(int argc, VALUE *argv, VALUE recv)
 {
+    VALUE argf = ruby_vm_argf(GET_VM());
     if (recv == argf) {
 	return argf_readlines(argc, argv, argf);
     }
@@ -8392,6 +8396,7 @@ copy_stream_body(VALUE arg)
     VALUE src_io, dst_io;
     rb_io_t *src_fptr = 0, *dst_fptr = 0;
     int src_fd, dst_fd;
+    VALUE argf = ruby_vm_argf(GET_VM());
 
     stp->th = rb_thread_current();
 
@@ -9585,17 +9590,17 @@ opt_i_set(VALUE val, ID id, VALUE *var)
 }
 
 const char *
-ruby_get_inplace_mode(void)
+ruby_vm_get_inplace_mode(rb_vm_t *vm)
 {
-    return ARGF.inplace;
+    return argf_of(vm->argf).inplace;
 }
 
 void
-ruby_set_inplace_mode(const char *suffix)
+ruby_vm_set_inplace_mode(rb_vm_t *vm, const char *suffix)
 {
-    if (ARGF.inplace) free(ARGF.inplace);
-    ARGF.inplace = 0;
-    if (suffix) ARGF.inplace = strdup(suffix);
+    if (argf_of(vm->argf).inplace) free(argf_of(vm->argf).inplace);
+    argf_of(vm->argf).inplace = 0;
+    if (suffix) argf_of(vm->argf).inplace = strdup(suffix);
 }
 
 /*
@@ -9625,9 +9630,15 @@ argf_argv_getter(ID id, VALUE *var)
 }
 
 VALUE
+ruby_vm_get_argv(rb_vm_t *vm)
+{
+    return argf_of(vm->argf).argv;
+}
+
+VALUE
 rb_get_argv(void)
 {
-    return ARGF.argv;
+    return ruby_vm_get_argv(GET_VM());
 }
 
 /*
@@ -9795,6 +9806,7 @@ Init_IO(void)
 #define rb_intern(str) rb_intern_const(str)
 
     VALUE rb_cARGF;
+    VALUE *argfp = &GET_VM()->argf;
 #ifdef __CYGWIN__
 #include <sys/cygwin.h>
     static struct __cygwin_perfile pf[] =
@@ -10041,17 +10053,17 @@ Init_IO(void)
     rb_define_method(rb_cARGF, "internal_encoding", argf_internal_encoding, 0);
     rb_define_method(rb_cARGF, "set_encoding", argf_set_encoding, -1);
 
-    argf = rb_class_new_instance(0, 0, rb_cARGF);
+    *argfp = rb_class_new_instance(0, 0, rb_cARGF);
 
-    rb_define_readonly_variable("$<", &argf);
-    rb_define_global_const("ARGF", argf);
+    rb_define_readonly_variable("$<", argfp);
+    rb_define_global_const("ARGF", *argfp);
 
-    rb_define_hooked_variable("$.", &argf, argf_lineno_getter, argf_lineno_setter);
-    rb_define_hooked_variable("$FILENAME", &argf, argf_filename_getter, rb_gvar_readonly_setter);
-    ARGF.filename = rb_str_new2("-");
+    rb_define_hooked_variable("$.", argfp, argf_lineno_getter, argf_lineno_setter);
+    rb_define_hooked_variable("$FILENAME", argfp, argf_filename_getter, 0);
+    argf_of(*argfp).filename = rb_str_new2("-");
 
-    rb_define_hooked_variable("$-i", &argf, opt_i_get, opt_i_set);
-    rb_define_hooked_variable("$*", &argf, argf_argv_getter, rb_gvar_readonly_setter);
+    rb_define_hooked_variable("$-i", argfp, opt_i_get, opt_i_set);
+    rb_define_hooked_variable("$*", argfp, argf_argv_getter, 0);
 
 #if defined (_WIN32) || defined(__CYGWIN__)
     atexit(pipe_atexit);

@@ -71,28 +71,35 @@ ruby_init(void)
 
 extern void rb_clear_trace_func(void);
 
+VALUE
+ruby_vm_parse_options(rb_vm_t *vm, int argc, char **argv)
+{
+    int state;
+    VALUE code = 0;
+
+    ruby_init_stack((void *)&code);
+    PUSH_TAG();
+    if ((state = EXEC_TAG()) == 0) {
+	SAVE_ROOT_JMPBUF(vm->main_thread,
+			 code = ruby_vm_process_options(vm, argc, argv));
+    }
+    else {
+	rb_vm_clear_trace_func(vm);
+	state = error_handle(state);
+	code = INT2FIX(state);
+    }
+    POP_TAG();
+    return code;
+}
+
 void *
 ruby_options(int argc, char **argv)
 {
-    int state;
-    void *volatile iseq = 0;
-
-    ruby_init_stack((void *)&iseq);
-    PUSH_TAG();
-    if ((state = EXEC_TAG()) == 0) {
-	SAVE_ROOT_JMPBUF(GET_THREAD(), iseq = ruby_process_options(argc, argv));
-    }
-    else {
-	rb_clear_trace_func();
-	state = error_handle(state);
-	iseq = (void *)INT2FIX(state);
-    }
-    POP_TAG();
-    return iseq;
+    return (void *)ruby_vm_parse_options(GET_VM(), argc, argv);
 }
 
 static void
-ruby_finalize_0(void)
+ruby_finalize_0(rb_vm_t *vm)
 {
     PUSH_TAG();
     if (EXEC_TAG() == 0) {
@@ -104,28 +111,29 @@ ruby_finalize_0(void)
 }
 
 static void
-ruby_finalize_1(void)
+ruby_finalize_1(rb_vm_t *vm)
 {
     ruby_sig_finalize();
-    GET_THREAD()->errinfo = Qnil;
+    vm->main_thread->errinfo = Qnil;
     rb_gc_call_finalizer_at_exit();
 }
 
 void
 ruby_finalize(void)
 {
-    ruby_finalize_0();
-    ruby_finalize_1();
+    rb_vm_t *vm = GET_VM();
+    ruby_finalize_0(vm);
+    ruby_finalize_1(vm);
 }
 
 void rb_thread_stop_timer_thread(void);
 
 int
-ruby_cleanup(volatile int ex)
+ruby_vm_cleanup(rb_vm_t *vm, int ex)
 {
     int state;
     volatile VALUE errs[2];
-    rb_thread_t *th = GET_THREAD();
+    rb_thread_t *th = vm->main_thread;
     int nerr;
     void rb_threadptr_interrupt(rb_thread_t *th);
     void rb_threadptr_check_signal(rb_thread_t *mth);
@@ -144,21 +152,21 @@ ruby_cleanup(volatile int ex)
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
-	SAVE_ROOT_JMPBUF(th, ruby_finalize_0());
+	SAVE_ROOT_JMPBUF(th, ruby_finalize_0(vm));
     }
     POP_TAG();
 
     errs[0] = th->errinfo;
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
-	SAVE_ROOT_JMPBUF(th, rb_thread_terminate_all());
+	SAVE_ROOT_JMPBUF(th, rb_vm_thread_terminate_all(vm));
     }
     else if (ex == 0) {
 	ex = state;
     }
     th->errinfo = errs[1];
     ex = error_handle(ex);
-    ruby_finalize_1();
+    ruby_finalize_1(vm);
     POP_TAG();
     rb_thread_stop_timer_thread();
 
@@ -200,14 +208,18 @@ ruby_cleanup(volatile int ex)
     return ex;
 }
 
-static int
-ruby_exec_internal(void *n)
+int
+ruby_cleanup(int ex)
 {
-    volatile int state;
-    VALUE iseq = (VALUE)n;
-    rb_thread_t *th = GET_THREAD();
+    return ruby_vm_cleanup(GET_VM(), ex);
+}
 
-    if (!n) return 0;
+static int
+th_exec_iseq(rb_thread_t *th, VALUE iseq, const char *file)
+{
+    int state;
+
+    if (!iseq) return 0;
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
@@ -244,21 +256,27 @@ ruby_executable_node(void *n, int *status)
 }
 
 int
-ruby_run_node(void *n)
+ruby_vm_run(rb_vm_t *vm, VALUE v)
 {
     int status;
-    if (!ruby_executable_node(n, &status)) {
+    if (!ruby_executable_node((void *)v, &status)) {
 	ruby_cleanup(0);
 	return status;
     }
-    return ruby_cleanup(ruby_exec_node(n));
+    return ruby_vm_cleanup(vm, th_exec_iseq(vm->main_thread, v, 0));
+}
+
+int
+ruby_run_node(void *n)
+{
+    return ruby_vm_run(GET_VM(), (VALUE)n);
 }
 
 int
 ruby_exec_node(void *n)
 {
     ruby_init_stack((void *)&n);
-    return ruby_exec_internal(n);
+    return th_exec_iseq(GET_THREAD(), (VALUE)n, 0);
 }
 
 /*

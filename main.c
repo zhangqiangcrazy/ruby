@@ -12,6 +12,7 @@
 #undef RUBY_EXPORT
 #include "ruby.h"
 #include "debug.h"
+#include "ruby/vm.h"
 #ifdef HAVE_LOCALE_H
 #include <locale.h>
 #endif
@@ -30,8 +31,9 @@ main(int argc, char **argv)
 
     ruby_sysinit(&argc, &argv);
     {
+	ruby_vm_t *vm;
 	RUBY_INIT_STACK;
-	ruby_init();
-	return ruby_run_node(ruby_options(argc, argv));
+	vm = ruby_vm_new();
+	return ruby_vm_run(vm, ruby_vm_parse_options(vm, argc, argv));
     }
 }
