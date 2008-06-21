@@ -54,9 +54,6 @@ char *getenv();
 VALUE rb_parser_get_yydebug(VALUE);
 VALUE rb_parser_set_yydebug(VALUE, VALUE);
 
-const char *ruby_get_inplace_mode(void);
-void ruby_set_inplace_mode(const char *);
-
 #define DISABLE_BIT(bit) (1U << disable_##bit)
 enum disable_flag_bits {
     disable_gems,
@@ -114,7 +111,7 @@ cmdline_options_init(struct cmdline_options *opt)
     return opt;
 }
 
-static NODE *load_file(VALUE, const char *, int, struct cmdline_options *);
+static NODE *load_file(rb_vm_t *vm, VALUE parser, const char *, int, struct cmdline_options *);
 static void forbid_setid(const char *, struct cmdline_options *);
 #define forbid_setid(s) forbid_setid(s, opt)
 
@@ -494,12 +491,12 @@ require_libraries(VALUE *req_list)
 }
 
 static void
-process_sflag(int *sflag)
+process_sflag(rb_vm_t *vm, int *sflag)
 {
     if (*sflag > 0) {
 	long n;
 	VALUE *args;
-	VALUE argv = rb_argv;
+	VALUE argv = ruby_vm_get_argv(vm);
 
 	n = RARRAY_LEN(argv);
 	args = RARRAY_PTR(argv);
@@ -559,10 +556,10 @@ process_sflag(int *sflag)
 
 NODE *rb_parser_append_print(VALUE, NODE *);
 NODE *rb_parser_while_loop(VALUE, NODE *, int, int);
-static long proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt);
+static long proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, int envopt);
 
 static void
-moreswitches(const char *s, struct cmdline_options *opt, int envopt)
+moreswitches(rb_vm_t *vm, const char *s, struct cmdline_options *opt, int envopt)
 {
     long argc, i, len;
     char **argv, *p;
@@ -592,7 +589,7 @@ moreswitches(const char *s, struct cmdline_options *opt, int envopt)
     rb_str_cat(argary, (char *)&ap, sizeof(ap));
     argv = (char **)RSTRING_PTR(argary);
 
-    while ((i = proc_options(argc, argv, opt, envopt)) > 1 && (argc -= i) > 0) {
+    while ((i = proc_options(vm, argc, argv, opt, envopt)) > 1 && (argc -= i) > 0) {
 	argv += i;
 	if (**argv != '-') {
 	    *--*argv = '-';
@@ -689,7 +686,7 @@ set_option_encoding_once(const char *type, VALUE *name, const char *e, long elen
     set_option_encoding_once("source", &opt->src.enc.name, e, elen)
 
 static long
-proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
+proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, int envopt)
 {
     long n, argc0 = argc;
     const char *s;
@@ -722,8 +719,8 @@ proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
 	    goto reswitch;
 
 	  case 'd':
-	    ruby_debug = Qtrue;
-	    ruby_verbose = Qtrue;
+	    vm->debug = Qtrue;
+	    vm->verbose = Qtrue;
 	    s++;
 	    goto reswitch;
 
@@ -741,7 +738,7 @@ proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
 	    ruby_show_version();
 	    opt->verbose = 1;
 	  case 'w':
-	    ruby_verbose = Qtrue;
+	    vm->verbose = Qtrue;
 	    s++;
 	    goto reswitch;
 
@@ -758,13 +755,13 @@ proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
 		}
 		switch (v) {
 		  case 0:
-		    ruby_verbose = Qnil;
+		    vm->verbose = Qnil;
 		    break;
 		  case 1:
-		    ruby_verbose = Qfalse;
+		    vm->verbose = Qfalse;
 		    break;
 		  default:
-		    ruby_verbose = Qtrue;
+		    vm->verbose = Qtrue;
 		    break;
 		}
 	    }
@@ -835,7 +832,7 @@ proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
 	  case 'i':
 	    if (envopt) goto noenvopt;
 	    forbid_setid("-i");
-	    ruby_set_inplace_mode(s + 1);
+	    ruby_vm_set_inplace_mode(vm, s + 1);
 	    break;
 
 	  case 'x':
@@ -978,8 +975,8 @@ proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
 		opt->dump |= DUMP_BIT(copyright);
 	    }
 	    else if (strcmp("debug", s) == 0) {
-		ruby_debug = Qtrue;
-                ruby_verbose = Qtrue;
+		vm->debug = Qtrue;
+		vm->verbose = Qtrue;
             }
 	    else if (is_option_with_arg("enable", Qtrue, Qtrue)) {
 		ruby_each_words(s, enable_option, &opt->disable);
@@ -1029,7 +1026,7 @@ proc_options(long argc, char **argv, struct cmdline_options *opt, int envopt)
 	    }
 	    else if (strcmp("verbose", s) == 0) {
 		opt->verbose = 1;
-		ruby_verbose = Qtrue;
+		vm->verbose = Qtrue;
 	    }
 	    else if (strcmp("yydebug", s) == 0) {
 		if (envopt) goto noenvopt_long;
@@ -1115,7 +1112,7 @@ opt_enc_index(VALUE enc_name)
     return i;
 }
 
-#define rb_progname (GET_VM()->progname)
+#define rb_progname (vm->progname)
 VALUE rb_argv0;
 
 static VALUE
@@ -1231,7 +1228,7 @@ void rb_stdio_set_default_encoding(void);
 VALUE rb_parser_dump_tree(NODE *node, int comment);
 
 static VALUE
-process_options(int argc, char **argv, struct cmdline_options *opt)
+process_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt)
 {
     NODE *tree = 0;
     VALUE parser;
@@ -1239,7 +1236,7 @@ process_options(int argc, char **argv, struct cmdline_options *opt)
     rb_encoding *enc, *lenc;
     const char *s;
     char fbuf[MAXPATHLEN];
-    int i = (int)proc_options(argc, argv, opt, 0);
+    int i = (int)proc_options(vm, argc, argv, opt, 0);
     rb_thread_t *th = GET_THREAD();
     rb_env_t *env = 0;
 
@@ -1258,7 +1255,7 @@ process_options(int argc, char **argv, struct cmdline_options *opt)
 	VALUE int_enc_name = opt->intern.enc.name;
 
 	opt->src.enc.name = opt->ext.enc.name = opt->intern.enc.name = 0;
-	moreswitches(s, opt, 1);
+	moreswitches(vm, s, opt, 1);
 	if (src_enc_name)
 	    opt->src.enc.name = src_enc_name;
 	if (ext_enc_name)
@@ -1355,8 +1352,8 @@ process_options(int argc, char **argv, struct cmdline_options *opt)
 	}
     }
     ruby_init_gems(!(opt->disable & DISABLE_BIT(gems)));
-    ruby_set_argv(argc, argv);
-    process_sflag(&opt->sflag);
+    ruby_vm_set_argv(vm, argc, argv);
+    process_sflag(vm, &opt->sflag);
 
     {
 	/* set eval context */
@@ -1399,7 +1396,7 @@ process_options(int argc, char **argv, struct cmdline_options *opt)
 	}
 
 	PREPARE_PARSE_MAIN({
-	    tree = load_file(parser, opt->script, 1, opt);
+	    tree = load_file(vm, parser, opt->script, 1, opt);
 	});
     }
     rb_progname = opt->script_name;
@@ -1425,7 +1422,7 @@ process_options(int argc, char **argv, struct cmdline_options *opt)
 
     if (!tree) return Qfalse;
 
-    process_sflag(&opt->sflag);
+    process_sflag(vm, &opt->sflag);
     opt->xflag = 0;
 
     if (opt->safe_level >= 4) {
@@ -1481,6 +1478,7 @@ process_options(int argc, char **argv, struct cmdline_options *opt)
 }
 
 struct load_file_arg {
+    rb_vm_t *vm;
     VALUE parser;
     const char *fname;
     int script;
@@ -1492,6 +1490,7 @@ load_file_internal(VALUE arg)
 {
     extern VALUE rb_stdin;
     struct load_file_arg *argp = (struct load_file_arg *)arg;
+    rb_vm_t *vm = argp->vm;
     VALUE parser = argp->parser;
     const char *fname = argp->fname;
     int script = argp->script;
@@ -1571,7 +1570,7 @@ load_file_internal(VALUE arg)
 		if (RSTRING_PTR(line)[RSTRING_LEN(line) - 2] == '\r')
 		    RSTRING_PTR(line)[RSTRING_LEN(line) - 2] = '\0';
 		if ((p = strstr(p, " -")) != 0) {
-		    moreswitches(p + 1, opt, 0);
+		    moreswitches(vm, p + 1, opt, 0);
 		}
 
 		/* push back shebang for pragma may exist in next line */
@@ -1635,9 +1634,10 @@ restore_lineno(VALUE lineno)
 }
 
 static NODE *
-load_file(VALUE parser, const char *fname, int script, struct cmdline_options *opt)
+load_file(rb_vm_t *vm, VALUE parser, const char *fname, int script, struct cmdline_options *opt)
 {
     struct load_file_arg arg;
+    arg.vm = vm;
     arg.parser = parser;
     arg.fname = fname;
     arg.script = script;
@@ -1650,7 +1650,7 @@ rb_load_file(const char *fname)
 {
     struct cmdline_options opt;
 
-    return load_file(rb_parser_new(), fname, 0, cmdline_options_init(&opt));
+    return load_file(GET_VM(), rb_parser_new(), fname, 0, cmdline_options_init(&opt));
 }
 
 #if !defined(PSTAT_SETCMD) && !defined(HAVE_SETPROCTITLE)
@@ -1710,7 +1710,7 @@ get_arglen(int argc, char **argv)
 #endif
 
 static void
-set_arg0(VALUE val, ID id)
+set_arg0(VALUE val, ID id, VALUE *var)
 {
     char *s;
     long i;
@@ -1756,15 +1756,16 @@ set_arg0(VALUE val, ID id)
 	}
     }
 #endif
-    rb_progname = rb_obj_freeze(rb_external_str_new(s, i));
+
+    *var = rb_obj_freeze(rb_external_str_new(s, i));
 }
 
+DEPRECATED(void ruby_script(const char *name));
 void
 ruby_script(const char *name)
 {
     if (name) {
-	rb_progname = rb_obj_freeze(rb_external_str_new(name, strlen(name)));
-	rb_vm_set_progname(rb_progname);
+	GET_VM()->progname = rb_obj_freeze(rb_external_str_new(name, strlen(name)));
     }
 }
 
@@ -1818,33 +1819,54 @@ opt_W_getter(ID id, void *data)
 }
 
 void
-ruby_prog_init(void)
+ruby_vm_prog_init(rb_vm_t *vm)
 {
-    rb_define_hooked_variable("$VERBOSE", &ruby_verbose, 0, verbose_setter);
-    rb_define_hooked_variable("$-v", &ruby_verbose, 0, verbose_setter);
-    rb_define_hooked_variable("$-w", &ruby_verbose, 0, verbose_setter);
-    rb_define_hooked_variable("$-W", &ruby_verbose, opt_W_getter, rb_gvar_readonly_setter);
-    rb_define_variable("$DEBUG", &ruby_debug);
-    rb_define_variable("$-d", &ruby_debug);
+    rb_define_hooked_variable("$VERBOSE", &vm->verbose, 0, verbose_setter);
+    rb_define_hooked_variable("$-v", &vm->verbose, 0, verbose_setter);
+    rb_define_hooked_variable("$-w", &vm->verbose, 0, verbose_setter);
+    rb_define_hooked_variable("$-W", &vm->verbose, opt_W_getter, 0);
+    rb_define_variable("$DEBUG", &vm->debug);
+    rb_define_variable("$-d", &vm->debug);
 
-    rb_define_hooked_variable("$0", &rb_progname, 0, set_arg0);
-    rb_define_hooked_variable("$PROGRAM_NAME", &rb_progname, 0, set_arg0);
+    rb_define_hooked_variable("$0", &vm->progname, 0, set_arg0);
+    rb_define_hooked_variable("$PROGRAM_NAME", &vm->progname, 0, set_arg0);
 
     rb_define_global_const("ARGV", rb_argv);
 }
 
 void
+ruby_prog_init(void)
+{
+    ruby_vm_prog_init(GET_VM());
+    rb_global_variable(&rb_argv0);
+
+#ifdef MSDOS
+    /*
+     * There is no way we can refer to them from ruby, so close them to save
+     * space.
+     */
+    (void)fclose(stdaux);
+    (void)fclose(stdprn);
+#endif
+}
+
+void
 ruby_set_argv(int argc, char **argv)
 {
-    int i;
-    VALUE av = rb_argv;
-
 #if defined(USE_DLN_A_OUT)
     if (origarg.argv)
 	dln_argv0 = origarg.argv[0];
     else
 	dln_argv0 = argv[0];
 #endif
+}
+
+void
+ruby_vm_set_argv(rb_vm_t *vm, long argc, char **argv)
+{
+    long i;
+    VALUE av = ruby_vm_get_argv(vm);
+
     rb_ary_clear(av);
     for (i = 0; i < argc; i++) {
 	VALUE arg = rb_external_str_new(argv[i], strlen(argv[i]));
@@ -1854,17 +1876,25 @@ ruby_set_argv(int argc, char **argv)
     }
 }
 
-void *
-ruby_process_options(int argc, char **argv)
+VALUE
+ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
 {
     struct cmdline_options opt;
     VALUE iseq;
 
-    ruby_script(argv[0]);  /* for the time being */
-    rb_argv0 = rb_str_new4(rb_progname);
-    rb_gc_register_mark_object(rb_argv0);
-    iseq = process_options(argc, argv, cmdline_options_init(&opt));
-    return (void*)(struct RData*)iseq;
+    if (argv[0]) {		/* for the time being */
+	vm->progname = rb_tainted_str_new2(argv[0]);
+    }
+    return process_options(vm, argc, argv, cmdline_options_init(&opt));
+}
+
+void *
+ruby_process_options(int argc, char **argv)
+{
+    rb_vm_t *vm = GET_VM();
+    VALUE result = ruby_vm_process_options(vm, argc, argv);
+    rb_argv0 = rb_str_new4(vm->progname);
+    return (void *)result;
 }
 
 void
