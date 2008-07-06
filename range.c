@@ -12,7 +12,6 @@
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
 
-VALUE rb_cRange;
 static ID id_cmp, id_succ, id_beg, id_end, id_excl;
 
 extern VALUE rb_struct_init_copy(VALUE copy, VALUE s);

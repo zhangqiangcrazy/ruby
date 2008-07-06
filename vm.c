@@ -30,18 +30,9 @@
 #define BUFSIZE 0x100
 #define PROCDEBUG 0
 
-VALUE rb_cRubyVM;
-VALUE rb_cThread;
-VALUE rb_cEnv;
-VALUE rb_mRubyVMFrozenCore;
-
-VALUE ruby_vm_global_state_version = 1;
-VALUE ruby_vm_const_missing_count = 0;
-
-char ruby_vm_redefined_flag[BOP_LAST_];
-
-rb_thread_t *ruby_current_thread = 0;
-rb_vm_t *ruby_current_vm = 0;
+#ifdef THREAD_SPECIFIC
+THREAD_SPECIFIC rb_thread_t *ruby_current_thread = 0;
+#endif
 
 static void thread_free(void *ptr);
 
@@ -848,7 +839,6 @@ rb_vm_cbase(void)
 static VALUE
 make_localjump_error(const char *mesg, VALUE value, int reason)
 {
-    extern VALUE rb_eLocalJumpError;
     VALUE exc = rb_exc_new2(rb_eLocalJumpError, mesg);
     ID id;
 
@@ -947,7 +937,7 @@ rb_iter_break(void)
 
 /* optimization: redefine management */
 
-static st_table *vm_opt_method_table = 0;
+#define vm_opt_method_table GET_VM()->opt_method_table
 
 static void
 rb_vm_check_redefinition_opt_method(const rb_method_entry_t *me)
@@ -974,12 +964,12 @@ add_opt_method(VALUE klass, ID mid, VALUE bop)
 }
 
 static void
-vm_init_redefined_flag(void)
+vm_init_redefined_flag(rb_vm_t *vm)
 {
     ID mid;
     VALUE bop;
 
-    vm_opt_method_table = st_init_numtable();
+    vm->opt_method_table = st_init_numtable();
 
 #define OP(mid_, bop_) (mid = id##mid_, bop = BOP_##bop_, ruby_vm_redefined_flag[bop] = 0)
 #define C(k) add_opt_method(rb_c##k, mid, bop)
@@ -1503,11 +1493,14 @@ rb_vm_mark(void *ptr)
 	RUBY_MARK_UNLESS_NULL(vm->loaded_features);
 	RUBY_MARK_UNLESS_NULL(vm->top_self);
 	RUBY_MARK_UNLESS_NULL(vm->coverages);
-	rb_gc_mark_locations(vm->special_exceptions, vm->special_exceptions + ruby_special_error_count);
+	rb_gc_mark_locations(vm->specific_storage.ptr, vm->specific_storage.ptr + vm->specific_storage.len - 1);
 
 	if (vm->loading_table) {
 	    rb_mark_tbl(vm->loading_table);
 	}
+
+	rb_vm_mark_global_tbl(vm->global_tbl);
+	rb_mark_end_proc(vm->end_procs);
 
 	mark_event_hooks(vm->event_hooks);
 
@@ -1523,7 +1516,7 @@ rb_vm_mark(void *ptr)
 #define vm_free 0
 
 int
-ruby_vm_destruct(void *ptr)
+ruby_vm_destruct(rb_vm_t *ptr)
 {
     RUBY_FREE_ENTER("vm");
     if (ptr) {
@@ -1544,7 +1537,6 @@ ruby_vm_destruct(void *ptr)
 	rb_thread_lock_unlock(&vm->global_vm_lock);
 	rb_thread_lock_destroy(&vm->global_vm_lock);
 	ruby_xfree(vm);
-	ruby_current_vm = 0;
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
 	if (objspace) {
 	    rb_objspace_free(objspace);
@@ -1577,6 +1569,9 @@ vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
     vm->src_encoding_index = -1;
+    vm->global_state_version = 1;
+    vm->specific_storage.len = rb_vm_key_count();
+    vm->specific_storage.ptr = calloc(vm->specific_storage.len, sizeof(VALUE));
 }
 
 /* Thread */
@@ -2071,8 +2066,8 @@ Init_VM(void)
 
     /* VM bootstrap: phase 2 */
     {
-	rb_vm_t *vm = ruby_current_vm;
 	rb_thread_t *th = GET_THREAD();
+	rb_vm_t *vm = th->vm;
 	VALUE filename = rb_str_new2("<main>");
 	volatile VALUE iseqval = rb_iseq_new(0, filename, filename, Qnil, 0, ISEQ_TYPE_TOP);
         volatile VALUE th_self;
@@ -2100,8 +2095,8 @@ Init_VM(void)
 	th->cfp->self = th->top_self;
 
 	rb_define_global_const("TOPLEVEL_BINDING", rb_binding_new());
+	vm_init_redefined_flag(vm);
     }
-    vm_init_redefined_flag();
 }
 
 void
@@ -2138,11 +2133,10 @@ Init_BareVM(void)
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     vm->objspace = rb_objspace_alloc();
 #endif
-    ruby_current_vm = vm;
 
     Init_native_thread();
-    th_init2(th, 0);
     th->vm = vm;
+    th_init2(th, 0);
     ruby_thread_init_stack(th);
 }
 
@@ -2182,13 +2176,13 @@ Init_top_self(void)
 VALUE *
 ruby_vm_verbose_ptr(rb_vm_t *vm)
 {
-    return &vm->verbose;
+    return ruby_vm_specific_ptr(vm, rb_vmkey_verbose);
 }
 
 VALUE *
 ruby_vm_debug_ptr(rb_vm_t *vm)
 {
-    return &vm->debug;
+    return ruby_vm_specific_ptr(vm, rb_vmkey_debug);
 }
 
 VALUE *

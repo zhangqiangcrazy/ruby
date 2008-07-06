@@ -57,9 +57,6 @@
 #define THREAD_DEBUG 0
 #endif
 
-VALUE rb_cMutex;
-VALUE rb_cBarrier;
-
 static void sleep_timeval(rb_thread_t *th, struct timeval time);
 static void sleep_wait_for_interrupt(rb_thread_t *th, double sleepsec);
 static void sleep_forever(rb_thread_t *th, int nodeadlock);
@@ -3032,8 +3029,6 @@ thgroup_add(VALUE group, VALUE thread)
  *
  */
 
-static VALUE rb_eMutex_OrphanLock;
-
 #define GetMutexPtr(obj, tobj) \
     TypedData_Get_Struct(obj, mutex_t, &mutex_data_type, tobj)
 
@@ -4398,7 +4393,16 @@ rb_reset_coverages(void)
 static struct {
     rb_thread_lock_t lock;
     int last;
-} specific_key;
+} specific_key = {
+    RB_THREAD_LOCK_INITIALIZER,
+    ruby_builtin_object_count + 8,
+};
+
+int
+rb_vm_key_count(void)
+{
+    return specific_key.last;
+}
 
 int
 rb_vm_key_create(void)
@@ -4415,14 +4419,13 @@ ruby_vm_specific_ptr(rb_vm_t *vm, int key)
 {
     VALUE *ptr;
 
-    native_mutex_lock(&vm->global_vm_lock);
     ptr = vm->specific_storage.ptr;
     if (!ptr || vm->specific_storage.len <= key) {
 	ptr = realloc(vm->specific_storage.ptr, sizeof(VALUE) * (key + 1));
 	vm->specific_storage.ptr = ptr;
+	MEMZERO(ptr, VALUE, key + 1 - vm->specific_storage.len);
 	vm->specific_storage.len = key + 1;
     }
-    native_mutex_unlock(&vm->global_vm_lock);
     return &ptr[key];
 }
 

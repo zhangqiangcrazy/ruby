@@ -381,35 +381,6 @@ rb_check_typeddata(VALUE obj, const rb_data_type_t *data_type)
 }
 
 /* exception classes */
-VALUE rb_eException;
-VALUE rb_eSystemExit;
-VALUE rb_eInterrupt;
-VALUE rb_eSignal;
-VALUE rb_eFatal;
-VALUE rb_eStandardError;
-VALUE rb_eRuntimeError;
-VALUE rb_eTypeError;
-VALUE rb_eArgError;
-VALUE rb_eIndexError;
-VALUE rb_eKeyError;
-VALUE rb_eRangeError;
-VALUE rb_eNameError;
-VALUE rb_eEncodingError;
-VALUE rb_eEncCompatError;
-VALUE rb_eNoMethodError;
-VALUE rb_eSecurityError;
-VALUE rb_eNotImpError;
-VALUE rb_eNoMemError;
-VALUE rb_cNameErrorMesg;
-
-VALUE rb_eScriptError;
-VALUE rb_eSyntaxError;
-VALUE rb_eLoadError;
-
-VALUE rb_eSystemCallError;
-VALUE rb_mErrno;
-static VALUE rb_eNOERROR;
-
 #undef rb_exc_new2
 
 VALUE
@@ -963,12 +934,11 @@ rb_invalid_str(const char *str, const char *type)
  *     Errno.constants   #=> :E2BIG, :EACCES, :EADDRINUSE, :EADDRNOTAVAIL, ...
  */
 
-static st_table *syserr_tbl;
-
 static VALUE
 set_syserr(int n, const char *name)
 {
     VALUE error;
+    st_table *syserr_tbl = DATA_PTR(rb_syserr_tbl);
 
     if (!st_lookup(syserr_tbl, n, &error)) {
 	error = rb_define_class_under(rb_mErrno, name, rb_eSystemCallError);
@@ -985,6 +955,7 @@ static VALUE
 get_syserr(int n)
 {
     VALUE error;
+    st_table *syserr_tbl = DATA_PTR(rb_syserr_tbl);
 
     if (!st_lookup(syserr_tbl, n, &error)) {
 	char name[8];	/* some Windows' errno have 5 digits. */
@@ -1017,6 +988,7 @@ syserr_initialize(int argc, VALUE *argv, VALUE self)
     VALUE klass = rb_obj_class(self);
 
     if (klass == rb_eSystemCallError) {
+	st_table *syserr_tbl = DATA_PTR(rb_syserr_tbl);
 	rb_scan_args(argc, argv, "11", &mesg, &error);
 	if (argc == 1 && FIXNUM_P(mesg)) {
 	    error = mesg; mesg = Qnil;
@@ -1449,7 +1421,7 @@ Init_Exception(void)
     rb_eEncodingError = rb_define_class("EncodingError", rb_eStandardError);
     rb_eEncCompatError = rb_define_class_under(rb_cEncoding, "CompatibilityError", rb_eEncodingError);
 
-    syserr_tbl = st_init_numtable();
+    rb_syserr_tbl = rb_wrap_st_table(st_init_numtable());
     rb_eSystemCallError = rb_define_class("SystemCallError", rb_eStandardError);
     rb_define_method(rb_eSystemCallError, "initialize", syserr_initialize, -1);
     rb_define_method(rb_eSystemCallError, "errno", syserr_errno, 0);

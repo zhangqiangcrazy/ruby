@@ -23,6 +23,7 @@
 #include "ruby/io.h"
 #include "ruby/util.h"
 #include "dln.h"
+#include "private_object.h"
 
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
@@ -119,10 +120,6 @@ be_fchown(int fd, uid_t owner, gid_t group)
 }
 #define fchown be_fchown
 #endif /* __BEOS__ || __HAIKU__ */
-
-VALUE rb_cFile;
-VALUE rb_mFileTest;
-VALUE rb_cStat;
 
 #define insecure_obj_p(obj, level) (level >= 4 || (level > 0 && OBJ_TAINTED(obj)))
 
@@ -4890,8 +4887,6 @@ rb_stat_sticky(VALUE obj)
 #endif
     return Qfalse;
 }
-
-VALUE rb_mFConst;
 
 void
 rb_file_const(const char *name, VALUE value)

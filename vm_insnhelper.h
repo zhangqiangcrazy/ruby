@@ -58,8 +58,8 @@ enum {
   BOP_LAST_
 };
 
-extern char ruby_vm_redefined_flag[BOP_LAST_];
-extern VALUE ruby_vm_const_missing_count;
+#define ruby_vm_redefined_flag (GET_VM()->redefined_flag)
+#define ruby_vm_const_missing_count (GET_VM()->const_missing_count)
 
 
 /**********************************************************/

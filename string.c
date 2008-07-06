@@ -45,9 +45,6 @@
 #undef rb_str_buf_cat2
 #undef rb_str_cat2
 
-VALUE rb_cString;
-VALUE rb_cSymbol;
-
 #define RUBY_MAX_CHAR_LEN 16
 #define STR_TMPLOCK FL_USER7
 #define STR_NOEMBED FL_USER1

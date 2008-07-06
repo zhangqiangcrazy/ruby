@@ -24,10 +24,8 @@ VALUE rb_binding_new(void);
 NORETURN(void rb_raise_jump(VALUE));
 
 ID rb_frame_callee(void);
-VALUE rb_eLocalJumpError;
-VALUE rb_eSysStackError;
 
-#define exception_error GET_VM()->special_exceptions[ruby_error_reenter]
+#define exception_error rb_errReenterError
 
 #include "eval_error.c"
 #include "eval_jump.c"
@@ -106,7 +104,7 @@ ruby_finalize_0(rb_vm_t *vm)
 	rb_trap_exit();
     }
     POP_TAG();
-    rb_exec_end_proc();
+    rb_exec_end_proc(vm->end_procs);
     rb_clear_trace_func();
 }
 
@@ -636,8 +634,6 @@ rb_iterator_p(void)
 {
     return rb_block_given_p();
 }
-
-VALUE rb_eThreadError;
 
 void
 rb_need_block(void)

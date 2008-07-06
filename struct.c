@@ -11,7 +11,6 @@
 
 #include "ruby/ruby.h"
 
-VALUE rb_cStruct;
 static ID id_members;
 
 static VALUE struct_alloc(VALUE);

@@ -20,8 +20,6 @@
 #endif
 #include <assert.h>
 
-VALUE rb_cArray;
-
 static ID id_cmp;
 
 #define ARY_DEFAULT_SIZE 16

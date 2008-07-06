@@ -22,6 +22,8 @@
 #include "vm_opts.h"
 #include "id.h"
 #include "method.h"
+#include "private_object.h"
+#include "vm_insnhelper.h"
 
 #if   defined(_WIN32)
 #include "thread_win32.h"
@@ -262,6 +264,13 @@ enum ruby_special_exceptions {
     ruby_special_error_count
 };
 
+enum end_proc_type {
+    end_proc_ordinary,
+    end_proc_ephemeral,
+    end_proc_temporary,
+    end_proc_count
+};
+
 #define GetVMPtr(obj, ptr) \
   GetCoreDataFromValue(obj, rb_vm_t, ptr)
 
@@ -275,6 +284,10 @@ typedef struct rb_vm_struct {
 
     rb_thread_lock_t global_vm_lock;
 
+    VALUE global_state_version;
+    char redefined_flag[BOP_LAST_];
+    st_table *opt_method_table;
+
     struct rb_thread_struct *main_thread;
     struct rb_thread_struct *running_thread;
 
@@ -286,17 +299,17 @@ typedef struct rb_vm_struct {
     unsigned long trace_flag;
     volatile int sleeper;
 
-    VALUE argf;
-
     /* object management */
     VALUE mark_object_ary;
+
+    st_table *global_tbl;
 
     struct {
 	VALUE *ptr;
 	long len;
     } specific_storage;
 
-    VALUE special_exceptions[ruby_special_error_count];
+    struct end_proc_data *end_procs[end_proc_count];
 
     /* load */
     VALUE top_self;
@@ -327,6 +340,8 @@ typedef struct rb_vm_struct {
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     struct rb_objspace *objspace;
 #endif
+
+    VALUE const_missing_count;
 } rb_vm_t;
 
 typedef struct {
@@ -505,11 +520,6 @@ int rb_iseq_disasm_insn(VALUE str, VALUE *iseqval, size_t pos, rb_iseq_t *iseq, 
 const char *ruby_node_name(int node);
 int rb_iseq_first_lineno(rb_iseq_t *iseq);
 
-RUBY_EXTERN VALUE rb_cISeq;
-RUBY_EXTERN VALUE rb_cRubyVM;
-RUBY_EXTERN VALUE rb_cEnv;
-RUBY_EXTERN VALUE rb_mRubyVMFrozenCore;
-
 /* each thread has this size stack : 128KB */
 #define RUBY_VM_THREAD_STACK_SIZE (128 * 1024)
 
@@ -590,6 +600,7 @@ extern VALUE ruby_vm_global_state_version;
 #define INC_VM_STATE_VERSION() \
   (ruby_vm_global_state_version = (ruby_vm_global_state_version+1) & 0x8fffffff)
 void rb_vm_change_state(void);
+void rb_vm_mark_global_tbl(st_table *);
 
 typedef VALUE CDHASH;
 
@@ -654,7 +665,10 @@ VALUE rb_name_err_mesg_new(VALUE obj, VALUE mesg, VALUE recv, VALUE method);
 
 NOINLINE(void rb_gc_save_machine_context(rb_thread_t *));
 
-#define sysstack_error GET_VM()->special_exceptions[ruby_error_sysstack]
+void rb_mark_end_proc(struct end_proc_data **);
+void rb_exec_end_proc(struct end_proc_data **);
+
+#define sysstack_error rb_errSysStack
 
 VALUE rb_str_resurrect(VALUE str);
 VALUE rb_ary_resurrect(VALUE ary);
@@ -662,12 +676,19 @@ VALUE rb_ary_resurrect(VALUE ary);
 /* for thread */
 
 #if RUBY_VM_THREAD_MODEL == 2
-RUBY_EXTERN rb_thread_t *ruby_current_thread;
-extern rb_vm_t *ruby_current_vm;
-
-#define GET_VM() ruby_current_vm
-#define GET_THREAD() ruby_current_thread
+#ifdef THREAD_SPECIFIC
+extern THREAD_SPECIFIC rb_thread_t *ruby_current_thread;
 #define rb_thread_set_current_raw(th) (void)(ruby_current_thread = (th))
+#else
+#define ruby_current_thread ruby_thread_from_native()
+#define rb_thread_set_current_raw(th) (void)ruby_thread_from_native(th)
+#endif
+
+rb_thread_t * ruby_thread_from_native(void);
+int ruby_thread_set_native(rb_thread_t *th);
+
+#define GET_VM() (GET_THREAD()->vm)
+#define GET_THREAD() ruby_current_thread
 #define rb_thread_set_current(th) do { \
     rb_thread_set_current_raw(th); \
     th->vm->running_thread = th; \

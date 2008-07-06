@@ -13,7 +13,6 @@
 #include "ruby/util.h"
 #include "node.h"
 
-VALUE rb_mEnumerable;
 static ID id_each, id_eqq, id_cmp, id_next, id_size;
 
 static VALUE

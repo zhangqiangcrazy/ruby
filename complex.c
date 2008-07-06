@@ -15,8 +15,6 @@
 #define ONE INT2FIX(1)
 #define TWO INT2FIX(2)
 
-VALUE rb_cComplex;
-
 static ID id_abs, id_abs2, id_arg, id_cmp, id_conj, id_convert,
     id_denominator, id_divmod, id_eqeq_p, id_expt, id_fdiv,  id_floor,
     id_idiv, id_imag, id_inspect, id_negate, id_numerator, id_quo,

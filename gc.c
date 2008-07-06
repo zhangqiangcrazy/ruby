@@ -78,7 +78,7 @@ void *alloca ();
 #define GC_MALLOC_LIMIT 8000000
 #endif
 
-#define nomem_error GET_VM()->special_exceptions[ruby_error_nomemory]
+#define nomem_error rb_errNoMemError
 
 #define MARK_STACK_MAX 1024
 
@@ -426,9 +426,6 @@ rb_objspace_free(rb_objspace_t *objspace)
 /*#define HEAP_SIZE 0x800 */
 
 #define HEAP_OBJ_LIMIT (HEAP_SIZE / sizeof(struct RVALUE))
-
-extern VALUE rb_cMutex;
-extern st_table *rb_class_tbl;
 
 int ruby_disable_gc_stress = 0;
 
@@ -825,8 +822,6 @@ rb_gc_disable(void)
     dont_gc = TRUE;
     return old ? Qtrue : Qfalse;
 }
-
-VALUE rb_mGC;
 
 void
 rb_gc_register_mark_object(VALUE obj)
@@ -2184,10 +2179,6 @@ garbage_collect(rb_objspace_t *objspace)
     for (list = global_List; list; list = list->next) {
 	rb_gc_mark_maybe(*list->varptr);
     }
-    rb_mark_end_proc();
-    rb_gc_mark_global_tbl();
-
-    mark_tbl(objspace, rb_class_tbl, 0);
 
     /* mark generic instance variables for special constants */
     rb_mark_generic_ivar_tbl();

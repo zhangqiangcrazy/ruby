@@ -16,19 +16,20 @@
 #include "ruby/util.h"
 #include "ruby/encoding.h"
 #include "node.h"
+#include "vm_core.h"
 
 void rb_vm_change_state(void);
 void rb_vm_inc_const_missing_count(void);
 
-st_table *rb_global_tbl;
-st_table *rb_class_tbl;
+#define rb_global_tbl GET_VM()->global_tbl
 static ID autoload, classpath, tmp_classpath, classid;
 
 void
 Init_var_tables(void)
 {
-    rb_global_tbl = st_init_numtable();
-    rb_class_tbl = st_init_numtable();
+    rb_vm_t *vm = GET_VM();
+    vm->mark_object_ary = rb_ary_new();
+    vm->global_tbl = st_init_numtable();
     CONST_ID(autoload, "__autoload__");
     CONST_ID(classpath, "__classpath__");
     CONST_ID(tmp_classpath, "__tmp_classpath__");
@@ -124,9 +125,6 @@ find_class_path(VALUE klass)
     arg.prev = 0;
     if (RCLASS_IV_TBL(rb_cObject)) {
 	st_foreach_safe(RCLASS_IV_TBL(rb_cObject), fc_i, (st_data_t)&arg);
-    }
-    if (arg.path == 0) {
-	st_foreach_safe(rb_class_tbl, fc_i, (st_data_t)&arg);
     }
     if (arg.path) {
 	st_data_t tmp = tmp_classpath;
@@ -333,8 +331,13 @@ struct trace_var {
     struct trace_var *next;
 };
 
+enum gvar_flags {
+    gv_vm_specific_storage = 1
+};
+
 struct global_variable {
     int   counter;
+    int flags;
     void *data;
     gvar_getter_t *getter;
     gvar_setter_t *setter;
@@ -370,6 +373,7 @@ rb_global_entry(ID id)
 	entry->id = id;
 	entry->var = var;
 	var->counter = 1;
+	var->flags = 0;
 	var->data = 0;
 	var->getter = undef_getter;
 	var->setter = undef_setter;
@@ -447,6 +451,12 @@ var_marker(VALUE *var)
     if (var) rb_gc_mark_maybe(*var);
 }
 
+static void
+vm_marker(VALUE *var)
+{
+    rb_gc_mark(*rb_vm_specific_ptr((int)var));
+}
+
 void
 readonly_setter(VALUE val, ID id, void *data, struct global_variable *gvar)
 {
@@ -469,10 +479,10 @@ mark_global_entry(ID key, struct global_entry *entry)
 }
 
 void
-rb_gc_mark_global_tbl(void)
+rb_vm_mark_global_tbl(st_table *global_tbl)
 {
-    if (rb_global_tbl)
-        st_foreach_safe(rb_global_tbl, mark_global_entry, 0);
+    if (global_tbl)
+        st_foreach_safe(global_tbl, mark_global_entry, 0);
 }
 
 static ID
@@ -499,14 +509,36 @@ rb_define_hooked_variable(
     void  (*setter)(ANYARGS))
 {
     volatile VALUE tmp = var ? *var : Qnil;
-    ID id = global_id(name);
-    struct global_variable *gvar = rb_global_entry(id)->var;
+    struct global_variable *gvar;
+    ID id;
+    int vmkey = -1;
 
-    gvar->data = (void*)var;
+    if (var) {
+	rb_vm_t *vm = GET_VM();
+	if (vm->specific_storage.ptr &&
+	    vm->specific_storage.ptr <= var &&
+	    var < vm->specific_storage.ptr + vm->specific_storage.len &&
+	    ((char *)var - (char *)vm->specific_storage.ptr) % sizeof(VALUE) == 0) {
+	    vmkey = var - vm->specific_storage.ptr;
+	}
+	else {
+	    tmp = *var;
+	}
+    }
+
+    id = global_id(name);
+    gvar = rb_global_entry(id)->var;
+    if (vmkey != -1) {
+	gvar->flags |= gv_vm_specific_storage;
+	gvar->data = (void*)vmkey;
+        gvar->marker = vm_marker;
+    }
+    else {
+	gvar->data = (void*)var;
+        gvar->marker = var_marker;
+    }
     gvar->getter = getter?(gvar_getter_t *)getter:var_getter;
     gvar->setter = setter?(gvar_setter_t *)setter:var_setter;
-    gvar->marker = var_marker;
-
     RB_GC_GUARD(tmp);
 }
 
@@ -531,6 +563,30 @@ rb_define_virtual_variable(
     if (!getter) getter = val_getter;
     if (!setter) setter = readonly_setter;
     rb_define_hooked_variable(name, 0, getter, setter);
+}
+
+
+void
+rb_define_vm_specific_variable(
+    const char *name,
+    int vmkey,
+    rb_gvar_getter_t *getter,
+    rb_gvar_setter_t *setter)
+{
+    struct global_variable *gvar;
+    ID id;
+
+    if (!getter) getter = var_getter;
+    if (!setter) setter = var_setter;
+    else if (setter == (rb_gvar_setter_t *)-1) setter = readonly_setter;
+
+    id = global_id(name);
+    gvar = rb_global_entry(id)->var;
+    gvar->flags |= gv_vm_specific_storage;
+    gvar->data = (void*)vmkey;
+    gvar->getter = getter;
+    gvar->setter = setter;
+    gvar->marker = vm_marker;
 }
 
 static void
@@ -669,7 +725,11 @@ VALUE
 rb_gvar_get(struct global_entry *entry)
 {
     struct global_variable *var = entry->var;
-    return (*var->getter)(entry->id, var->data, var);
+    void *data = var->data;
+    if (var->flags & gv_vm_specific_storage) {
+	data = (void *)rb_vm_specific_ptr((int)data);
+    }
+    return (*var->getter)(entry->id, data, var);
 }
 
 struct trace_data {
@@ -702,10 +762,14 @@ rb_gvar_set(struct global_entry *entry, VALUE val)
 {
     struct trace_data trace;
     struct global_variable *var = entry->var;
+    void *data = var->data;
 
     if (rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't change global variable value");
-    (*var->setter)(val, entry->id, var->data, var);
+    if (var->flags & gv_vm_specific_storage) {
+	data = (void *)rb_vm_specific_ptr((int)data);
+    }
+    (*var->setter)(val, entry->id, data, var);
 
     if (var->trace && !var->block_trace) {
 	var->block_trace = 1;
@@ -811,8 +875,53 @@ rb_alias_variable(ID name1, ID name2)
     entry1->var = entry2->var;
 }
 
-static int special_generic_ivar = 0;
-static st_table *generic_iv_tbl;
+static int
+generic_iv_mark_entry(st_data_t key, st_data_t val, st_data_t arg)
+{
+    rb_mark_tbl((st_table *)val);
+    return ST_CONTINUE;
+}
+
+static void
+generic_iv_mark(void *ptr)
+{
+    st_foreach(ptr, generic_iv_mark_entry, 0);
+}
+
+static int
+generic_iv_mark_free(st_data_t key, st_data_t val, st_data_t arg)
+{
+    st_free_table((st_table *)val);
+    return ST_DELETE;
+}
+
+static void
+generic_iv_free(void *ptr)
+{
+    st_foreach(ptr, generic_iv_mark_free, 0);
+    st_free_table(ptr);
+}
+
+
+
+/* @shyouhei hack */
+#ifdef __GUNC__
+__attribute__((__always_inline__, __pure__, __warn_unused_results__))
+#endif
+static inline st_table* obtain_generic_iv_tbl(void);
+
+st_table*
+obtain_generic_iv_tbl(void)
+{
+    VALUE *tbl = rb_vm_specific_ptr(rb_vmkey_generic_iv_tbl);
+    if (!*tbl) {
+	return 0;
+    }
+    else {
+        return DATA_PTR(*tbl);
+    }
+}
+#define generic_iv_tbl (obtain_generic_iv_tbl())
 
 st_table*
 rb_generic_ivar_table(VALUE obj)
@@ -851,10 +960,10 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
 
     if (rb_special_const_p(obj)) {
 	if (rb_obj_frozen_p(obj)) rb_error_frozen("object");
-	special_generic_ivar = 1;
     }
     if (!generic_iv_tbl) {
-	generic_iv_tbl = st_init_numtable();
+	* rb_vm_specific_ptr(rb_vmkey_generic_iv_tbl) =
+	    Data_Wrap_Struct(0, generic_iv_mark, generic_iv_free, st_init_numtable());
     }
     if (!st_lookup(generic_iv_tbl, (st_data_t)obj, &data)) {
 	FL_SET(obj, FL_EXIVAR);
@@ -930,7 +1039,7 @@ void
 rb_mark_generic_ivar_tbl(void)
 {
     if (!generic_iv_tbl) return;
-    if (special_generic_ivar == 0) return;
+    if (generic_iv_tbl->num_entries == 0) return;
     st_foreach_safe(generic_iv_tbl, givar_i, 0);
 }
 

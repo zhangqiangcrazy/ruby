@@ -583,6 +583,7 @@ $(CONFIG_H): $(MKFILES) $(srcdir)/win32/Makefile.sub $(win_srcdir)/Makefile.sub
 #define STACK_GROW_DIRECTION -1
 !endif
 #define CANONICALIZATION_FOR_MATHN 1
+#define THREAD_SPECIFIC __declspec(thread)
 #define DEFAULT_KCODE KCODE_NONE
 #define LOAD_RELATIVE 1
 #define DLEXT ".so"

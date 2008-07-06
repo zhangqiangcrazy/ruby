@@ -75,11 +75,8 @@
  *   #=> [], [:b], [1], [:b, 1], [1, 2], [:b, 1, 2], 3
  *
  */
-VALUE rb_cEnumerator;
 static ID id_rewind, id_each;
 static VALUE sym_each;
-
-VALUE rb_eStopIteration;
 
 struct enumerator {
     VALUE obj;

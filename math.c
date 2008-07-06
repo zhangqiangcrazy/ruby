@@ -15,9 +15,6 @@
 
 #define numberof(array) (int)(sizeof(array) / sizeof((array)[0]))
 
-VALUE rb_mMath;
-VALUE rb_eMathDomainError;
-
 extern VALUE rb_to_float(VALUE val);
 #define Need_Float(x) do {if (TYPE(x) != T_FLOAT) {(x) = rb_to_float(x);}} while(0)
 #define Need_Float2(x,y) do {\

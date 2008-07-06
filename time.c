@@ -832,7 +832,6 @@ wv2timet(wideval_t w)
 }
 #define WV2TIMET(t) wv2timet(t)
 
-VALUE rb_cTime;
 static VALUE time_utc_offset _((VALUE));
 
 static int obj2int(VALUE obj);

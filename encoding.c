@@ -12,6 +12,7 @@
 #include "ruby/ruby.h"
 #include "ruby/encoding.h"
 #include "regenc.h"
+#include "private_object.h"
 #include <ctype.h>
 #ifndef NO_LOCALE_CHARMAP
 #ifdef __CYGWIN__
@@ -24,8 +25,6 @@
 #include "ruby/util.h"
 
 static ID id_encoding;
-VALUE rb_cEncoding;
-static VALUE rb_encoding_list;
 
 struct rb_encoding_entry {
     const char *name;

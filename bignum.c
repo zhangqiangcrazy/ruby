@@ -20,8 +20,6 @@
 #endif
 #include <assert.h>
 
-VALUE rb_cBignum;
-
 #if defined __MINGW32__
 #define USHORT _USHORT
 #endif

@@ -719,8 +719,8 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 	    goto reswitch;
 
 	  case 'd':
-	    vm->debug = Qtrue;
-	    vm->verbose = Qtrue;
+	    *ruby_vm_specific_ptr(vm, rb_vmkey_debug) = Qtrue;
+	    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
 	    s++;
 	    goto reswitch;
 
@@ -738,7 +738,7 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 	    ruby_show_version();
 	    opt->verbose = 1;
 	  case 'w':
-	    vm->verbose = Qtrue;
+	    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
 	    s++;
 	    goto reswitch;
 
@@ -755,13 +755,13 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 		}
 		switch (v) {
 		  case 0:
-		    vm->verbose = Qnil;
+		    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qnil;
 		    break;
 		  case 1:
-		    vm->verbose = Qfalse;
+		    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qfalse;
 		    break;
 		  default:
-		    vm->verbose = Qtrue;
+		    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
 		    break;
 		}
 	    }
@@ -975,8 +975,8 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 		opt->dump |= DUMP_BIT(copyright);
 	    }
 	    else if (strcmp("debug", s) == 0) {
-		vm->debug = Qtrue;
-		vm->verbose = Qtrue;
+		*ruby_vm_specific_ptr(vm, rb_vmkey_debug) = Qtrue;
+		*ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
             }
 	    else if (is_option_with_arg("enable", Qtrue, Qtrue)) {
 		ruby_each_words(s, enable_option, &opt->disable);
@@ -1026,7 +1026,7 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 	    }
 	    else if (strcmp("verbose", s) == 0) {
 		opt->verbose = 1;
-		vm->verbose = Qtrue;
+		*ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
 	    }
 	    else if (strcmp("yydebug", s) == 0) {
 		if (envopt) goto noenvopt_long;
@@ -1112,7 +1112,7 @@ opt_enc_index(VALUE enc_name)
     return i;
 }
 
-#define rb_progname (vm->progname)
+#define rb_progname (*ruby_vm_specific_ptr(vm, rb_vmkey_progname))
 VALUE rb_argv0;
 
 static VALUE
@@ -1488,7 +1488,6 @@ struct load_file_arg {
 static VALUE
 load_file_internal(VALUE arg)
 {
-    extern VALUE rb_stdin;
     struct load_file_arg *argp = (struct load_file_arg *)arg;
     rb_vm_t *vm = argp->vm;
     VALUE parser = argp->parser;
@@ -1757,7 +1756,7 @@ set_arg0(VALUE val, ID id, VALUE *var)
     }
 #endif
 
-    *var = rb_obj_freeze(rb_external_str_new(s, i));
+    *rb_vm_specific_ptr((int)var) = rb_obj_freeze(rb_external_str_new(s, i));
 }
 
 DEPRECATED(void ruby_script(const char *name));
@@ -1765,7 +1764,7 @@ void
 ruby_script(const char *name)
 {
     if (name) {
-	GET_VM()->progname = rb_obj_freeze(rb_external_str_new(name, strlen(name)));
+	*rb_vm_specific_ptr(rb_vmkey_progname) = rb_obj_freeze(rb_external_str_new(name, strlen(name)));
     }
 }
 
@@ -1821,15 +1820,15 @@ opt_W_getter(ID id, void *data)
 void
 ruby_vm_prog_init(rb_vm_t *vm)
 {
-    rb_define_hooked_variable("$VERBOSE", &vm->verbose, 0, verbose_setter);
-    rb_define_hooked_variable("$-v", &vm->verbose, 0, verbose_setter);
-    rb_define_hooked_variable("$-w", &vm->verbose, 0, verbose_setter);
-    rb_define_hooked_variable("$-W", &vm->verbose, opt_W_getter, 0);
-    rb_define_variable("$DEBUG", &vm->debug);
-    rb_define_variable("$-d", &vm->debug);
+    rb_define_vm_specific_variable("$VERBOSE", rb_vmkey_verbose, 0, verbose_setter);
+    rb_define_vm_specific_variable("$-v", rb_vmkey_verbose, 0, verbose_setter);
+    rb_define_vm_specific_variable("$-w", rb_vmkey_verbose, 0, verbose_setter);
+    rb_define_vm_specific_variable("$-W", rb_vmkey_verbose, opt_W_getter, 0);
+    rb_define_vm_specific_variable("$DEBUG", rb_vmkey_debug, 0, 0);
+    rb_define_vm_specific_variable("$-d", rb_vmkey_debug, 0, 0);
 
-    rb_define_hooked_variable("$0", &vm->progname, 0, set_arg0);
-    rb_define_hooked_variable("$PROGRAM_NAME", &vm->progname, 0, set_arg0);
+    rb_define_vm_specific_variable("$0", rb_vmkey_progname, 0, set_arg0);
+    rb_define_vm_specific_variable("$PROGRAM_NAME", rb_vmkey_progname, 0, set_arg0);
 
     rb_define_global_const("ARGV", rb_argv);
 }
@@ -1883,7 +1882,7 @@ ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
     VALUE iseq;
 
     if (argv[0]) {		/* for the time being */
-	vm->progname = rb_tainted_str_new2(argv[0]);
+	*ruby_vm_specific_ptr(vm, rb_vmkey_progname) = rb_tainted_str_new2(argv[0]);
     }
     return process_options(vm, argc, argv, cmdline_options_init(&opt));
 }
@@ -1893,7 +1892,7 @@ ruby_process_options(int argc, char **argv)
 {
     rb_vm_t *vm = GET_VM();
     VALUE result = ruby_vm_process_options(vm, argc, argv);
-    rb_argv0 = rb_str_new4(vm->progname);
+    rb_argv0 = rb_str_new4(*ruby_vm_specific_ptr(vm, rb_vmkey_progname));
     return (void *)result;
 }
 

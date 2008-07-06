@@ -20,8 +20,6 @@
 #define ONE INT2FIX(1)
 #define TWO INT2FIX(2)
 
-VALUE rb_cRational;
-
 static ID id_abs, id_cmp, id_convert, id_eqeq_p, id_expt, id_fdiv,
     id_floor, id_idiv, id_inspect, id_integer_p, id_negate, id_to_f,
     id_to_i, id_to_s, id_truncate;

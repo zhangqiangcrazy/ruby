@@ -121,13 +121,6 @@ extern void Init_File(void);
 #define open	rb_w32_uopen
 #endif
 
-VALUE rb_cIO;
-VALUE rb_eEOFError;
-VALUE rb_eIOError;
-VALUE rb_mWaitReadable;
-VALUE rb_mWaitWritable;
-
-VALUE rb_stdin, rb_stdout, rb_stderr;
 VALUE rb_deferr;		/* rescue VIM plugin */
 static VALUE orig_stdout, orig_stderr;
 
@@ -154,13 +147,16 @@ struct argf {
 };
 
 static int max_file_descriptor = NOFILE;
+static rb_thread_lock_t max_file_descriptor_lock;
 #define UPDATE_MAXFD(fd) \
     do { \
+	ruby_native_thread_lock(&max_file_descriptor_lock); \
         if (max_file_descriptor < (fd)) max_file_descriptor = (fd); \
+	ruby_native_thread_unlock(&max_file_descriptor_lock); \
     } while (0)
 
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
-#define ruby_vm_argf(vm) ((vm)->argf)
+#define ruby_vm_argf(vm) (*ruby_vm_specific_ptr(vm, rb_vmkey_argf))
 #define ARGF argf_of(ruby_vm_argf(GET_VM()))
 
 #ifdef _STDIO_USES_IOSTREAM  /* GNU libc */
@@ -4827,8 +4823,9 @@ rb_pipe(int *pipes)
         }
     }
     if (ret == 0) {
-        UPDATE_MAXFD(pipes[0]);
-        UPDATE_MAXFD(pipes[1]);
+	int larger_file_descriptor =
+	    pipes[0] > pipes[1] ? pipes[0] : pipes[1];
+        UPDATE_MAXFD(larger_file_descriptor);
     }
     return ret;
 }
@@ -8654,7 +8651,6 @@ rb_io_set_encoding(int argc, VALUE *argv, VALUE io)
 void
 rb_stdio_set_default_encoding(void)
 {
-    extern VALUE rb_stdin, rb_stdout, rb_stderr;
     VALUE val = Qnil;
 
     rb_io_set_encoding(1, &val, rb_stdin);
@@ -9592,15 +9588,15 @@ opt_i_set(VALUE val, ID id, VALUE *var)
 const char *
 ruby_vm_get_inplace_mode(rb_vm_t *vm)
 {
-    return argf_of(vm->argf).inplace;
+    return argf_of(ruby_vm_argf(vm)).inplace;
 }
 
 void
 ruby_vm_set_inplace_mode(rb_vm_t *vm, const char *suffix)
 {
-    if (argf_of(vm->argf).inplace) free(argf_of(vm->argf).inplace);
-    argf_of(vm->argf).inplace = 0;
-    if (suffix) argf_of(vm->argf).inplace = strdup(suffix);
+    if (argf_of(ruby_vm_argf(vm)).inplace) free(argf_of(ruby_vm_argf(vm)).inplace);
+    argf_of(ruby_vm_argf(vm)).inplace = 0;
+    if (suffix) argf_of(ruby_vm_argf(vm)).inplace = strdup(suffix);
 }
 
 /*
@@ -9632,7 +9628,7 @@ argf_argv_getter(ID id, VALUE *var)
 VALUE
 ruby_vm_get_argv(rb_vm_t *vm)
 {
-    return argf_of(vm->argf).argv;
+    return argf_of(ruby_vm_argf(vm)).argv;
 }
 
 VALUE
@@ -9806,7 +9802,7 @@ Init_IO(void)
 #define rb_intern(str) rb_intern_const(str)
 
     VALUE rb_cARGF;
-    VALUE *argfp = &GET_VM()->argf;
+    VALUE *argfp = &ruby_vm_argf(GET_VM());
 #ifdef __CYGWIN__
 #include <sys/cygwin.h>
     static struct __cygwin_perfile pf[] =
