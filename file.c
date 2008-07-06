@@ -259,11 +259,13 @@ stat_new_0(VALUE klass, struct stat *st)
     return TypedData_Wrap_Struct(klass, &stat_data_type, nst);
 }
 
-static VALUE
-stat_new(struct stat *st)
+VALUE
+rb_file_stat_new(struct stat *st)
 {
     return stat_new_0(rb_cStat, st);
 }
+
+#define stat_new rb_file_stat_new
 
 static struct stat*
 get_stat(VALUE self)
@@ -780,7 +782,7 @@ rb_stat_inspect(VALUE self)
     return str;
 }
 
-static int
+int
 rb_stat(VALUE file, struct stat *st)
 {
     VALUE tmp;
@@ -2221,27 +2223,22 @@ utime_failed(const char *path, const struct timespec *tsp, VALUE atime, VALUE mt
 
 #if defined(HAVE_UTIMES)
 
-static void
-utime_internal(const char *path, void *arg)
+int
+ruby_futimesat(int base, const char *path, struct timespec *tsp)
 {
-    struct utime_args *v = arg;
-    const struct timespec *tsp = v->tsp;
-    struct timeval tvbuf[2], *tvp = NULL;
+    struct timeval tvbuf[2], *tvp;
 
 #ifdef HAVE_UTIMENSAT
     static int try_utimensat = 1;
-
     if (try_utimensat) {
-        if (utimensat(AT_FDCWD, path, tsp, 0) < 0) {
-            if (errno == ENOSYS) {
-                try_utimensat = 0;
-                goto no_utimensat;
-            }
-            utime_failed(path, tsp, v->atime, v->mtime);
-        }
-        return;
+	int ret = utimensat(base, path, tsp, 0);
+	if (ret < 0 && errno == ENOSYS) {
+	    try_utimensat = 0;
+	    goto no_utimensat;
+	}
+	return ret;
     }
-no_utimensat:
+  no_utimensat:
 #endif
 
     if (tsp) {
@@ -2251,8 +2248,27 @@ no_utimensat:
         tvbuf[1].tv_usec = (int)(tsp[1].tv_nsec / 1000);
         tvp = tvbuf;
     }
-    if (utimes(path, tvp) < 0)
-	utime_failed(path, tsp, v->atime, v->mtime);
+    else {
+	tvp = 0;
+    }
+#ifdef AT_FDCWD
+    return futimesat(base, path, tvp);
+#else
+    return utimes(path, tvp);
+#endif
+}
+
+static void
+utime_internal(const char *path, void *arg)
+{
+#ifdef AT_FDCWD
+    const int fdcwd = AT_FDCWD;
+#else
+    const int fdcwd = 0;
+#endif
+    if (ruby_futimesat(fdcwd, path, arg) < 0) {
+	rb_sys_fail(path);
+    }
 }
 
 #else

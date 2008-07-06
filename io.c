@@ -4728,6 +4728,67 @@ rb_file_open(const char *fname, const char *modestr)
     return rb_file_open_internal(io_alloc(rb_cFile), rb_str_new_cstr(fname), modestr);
 }
 
+VALUE
+rb_openat(int argc, VALUE *argv, int base, const char *path)
+{
+    VALUE fname, vmode, perm, newio;
+    volatile VALUE full;
+    int flags = O_RDONLY, fmode = 0666, fd;
+    const char *fullpath;
+#ifdef AT_FDCWD
+    const char *name;
+#endif
+    rb_io_t *fptr;
+
+    rb_secure(2);
+    rb_scan_args(argc, argv, "12", &fname, &vmode, &perm);
+    FilePathValue(fname);
+
+    if (!NIL_P(vmode)) {
+	if (FIXNUM_P(vmode)) {
+	    flags = FIX2INT(vmode);
+	}
+	else {
+	    SafeStringValue(vmode);
+	    flags = rb_io_modestr_oflags(RSTRING_PTR(vmode));
+	}
+    }
+    if (!NIL_P(perm)) {
+	fmode = NUM2INT(perm);
+    }
+    newio = io_alloc(rb_cFile);
+    MakeOpenFile(newio, fptr);
+    fptr->mode = rb_io_oflags_fmode(flags);
+#ifdef AT_FDCWD
+    name = RSTRING_PTR(fname);
+#define RB_DO_OPENAT() ((base == -1) ?			\
+			open(fullpath, flags, fmode) :	\
+			openat(base, name, flags, fmode))
+#else
+#define RB_DO_OPENAT() open(fullpath, flags, fmode)
+#endif
+    full = fname = rb_file_expand_path(fname, rb_str_new2(path));
+    RBASIC(fname)->klass = 0;
+    OBJ_FREEZE(fname);
+    fullpath = RSTRING_PTR(fname);
+    if ((fd = RB_DO_OPENAT()) < 0) {
+	if (errno == EMFILE || errno == ENFILE) {
+	    rb_gc();
+	    fd = RB_DO_OPENAT();
+	}
+	if (fd < 0) {
+	    rb_sys_fail_path(fname);
+	}
+    }
+#undef RB_DO_OPENAT
+    fptr->fd = fd;
+    fptr->pathv = fname;
+    if (rb_block_given_p()) {
+	return rb_ensure(rb_yield, newio, io_close, newio);
+    }
+    return newio;
+}
+
 #if defined(__CYGWIN__) || !defined(HAVE_FORK)
 static struct pipe_list {
     rb_io_t *fptr;
