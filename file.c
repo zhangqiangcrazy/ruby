@@ -2424,6 +2424,35 @@ rb_file_s_symlink(VALUE klass, VALUE from, VALUE to)
 #endif
 
 #ifdef HAVE_READLINK
+char *
+ruby_readlink(const char *path, long *len)
+{
+    char *buf;
+    int size = 100;
+    int rv;
+ 
+    buf = xmalloc(size);
+    if (!buf) return 0;
+    while ((rv = readlink(path, buf, size)) == size
+#ifdef _AIX
+	    || (rv < 0 && errno == ERANGE) /* quirky behavior of GPFS */
+#endif
+	) {
+	size *= 2;
+	buf = xrealloc(buf, size);
+    }
+    if (rv < 0) {
+	xfree(buf);
+	return 0;
+    }
+    buf[rv] = '\0';
+    if (size > rv + 1) {
+	buf = xrealloc(buf, rv + 1);
+    }
+    *len = rv;
+    return buf;
+}
+
 /*
  *  call-seq:
  *     File.readlink(link_name)  ->  file_name
@@ -2439,30 +2468,16 @@ static VALUE
 rb_file_s_readlink(VALUE klass, VALUE path)
 {
     char *buf;
-    int size = 100;
-    ssize_t rv;
-    VALUE v;
+    long rv;
 
     rb_secure(2);
     FilePathValue(path);
     path = rb_str_encode_ospath(path);
-    buf = xmalloc(size);
-    while ((rv = readlink(RSTRING_PTR(path), buf, size)) == size
-#ifdef _AIX
-	    || (rv < 0 && errno == ERANGE) /* quirky behavior of GPFS */
-#endif
-	) {
-	size *= 2;
-	buf = xrealloc(buf, size);
+    buf = ruby_readlink(RSTRING_PTR(path), &rv);
+    if (!buf) {
+	rb_sys_fail(RSTRING_PTR(path));
     }
-    if (rv < 0) {
-	xfree(buf);
-	rb_sys_fail_path(path);
-    }
-    v = rb_tainted_str_new(buf, rv);
-    xfree(buf);
-
-    return v;
+    return rb_str_wrap(buf, rv);
 }
 #else
 #define rb_file_s_readlink rb_f_notimplement
@@ -2850,6 +2865,9 @@ rb_home_dir(const char *user, VALUE result)
     rb_enc_associate_index(result, rb_filesystem_encindex());
     return result;
 }
+
+#define is_absolute_path(path) ruby_absolute_path_p(path)
+int ruby_absolute_path_p(const char*);
 
 static VALUE
 file_expand_path(VALUE fname, VALUE dname, int abs_mode, VALUE result)
@@ -4911,7 +4929,7 @@ rb_file_const(const char *name, VALUE value)
 }
 
 int
-rb_is_absolute_path(const char *path)
+ruby_absolute_path_p(const char *path)
 {
 #ifdef DOSISH_DRIVE_LETTER
     if (has_drive_letter(path) && isdirsep(path[2])) return 1;

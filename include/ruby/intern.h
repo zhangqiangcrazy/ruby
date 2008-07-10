@@ -326,6 +326,7 @@ void rb_thread_wait_fd(int);
 int rb_thread_fd_writable(int);
 void rb_thread_fd_close(int);
 int rb_thread_alone(void);
+int ruby_system_alone(void);
 void rb_thread_polling(void);
 void rb_thread_sleep(int);
 void rb_thread_sleep_forever(void);
@@ -594,6 +595,7 @@ PRINTF_ARGS(VALUE rb_str_catf(VALUE, const char*, ...), 2, 3);
 VALUE rb_str_vcatf(VALUE, const char*, va_list);
 VALUE rb_str_format(int, const VALUE *, VALUE);
 /* string.c */
+VALUE rb_str_wrap(char*, long);
 VALUE rb_str_new(const char*, long);
 VALUE rb_str_new_cstr(const char*);
 VALUE rb_str_new2(const char*);
@@ -770,6 +772,7 @@ VALUE rb_barrier_new(void);
 VALUE rb_barrier_wait(VALUE self);
 VALUE rb_barrier_release(VALUE self);
 VALUE rb_barrier_destroy(VALUE self);
+char *rb_thread_cwd(void);
 /* time.c */
 VALUE rb_time_new(time_t, long);
 VALUE rb_time_nano_new(time_t, long);

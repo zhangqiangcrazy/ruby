@@ -23,6 +23,7 @@ extern "C" {
 
 /* VM type declaration */
 typedef struct rb_vm_struct ruby_vm_t;
+typedef struct rb_thread_struct ruby_thread_t;
 
 /* core API */
 VALUE *ruby_vm_verbose_ptr(ruby_vm_t *);
@@ -47,6 +48,8 @@ int rb_vm_key_count(void);
 int rb_vm_key_create(void);
 VALUE *ruby_vm_specific_ptr(ruby_vm_t *, int);
 VALUE *rb_vm_specific_ptr(int);
+
+char *ruby_thread_getcwd(ruby_thread_t *);
 
 #if defined(__cplusplus)
 #if 0

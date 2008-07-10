@@ -2096,6 +2096,10 @@ Init_VM(void)
 
 	rb_define_global_const("TOPLEVEL_BINDING", rb_binding_new());
 	vm_init_redefined_flag(vm);
+#if USE_OPENAT
+	th->cwd.fd = openat(AT_FDCWD, ".", O_RDONLY);
+#endif
+	th->cwd.path = ruby_getcwd();
     }
 }
 

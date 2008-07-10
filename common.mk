@@ -531,7 +531,7 @@ class.$(OBJEXT): {$(VPATH)}class.c $(RUBY_H_INCLUDES) \
 compar.$(OBJEXT): {$(VPATH)}compar.c $(RUBY_H_INCLUDES)
 complex.$(OBJEXT): {$(VPATH)}complex.c $(RUBY_H_INCLUDES)
 dir.$(OBJEXT): {$(VPATH)}dir.c $(RUBY_H_INCLUDES) {$(VPATH)}util.h \
-  $(ENCODING_H_INCLUDES)
+  $(ENCODING_H_INCLUDES) $(VM_H_INCLUDES)
 dln.$(OBJEXT): {$(VPATH)}dln.c {$(VPATH)}dln.h $(RUBY_H_INCLUDES)
 dln_find.$(OBJEXT): {$(VPATH)}dln_find.c {$(VPATH)}dln.h $(RUBY_H_INCLUDES)
 dmydln.$(OBJEXT): {$(VPATH)}dmydln.c dln.$(OBJEXT)

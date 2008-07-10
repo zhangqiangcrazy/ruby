@@ -4490,6 +4490,11 @@ rb_io_extract_modeenc(VALUE *vmode_p, VALUE *vperm_p, VALUE opthash,
 }
 
 struct sysopen_struct {
+#if USE_OPENAT
+    int base;
+#else
+    VALUE fullpath;
+#endif
     VALUE fname;
     int oflags;
     mode_t perm;
@@ -4500,7 +4505,33 @@ sysopen_func(void *ptr)
 {
     const struct sysopen_struct *data = ptr;
     const char *fname = RSTRING_PTR(data->fname);
+#if USE_OPENAT
+    return (VALUE)openat(data->base, fname, data->oflags, data->perm);
+#else
     return (VALUE)open(fname, data->oflags, data->perm);
+#endif
+}
+
+static void
+rb_sysopen_prepare(struct sysopen_struct *data, VALUE fname, int oflags, mode_t perm)
+{
+#ifdef O_BINARY
+    oflags |= O_BINARY;
+#endif
+
+#if USE_OPENAT
+    data->base = GET_THREAD()->cwd.fd;
+#else
+    if (ruby_absolute_path_p(RSTRING_PTR(fname))) {
+	data->base = Qnil;
+    }
+    else {
+	data->base = fname = rb_file_expand_path(fname, Qnil);
+    }
+#endif
+    data->fname = rb_str_encode_ospath(fname);
+    data->oflags = oflags;
+    data->perm = perm;
 }
 
 static inline int
@@ -4515,13 +4546,7 @@ rb_sysopen(VALUE fname, int oflags, mode_t perm)
     int fd;
     struct sysopen_struct data;
 
-#ifdef O_BINARY
-    oflags |= O_BINARY;
-#endif
-    data.fname = rb_str_encode_ospath(fname);
-    data.oflags = oflags;
-    data.perm = perm;
-
+    rb_sysopen_prepare(&data, fname, oflags, perm); 
     fd = rb_sysopen_internal(&data);
     if (fd < 0) {
 	if (errno == EMFILE || errno == ENFILE) {
