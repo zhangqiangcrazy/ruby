@@ -20,6 +20,9 @@
 #ifdef HAVE_UNISTD_H
 #include <unistd.h>
 #endif
+#ifdef HAVE_FCNTL_H
+#include <fcntl.h>
+#endif
 
 #if defined HAVE_DIRENT_H && !defined _WIN32
 # include <dirent.h>
@@ -2372,7 +2375,7 @@ rb_dir_mkdir(int argc, VALUE *argv, VALUE dir)
     check_dirname(&path);
     GetDIR(dir, dp);
 #if USE_OPENAT
-    if (mkdirat(dirfd(dp), RSTRING_PTR(path), mode) == -1) {
+    if (mkdirat(dirfd(dp->dir), RSTRING_PTR(path), mode) == -1) {
 	preserving_errno(fullpath = to_fullpath(&path, dp->path));
 	rb_sys_fail(fullpath);
     }
@@ -2396,7 +2399,7 @@ rb_dir_unlink(VALUE dir, VALUE path)
     check_dirname(&path);
     GetDIR(dir, dp);
 #if USE_OPENAT
-    if (unlinkat(dirfd(dp), RSTRING_PTR(path), 0) == -1) {
+    if (unlinkat(dirfd(dp->dir), RSTRING_PTR(path), 0) == -1) {
 	preserving_errno(fullpath = to_fullpath(&path, dp->path));
 	rb_sys_fail(fullpath);
     }
@@ -2441,7 +2444,7 @@ rb_dir_rmdir(VALUE dir, VALUE path)
     check_dirname(&path);
     GetDIR(dir, dp);
 #if USE_OPENAT
-    if (unlinkat(dirfd(dp), RSTRING_PTR(path), AT_REMOVEDIR) == -1) {
+    if (unlinkat(dirfd(dp->dir), RSTRING_PTR(path), AT_REMOVEDIR) == -1) {
 	preserving_errno(fullpath = to_fullpath(&path, dp->path));
 	rb_sys_fail(fullpath);
     }
