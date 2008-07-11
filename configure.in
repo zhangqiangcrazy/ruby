@@ -332,7 +332,9 @@ AS_CASE(["$target_os"],
     : ${enable_shared=yes}
     ],
 [aix*],     [AC_CHECK_TOOL(NM, nm, /usr/ccs/bin/nm, /usr/ccs/bin:$PATH)],
-[hiuxmpp*], [AC_DEFINE(__HIUX_MPP__)])    # by TOYODA Eizi <toyoda@npd.kishou.go.jp>
+[hiuxmpp*], [AC_DEFINE(__HIUX_MPP__)],    # by TOYODA Eizi <toyoda@npd.kishou.go.jp>
+# else
+            [AC_CHECK_TOOL(NM, nm)])
 
 AC_PROG_LN_S
 AC_PROG_MAKE_SET
