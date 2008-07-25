@@ -165,6 +165,8 @@ void rb_io_read_check(rb_io_t*);
 int rb_io_read_pending(rb_io_t*);
 DEPRECATED(void rb_read_check(FILE*));
 
+int ruby_absolute_path_p(const char*);
+
 #if defined(__cplusplus)
 #if 0
 { /* satisfy cc-mode */

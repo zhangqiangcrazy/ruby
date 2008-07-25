@@ -4523,10 +4523,10 @@ rb_sysopen_prepare(struct sysopen_struct *data, VALUE fname, int oflags, mode_t 
     data->base = GET_THREAD()->cwd.fd;
 #else
     if (ruby_absolute_path_p(RSTRING_PTR(fname))) {
-	data->base = Qnil;
+	data->fullpath = Qnil;
     }
     else {
-	data->base = fname = rb_file_expand_path(fname, Qnil);
+	data->fullpath = fname = rb_file_expand_path(fname, Qnil);
     }
 #endif
     data->fname = rb_str_encode_ospath(fname);

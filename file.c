@@ -2867,7 +2867,6 @@ rb_home_dir(const char *user, VALUE result)
 }
 
 #define is_absolute_path(path) ruby_absolute_path_p(path)
-int ruby_absolute_path_p(const char*);
 
 static VALUE
 file_expand_path(VALUE fname, VALUE dname, int abs_mode, VALUE result)
