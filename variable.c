@@ -454,7 +454,7 @@ var_marker(VALUE *var)
 static void
 vm_marker(VALUE *var)
 {
-    rb_gc_mark(*rb_vm_specific_ptr((int)var));
+    rb_gc_mark(*rb_vm_specific_ptr((int)(VALUE)var));
 }
 
 void
@@ -530,8 +530,8 @@ rb_define_hooked_variable(
     gvar = rb_global_entry(id)->var;
     if (vmkey != -1) {
 	gvar->flags |= gv_vm_specific_storage;
-	gvar->data = (void*)vmkey;
-        gvar->marker = vm_marker;
+	gvar->data = (void*)(VALUE)vmkey;
+	gvar->marker = vm_marker;
     }
     else {
 	gvar->data = (void*)var;
@@ -583,7 +583,7 @@ rb_define_vm_specific_variable(
     id = global_id(name);
     gvar = rb_global_entry(id)->var;
     gvar->flags |= gv_vm_specific_storage;
-    gvar->data = (void*)vmkey;
+    gvar->data = (void*)(VALUE)vmkey;
     gvar->getter = getter;
     gvar->setter = setter;
     gvar->marker = vm_marker;
@@ -727,7 +727,7 @@ rb_gvar_get(struct global_entry *entry)
     struct global_variable *var = entry->var;
     void *data = var->data;
     if (var->flags & gv_vm_specific_storage) {
-	data = (void *)rb_vm_specific_ptr((int)data);
+	data = rb_vm_specific_ptr((int)(VALUE)data);
     }
     return (*var->getter)(entry->id, data, var);
 }
@@ -767,7 +767,7 @@ rb_gvar_set(struct global_entry *entry, VALUE val)
     if (rb_safe_level() >= 4)
 	rb_raise(rb_eSecurityError, "Insecure: can't change global variable value");
     if (var->flags & gv_vm_specific_storage) {
-	data = (void *)rb_vm_specific_ptr((int)data);
+	data = rb_vm_specific_ptr((int)(VALUE)data);
     }
     (*var->setter)(val, entry->id, data, var);
 

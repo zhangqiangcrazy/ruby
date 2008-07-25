@@ -846,7 +846,7 @@ rb_iseq_disasm_insn(VALUE ret, VALUE *iseq, size_t pos,
     }
     else {
 	rb_str_catf(str, "%04"PRIdSIZE" %-16.*s ", pos,
-		    (int)strcspn(insn_name_buff, "_"), insn_name_buff);
+		    strcspn(insn_name_buff, "_"), insn_name_buff);
     }
 
     for (j = 0; types[j]; j++) {
