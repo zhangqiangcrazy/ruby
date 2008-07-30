@@ -3341,8 +3341,8 @@ rb_mutex_unlock_all(mutex_t *mutexes, rb_thread_t *th)
 
     while (mutexes) {
 	mutex = mutexes;
-	/* rb_warn("mutex #<%p> remains to be locked by terminated thread",
-		mutexes); */
+	rb_warn("mutex #<%p> remains to be locked by terminated thread",
+		mutexes);
 	mutexes = mutex->next_mutex;
 	err = mutex_unlock(mutex, th);
 	if (err) rb_bug("invalid keeping_mutexes: %s", err);
