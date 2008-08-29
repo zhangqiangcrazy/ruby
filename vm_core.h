@@ -279,6 +279,29 @@ struct rb_objspace;
 void rb_objspace_free(struct rb_objspace *);
 #endif
 
+#if defined(_WIN32)
+typedef CRITICAL_SECTION rb_thread_lock_t;
+#elif defined(HAVE_PTHREAD_H)
+typedef pthread_mutex_t rb_thread_lock_t;
+#endif
+
+#ifdef _WIN32
+typedef LONG rb_atomic_t;
+
+# define ATOMIC_TEST(var) InterlockedExchange(&(var), 0)
+# define ATOMIC_SET(var, val) InterlockedExchange(&(var), (val))
+# define ATOMIC_INC(var) InterlockedIncrement(&(var))
+# define ATOMIC_DEC(var) InterlockedDecrement(&(var))
+
+#else
+typedef int rb_atomic_t;
+
+# define ATOMIC_TEST(var) ((var) ? ((var) = 0, 1) : 0)
+# define ATOMIC_SET(var, val) ((var) = (val))
+# define ATOMIC_INC(var) (++(var))
+# define ATOMIC_DEC(var) (--(var))
+#endif
+
 typedef struct rb_vm_struct {
     VALUE self;
 
@@ -322,6 +345,12 @@ typedef struct rb_vm_struct {
 	VALUE cmd;
 	int safe;
     } trap_list[RUBY_NSIG];
+
+    struct {
+	rb_thread_lock_t lock;
+	rb_atomic_t buff[RUBY_NSIG];
+	rb_atomic_t buffered_size;
+    } signal;
 
     /* hook */
     rb_event_hook_t *event_hooks;

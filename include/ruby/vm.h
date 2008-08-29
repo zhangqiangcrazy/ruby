@@ -23,7 +23,7 @@ extern "C" {
 
 #if defined(_WIN32)
 /* Win32 thread */
-typedef CRITICAL_SECTION rb_thread_lock_t;
+typedef CRITICAL_SECTION ruby_thread_lock_t;
 #define RB_THREAD_LOCK_INITIALIZER {}
 int ruby_native_thread_lock(rb_thread_lock_t*);
 int ruby_native_thread_unlock(rb_thread_lock_t*);
@@ -32,11 +32,15 @@ int ruby_native_thread_yield(void);
 #elif defined(HAVE_PTHREAD_H)
 /* pthread */
 #include <pthread.h>
-typedef pthread_mutex_t rb_thread_lock_t;
+typedef pthread_mutex_t ruby_thread_lock_t;
 #define RB_THREAD_LOCK_INITIALIZER PTHREAD_MUTEX_INITIALIZER
 #define ruby_native_thread_lock(lock) pthread_mutex_lock(lock)
 #define ruby_native_thread_unlock(lock) pthread_mutex_unlock(lock)
-#define ruby_native_thread_yield() sched_yield()
+#ifdef HAVE_SCHED_YIELD
+#define ruby_native_thread_yield() (void)sched_yield()
+#else
+#define ruby_native_thread_yield() ((void)0)
+#endif
 
 #endif
 
@@ -45,6 +49,10 @@ typedef struct rb_vm_struct ruby_vm_t;
 typedef struct rb_thread_struct ruby_thread_t;
 
 /* core API */
+void ruby_native_thread_lock_initialize(ruby_thread_lock_t *);
+void ruby_native_thread_lock_destroy(ruby_thread_lock_t *);
+void ruby_vm_foreach(int (*)(ruby_vm_t *, void *), void *); /* returning false stops iteration */
+
 VALUE *ruby_vm_verbose_ptr(ruby_vm_t *);
 VALUE *ruby_vm_debug_ptr(ruby_vm_t *);
 

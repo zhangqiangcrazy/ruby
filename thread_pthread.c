@@ -20,8 +20,6 @@
 static void native_mutex_lock(pthread_mutex_t *lock);
 static void native_mutex_unlock(pthread_mutex_t *lock);
 static int native_mutex_trylock(pthread_mutex_t *lock);
-static void native_mutex_initialize(pthread_mutex_t *lock);
-static void native_mutex_destroy(pthread_mutex_t *lock);
 
 static void native_cond_signal(pthread_cond_t *cond);
 static void native_cond_broadcast(pthread_cond_t *cond);
@@ -62,8 +60,8 @@ native_mutex_trylock(pthread_mutex_t *lock)
     return 0;
 }
 
-static void
-native_mutex_initialize(pthread_mutex_t *lock)
+void
+ruby_native_thread_lock_initialize(pthread_mutex_t *lock)
 {
     int r = pthread_mutex_init(lock, 0);
     if (r != 0) {
@@ -76,8 +74,8 @@ native_mutex_initialize(pthread_mutex_t *lock)
 	native_mutex_initialize(lock), \
 	native_mutex_lock(lock))
 
-static void
-native_mutex_destroy(pthread_mutex_t *lock)
+void
+ruby_native_thread_lock_destroy(pthread_mutex_t *lock)
 {
     int r = pthread_mutex_destroy(lock);
     if (r != 0) {

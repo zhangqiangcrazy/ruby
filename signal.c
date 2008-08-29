@@ -17,23 +17,6 @@
 #include <stdio.h>
 #include <errno.h>
 
-#ifdef _WIN32
-typedef LONG rb_atomic_t;
-
-# define ATOMIC_TEST(var) InterlockedExchange(&(var), 0)
-# define ATOMIC_SET(var, val) InterlockedExchange(&(var), (val))
-# define ATOMIC_INC(var) InterlockedIncrement(&(var))
-# define ATOMIC_DEC(var) InterlockedDecrement(&(var))
-
-#else
-typedef int rb_atomic_t;
-
-# define ATOMIC_TEST(var) ((var) ? ((var) = 0, 1) : 0)
-# define ATOMIC_SET(var, val) ((var) = (val))
-# define ATOMIC_INC(var) (++(var))
-# define ATOMIC_DEC(var) (--(var))
-#endif
-
 #if defined(__BEOS__) || defined(__HAIKU__)
 #undef SIGBUS
 #endif
@@ -511,11 +494,19 @@ ruby_nativethread_signal(int signum, sighandler_t handler)
 #endif
 #endif
 
+int ruby_vm_send_signal(rb_vm_t *, int);
+
+static int
+signal_vm(rb_vm_t *vm, void *sig)
+{
+    ruby_vm_send_signal(vm, (int)sig);
+    return Qtrue;
+}
+
 static RETSIGTYPE
 sighandler(int sig)
 {
-    ATOMIC_INC(signal_buff.cnt[sig]);
-    ATOMIC_INC(signal_buff.size);
+    ruby_vm_foreach(signal_vm, (void *)sig);
 #if !defined(BSD_SIGNAL) && !defined(POSIX_SIGNAL)
     ruby_signal(sig, sighandler);
 #endif
@@ -559,26 +550,6 @@ rb_enable_interrupt(void)
     sigemptyset(&mask);
     pthread_sigmask(SIG_SETMASK, &mask, NULL);
 #endif
-}
-
-int
-rb_get_next_signal(void)
-{
-    int i, sig = 0;
-
-    for (i=1; i<RUBY_NSIG; i++) {
-	if (signal_buff.cnt[i] > 0) {
-	    rb_disable_interrupt();
-	    {
-		ATOMIC_DEC(signal_buff.cnt[i]);
-		ATOMIC_DEC(signal_buff.size);
-	    }
-	    rb_enable_interrupt();
-	    sig = i;
-	    break;
-	}
-    }
-    return sig;
 }
 
 #ifdef SIGBUS
