@@ -569,10 +569,11 @@ thread_create_core(VALUE thval, VALUE args, VALUE (*fn)(ANYARGS))
 
     /* kick thread */
     st_insert(th->vm->living_threads, thval, (st_data_t) th->thread_id);
-#if USE_OPENAT
-    th->cwd.fd = openat(GET_THREAD()->cwd.fd, ".", O_RDONLY);
+#ifdef HAVE_FCHDIR
+    th->cwd.fd = ruby_dirfd(".");
+#else
+    th->cwd.path = rb_str_new_shared(GET_THREAD()->cwd.path);
 #endif
-    th->cwd.path = strdup(GET_THREAD()->cwd.path);
     err = native_thread_create(th);
     if (err) {
 	st_delete_wrap(th->vm->living_threads, th->self);
@@ -4256,19 +4257,14 @@ char *
 ruby_thread_getcwd(rb_thread_t *th)
 {
     char *ruby_sys_getcwd(void);
-    char *cwd;
-#if USE_OPENAT && defined HAVE_READLINK
-    extern char *ruby_readlink(const char *, long *);
-    static const char fdpat[] = "/proc/self/fd/%d";
-    char fdname[sizeof(fdpat) + sizeof(int) * 5 / 2];
-    long len;
-
-    snprintf(fdname, sizeof(fdname), fdpat, th->cwd.fd);
-    cwd = ruby_readlink(fdname, &len);
+#if HAVE_FCHDIR
+    extern char * ruby_fd_getcwd(int fd);
+    char *cwd = ruby_fd_getcwd(th->cwd.fd);
     if (cwd) return cwd;
+#else
+    if (RTEST(th->cwd.path))
+	return ruby_strdup(RSTRING_PTR(th->cwd.path));
 #endif
-    if ((cwd = th->cwd.path) != 0)
-	return ruby_strdup(cwd);
     return ruby_sys_getcwd();
 }
 
