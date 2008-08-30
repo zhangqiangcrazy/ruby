@@ -1288,6 +1288,7 @@ rb_queue_shift(rb_queue_t *que, void **value)
     ruby_native_thread_unlock(&que->lock);
     if (!e) return 0;
     *value = e->value;
+    free(e);
     return Qtrue;
 }
 
