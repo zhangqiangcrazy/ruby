@@ -2674,12 +2674,36 @@ rb_gc_save_machine_context(rb_thread_t *th)
  *
  */
 
-int ruby_vm_get_next_signal(rb_vm_t *vm);
+int rb_get_next_signal(void);
+
+static int
+vm_set_timer_interrupt(rb_vm_t *vm, void *dummy)
+{
+    RUBY_VM_SET_TIMER_INTERRUPT(vm->running_thread);
+    return TRUE;
+}
+
+static inlie int
+ruby_vm_get_next_signal(rb_vm_t *vm)
+{
+    int i, sig = 0;
+
+    ruby_native_thread_lock(&vm->signal.lock);
+    for (i = 1; i < RUBY_NSIG; i++) {
+	if (vm->signal.buff[i] > 0) {
+	    ATOMIC_DEC(vm->signal.buff[i]);
+	    ATOMIC_DEC(vm->signal.buffered_size);
+	    sig = i;
+	    break;
+	}
+    }
+    ruby_native_thread_unlock(&vm->signal.lock);
+    return sig;
+}
 
 void
 rb_threadptr_check_signal(rb_thread_t *mth)
 {
-    int sig;
     rb_vm_t *vm = mth->vm;
     if (vm->signal.buffered_size && mth->exec_signal == 0) {
 	enum rb_thread_status prev_status = mth->status;
@@ -2694,15 +2718,26 @@ rb_threadptr_check_signal(rb_thread_t *mth)
 }
 
 static int
-vm_timer_thread_function(rb_vm_t *vm, void *arg)
+vm_send_signal(rb_vm_t *vm, void *sig)
 {
-    /* for time slice */
-    RUBY_VM_SET_TIMER_INTERRUPT(vm->running_thread);
-
-    /* check signal */
-    rb_threadptr_check_signal(vm->main_thread);
+    if (vm->main_thread->exec_signal == 0) {
+	rb_thread_t *mth = vm->main_thread;
+	enum rb_thread_status prev_status = mth->status;
+	mth->exec_signal = (VALUE)sig;
+	thread_debug("main_thread: %s, sig: %d\n",
+		     thread_status_name(prev_status),
+		     vm->main_thread->exec_signal);
+	if (mth->status != THREAD_KILLED) mth->status = THREAD_RUNNABLE;
+	rb_threadptr_interrupt(mth);
+	mth->status = prev_status;
+    }
+    return TRUE;
+}
 
 #if 0
+static int
+vm_prove_profile(rb_vm_t *vm, void *sig)
+{
     /* prove profiler */
     if (vm->prove_profile.enable) {
 	rb_thread_t *th = vm->running_thread;
@@ -2711,15 +2746,26 @@ vm_timer_thread_function(rb_vm_t *vm, void *arg)
 	    /* GC prove profiling */
 	}
     }
-#endif
-
     return Qtrue;
 }
+#endif
 
 static void
 timer_thread_function(void *arg)
 {
-    ruby_vm_foreach(vm_timer_thread_function, arg);
+    int sig;
+
+    /* for time slice */
+    ruby_vm_foreach(vm_set_timer_interrupt, 0);
+
+    /* check signal */
+    while ((sig = rb_get_next_signal()) > 0) {
+	ruby_vm_foreach(vm_send_signal, (void *)(VALUE)sig);
+    }
+
+#if 0
+    ruby_vm_foreach(vm_prove_profile, 0);
+#endif
 }
 
 void

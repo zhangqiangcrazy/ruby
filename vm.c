@@ -1633,7 +1633,6 @@ vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
-    ruby_native_thread_lock_initialize(&vm->signal.lock);
     vm->objspace = rb_objspace_alloc();
     vm->src_encoding_index = -1;
     vm->global_state_version = 1;
@@ -1645,28 +1644,6 @@ int
 ruby_vm_send_signal(rb_vm_t *vm, int sig)
 {
     if (sig <= 0 || sig >= RUBY_NSIG) return -1;
-    ruby_native_thread_lock(&vm->signal.lock);
-    ATOMIC_INC(vm->signal.buff[sig]);
-    ATOMIC_INC(vm->signal.buffered_size);
-    ruby_native_thread_unlock(&vm->signal.lock);
-    return sig;
-}
-
-int
-ruby_vm_get_next_signal(rb_vm_t *vm)
-{
-    int i, sig = 0;
-
-    ruby_native_thread_lock(&vm->signal.lock);
-    for (i = 1; i < RUBY_NSIG; i++) {
-	if (vm->signal.buff[i] > 0) {
-	    ATOMIC_DEC(vm->signal.buff[i]);
-	    ATOMIC_DEC(vm->signal.buffered_size);
-	    sig = i;
-	    break;
-	}
-    }
-    ruby_native_thread_unlock(&vm->signal.lock);
     return sig;
 }
 
