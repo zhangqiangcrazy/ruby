@@ -279,12 +279,6 @@ struct rb_objspace;
 void rb_objspace_free(struct rb_objspace *);
 #endif
 
-#if defined(_WIN32)
-typedef CRITICAL_SECTION rb_thread_lock_t;
-#elif defined(HAVE_PTHREAD_H)
-typedef pthread_mutex_t rb_thread_lock_t;
-#endif
-
 typedef struct rb_vm_struct {
     VALUE self;
 
@@ -429,7 +423,7 @@ void rb_queue_destroy(rb_queue_t *);
 int rb_queue_push(rb_queue_t *, void *);
 int rb_queue_shift(rb_queue_t *, void **);
 
-typedef struct rb_thread_struct
+struct rb_thread_struct
 {
     VALUE self;
     rb_vm_t *vm;
@@ -547,7 +541,9 @@ typedef struct rb_thread_struct
 #ifdef USE_SIGALTSTACK
     void *altstack;
 #endif
-} rb_thread_t;
+};
+
+typedef struct rb_thread_struct rb_thread_t;
 
 /* iseq.c */
 VALUE rb_iseq_new(NODE*, VALUE, VALUE, VALUE, VALUE, VALUE);

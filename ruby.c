@@ -556,7 +556,7 @@ process_sflag(rb_vm_t *vm, int *sflag)
 
 NODE *rb_parser_append_print(VALUE, NODE *);
 NODE *rb_parser_while_loop(VALUE, NODE *, int, int);
-static long proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, int envopt);
+static int proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, int envopt);
 
 static void
 moreswitches(rb_vm_t *vm, const char *s, struct cmdline_options *opt, int envopt)
@@ -685,8 +685,11 @@ set_option_encoding_once(const char *type, VALUE *name, const char *e, long elen
 #define set_source_encoding_once(opt, e, elen) \
     set_option_encoding_once("source", &opt->src.enc.name, e, elen)
 
-static long
-proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, int envopt)
+#define RUBY_VM_OBJECT(vm, name) \
+  (*((VALUE *)ruby_vm_specific_ptr(vm, rb_vmkey_##name)))
+
+static int
+proc_options(rb_vm_t *vm, int argc, char **argv, struct cmdline_options *opt, int envopt)
 {
     long n, argc0 = argc;
     const char *s;
@@ -719,8 +722,8 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 	    goto reswitch;
 
 	  case 'd':
-	    *ruby_vm_specific_ptr(vm, rb_vmkey_debug) = Qtrue;
-	    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+	    RUBY_VM_OBJECT(vm, debug) = Qtrue;
+	    RUBY_VM_OBJECT(vm, verbose) = Qtrue;
 	    s++;
 	    goto reswitch;
 
@@ -738,7 +741,7 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 	    ruby_show_version();
 	    opt->verbose = 1;
 	  case 'w':
-	    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+	    RUBY_VM_OBJECT(vm, verbose) = Qtrue;
 	    s++;
 	    goto reswitch;
 
@@ -755,13 +758,13 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 		}
 		switch (v) {
 		  case 0:
-		    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qnil;
+		    RUBY_VM_OBJECT(vm, verbose) = Qnil;
 		    break;
 		  case 1:
-		    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qfalse;
+		    RUBY_VM_OBJECT(vm, verbose) = Qfalse;
 		    break;
 		  default:
-		    *ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+		    RUBY_VM_OBJECT(vm, verbose) = Qtrue;
 		    break;
 		}
 	    }
@@ -975,8 +978,8 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 		opt->dump |= DUMP_BIT(copyright);
 	    }
 	    else if (strcmp("debug", s) == 0) {
-		*ruby_vm_specific_ptr(vm, rb_vmkey_debug) = Qtrue;
-		*ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+		RUBY_VM_OBJECT(vm, debug) = Qtrue;
+		RUBY_VM_OBJECT(vm, verbose) = Qtrue;
             }
 	    else if (is_option_with_arg("enable", Qtrue, Qtrue)) {
 		ruby_each_words(s, enable_option, &opt->disable);
@@ -1026,7 +1029,7 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct cmdline_options *opt, i
 	    }
 	    else if (strcmp("verbose", s) == 0) {
 		opt->verbose = 1;
-		*ruby_vm_specific_ptr(vm, rb_vmkey_verbose) = Qtrue;
+		RUBY_VM_OBJECT(vm, verbose) = Qtrue;
 	    }
 	    else if (strcmp("yydebug", s) == 0) {
 		if (envopt) goto noenvopt_long;
@@ -1112,7 +1115,7 @@ opt_enc_index(VALUE enc_name)
     return i;
 }
 
-#define rb_progname (*ruby_vm_specific_ptr(vm, rb_vmkey_progname))
+#define rb_progname (RUBY_VM_OBJECT(vm, progname))
 VALUE rb_argv0;
 
 static VALUE
@@ -1880,7 +1883,7 @@ ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
     VALUE iseq;
 
     if (argv[0]) {		/* for the time being */
-	*ruby_vm_specific_ptr(vm, rb_vmkey_progname) = rb_tainted_str_new2(argv[0]);
+	RUBY_VM_OBJECT(vm, progname) = rb_tainted_str_new2(argv[0]);
     }
     return process_options(vm, argc, argv, cmdline_options_init(&opt));
 }
@@ -1890,7 +1893,7 @@ ruby_process_options(int argc, char **argv)
 {
     rb_vm_t *vm = GET_VM();
     VALUE result = ruby_vm_process_options(vm, argc, argv);
-    rb_argv0 = rb_str_new4(*ruby_vm_specific_ptr(vm, rb_vmkey_progname));
+    rb_argv0 = rb_str_new4(RUBY_VM_OBJECT(vm, progname));
     return (void *)result;
 }
 

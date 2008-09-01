@@ -69,33 +69,6 @@ ruby_init(void)
 
 extern void rb_clear_trace_func(void);
 
-VALUE
-ruby_vm_parse_options(rb_vm_t *vm, int argc, char **argv)
-{
-    int state;
-    VALUE code = 0;
-
-    ruby_init_stack((void *)&code);
-    PUSH_TAG();
-    if ((state = EXEC_TAG()) == 0) {
-	SAVE_ROOT_JMPBUF(vm->main_thread,
-			 code = ruby_vm_process_options(vm, argc, argv));
-    }
-    else {
-	rb_vm_clear_trace_func(vm);
-	state = error_handle(state);
-	code = INT2FIX(state);
-    }
-    POP_TAG();
-    return code;
-}
-
-void *
-ruby_options(int argc, char **argv)
-{
-    return (void *)ruby_vm_parse_options(GET_VM(), argc, argv);
-}
-
 static void
 ruby_finalize_0(rb_vm_t *vm)
 {
@@ -212,69 +185,10 @@ ruby_cleanup(int ex)
     return ruby_vm_cleanup(GET_VM(), ex);
 }
 
-static int
-th_exec_iseq(rb_thread_t *th, VALUE iseq, const char *file)
-{
-    int state;
-
-    if (!iseq) return 0;
-
-    PUSH_TAG();
-    if ((state = EXEC_TAG()) == 0) {
-	SAVE_ROOT_JMPBUF(th, {
-	    th->base_block = 0;
-	    rb_iseq_eval_main(iseq);
-	});
-    }
-    POP_TAG();
-    return state;
-}
-
 void
 ruby_stop(int ex)
 {
     exit(ruby_cleanup(ex));
-}
-
-int
-ruby_executable_node(void *n, int *status)
-{
-    VALUE v = (VALUE)n;
-    int s;
-
-    switch (v) {
-      case Qtrue:  s = EXIT_SUCCESS; break;
-      case Qfalse: s = EXIT_FAILURE; break;
-      default:
-	if (!FIXNUM_P(v)) return TRUE;
-	s = FIX2INT(v);
-    }
-    if (status) *status = s;
-    return FALSE;
-}
-
-int
-ruby_vm_run(rb_vm_t *vm, VALUE v)
-{
-    int status;
-    if (!ruby_executable_node((void *)v, &status)) {
-	ruby_cleanup(0);
-	return status;
-    }
-    return ruby_vm_cleanup(vm, th_exec_iseq(vm->main_thread, v, 0));
-}
-
-int
-ruby_run_node(void *n)
-{
-    return ruby_vm_run(GET_VM(), (VALUE)n);
-}
-
-int
-ruby_exec_node(void *n)
-{
-    ruby_init_stack((void *)&n);
-    return th_exec_iseq(GET_THREAD(), (VALUE)n, 0);
 }
 
 /*

@@ -1458,73 +1458,6 @@ rb_vm_call_cfunc(VALUE recv, VALUE (*func)(VALUE), VALUE arg,
 
 /* vm */
 
-static struct {
-    rb_thread_lock_t lock;
-    st_table *list;
-    rb_vm_t *main;
-} vm_manager = {RB_THREAD_LOCK_INITIALIZER};
-
-static void
-vm_add(rb_vm_t *vm)
-{
-    ruby_native_thread_lock(&vm_manager.lock);
-    st_insert(vm_manager.list, (st_data_t)vm, 0);
-    ruby_native_thread_unlock(&vm_manager.lock);
-}
-
-static void
-vm_del(rb_vm_t *vm)
-{
-    st_data_t key = (st_data_t)vm, val = 0;
-    ruby_native_thread_lock(&vm_manager.lock);
-    st_delete(vm_manager.list, &key, &val);
-    ruby_native_thread_unlock(&vm_manager.lock);
-}
-
-struct each_vm_arg {
-    int (*func)(rb_vm_t *, void *);
-    void *arg;
-};
-
-static int
-each_vm(st_data_t vm, st_data_t val, st_data_t arg)
-{
-    struct each_vm_arg *p = (void *)arg;
-    if ((*p->func)((rb_vm_t *)vm, p->arg)) return ST_CONTINUE;
-    return ST_STOP;
-}
-
-void
-ruby_vm_foreach(int (*func)(rb_vm_t *, void *), void *arg)
-{
-    struct each_vm_arg args;
-
-    args.func = func;
-    args.arg = arg;
-    ruby_native_thread_lock(&vm_manager.lock);
-    if (vm_manager.list) {
-	st_foreach(vm_manager.list, each_vm, (st_data_t)&args);
-    }
-    ruby_native_thread_unlock(&vm_manager.lock);
-}
-
-static void
-vm_free(void *ptr)
-{
-    RUBY_FREE_ENTER("vm");
-    if (ptr) {
-	rb_vm_t *vmobj = ptr;
-
-	st_free_table(vmobj->living_threads);
-	vmobj->living_threads = 0;
-	vm_del(vmobj);
-	ruby_native_thread_unlock(&vmobj->global_vm_lock);
-	ruby_native_thread_lock_destroy(&vmobj->global_vm_lock);
-	ruby_xfree(ptr);
-    }
-    RUBY_FREE_LEAVE("vm");
-}
-
 static int
 vm_mark_each_thread_func(st_data_t key, st_data_t value, st_data_t dummy)
 {
@@ -1580,38 +1513,20 @@ rb_vm_mark(void *ptr)
     RUBY_MARK_LEAVE("vm");
 }
 
-#define vm_free 0
-
-int
-ruby_vm_destruct(rb_vm_t *ptr)
+static void
+vm_free(void *ptr)
 {
     RUBY_FREE_ENTER("vm");
     if (ptr) {
-	rb_vm_t *vm = ptr;
-	rb_thread_t *th = vm->main_thread;
-#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
-	struct rb_objspace *objspace = vm->objspace;
-#endif
-	rb_gc_force_recycle(vm->self);
-	vm->main_thread = 0;
-	if (th) {
-	    thread_free(th);
-	}
-	if (vm->living_threads) {
-	    st_free_table(vm->living_threads);
-	    vm->living_threads = 0;
-	}
-	rb_thread_lock_unlock(&vm->global_vm_lock);
-	rb_thread_lock_destroy(&vm->global_vm_lock);
-	ruby_xfree(vm);
-#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
-	if (objspace) {
-	    rb_objspace_free(objspace);
-	}
-#endif
+	rb_vm_t *vmobj = ptr;
+
+	st_free_table(vmobj->living_threads);
+	vmobj->living_threads = 0;
+	ruby_native_thread_unlock(&vmobj->global_vm_lock);
+	ruby_native_thread_lock_destroy(&vmobj->global_vm_lock);
+	ruby_xfree(ptr);
     }
     RUBY_FREE_LEAVE("vm");
-    return 0;
 }
 
 static size_t
@@ -1689,6 +1604,60 @@ thread_recycle_struct(void)
 }
 #endif
 
+static void
+thread_free(void *ptr)
+{
+    rb_thread_t *th;
+    RUBY_FREE_ENTER("thread");
+
+    if (ptr) {
+	th = ptr;
+	
+	if (!th->root_fiber) {
+	    RUBY_FREE_UNLESS_NULL(th->stack);
+	}
+
+	if (th->locking_mutex != Qfalse) {
+	    rb_bug("thread_free: locking_mutex must be NULL (%p:%ld)", th, th->locking_mutex);
+	}
+	if (th->keeping_mutexes != NULL) {
+	    rb_bug("thread_free: keeping_mutexes must be NULL (%p:%ld)", th, th->locking_mutex);
+	}
+
+	if (th->local_storage) {
+	    st_free_table(th->local_storage);
+	}
+
+#if USE_VALUE_CACHE
+	{
+	    VALUE *ptr = th->value_cache_ptr;
+	    while (*ptr) {
+		VALUE v = *ptr;
+		RBASIC(v)->flags = 0;
+		RBASIC(v)->klass = 0;
+		ptr++;
+	    }
+	}
+#endif
+
+	rb_queue_destroy(&th->queue.message);
+	rb_queue_destroy(&th->queue.signal);
+
+	if (th->vm->main_thread == th) {
+	    RUBY_GC_INFO("main thread\n");
+	}
+	else {
+#ifdef USE_SIGALTSTACK
+	    if (th->altstack) {
+		free(th->altstack);
+	    }
+#endif
+	    ruby_xfree(ptr);
+	}
+    }
+    RUBY_FREE_LEAVE("thread");
+}
+
 void rb_gc_mark_machine_stack(rb_thread_t *th);
 
 void
@@ -1751,57 +1720,6 @@ rb_thread_mark(void *ptr)
     }
 
     RUBY_MARK_LEAVE("thread");
-}
-
-static void
-thread_free(void *ptr)
-{
-    rb_thread_t *th;
-    RUBY_FREE_ENTER("thread");
-
-    if (ptr) {
-	th = ptr;
-
-	if (!th->root_fiber) {
-	    RUBY_FREE_UNLESS_NULL(th->stack);
-	}
-
-	if (th->locking_mutex != Qfalse) {
-	    rb_bug("thread_free: locking_mutex must be NULL (%p:%ld)", (void *)th, th->locking_mutex);
-	}
-	if (th->keeping_mutexes != NULL) {
-	    rb_bug("thread_free: keeping_mutexes must be NULL (%p:%p)", (void *)th, th->keeping_mutexes);
-	}
-
-	if (th->local_storage) {
-	    st_free_table(th->local_storage);
-	}
-
-#if USE_VALUE_CACHE
-	{
-	    VALUE *ptr = th->value_cache_ptr;
-	    while (*ptr) {
-		VALUE v = *ptr;
-		RBASIC(v)->flags = 0;
-		RBASIC(v)->klass = 0;
-		ptr++;
-	    }
-	}
-#endif
-
-	if (th->vm && th->vm->main_thread == th) {
-	    RUBY_GC_INFO("main thread\n");
-	}
-	else {
-#ifdef USE_SIGALTSTACK
-	    if (th->altstack) {
-		free(th->altstack);
-	    }
-#endif
-	    ruby_xfree(ptr);
-	}
-    }
-    RUBY_FREE_LEAVE("thread");
 }
 
 static size_t
@@ -2214,19 +2132,8 @@ Init_BareVM(void)
     Init_native_thread();
     th->vm = vm;
 
-    vm_manager.main = vm;
-    vm_manager.list = st_init_numtable();
-    vm_add(vm);
-
     th_init2(th, 0);
     ruby_thread_init_stack(th);
-}
-
-rb_vm_t *
-ruby_vm_new(void)
-{
-    ruby_init();
-    return GET_VM();
 }
 
 /* top self */
@@ -2253,28 +2160,4 @@ Init_top_self(void)
 
     /* initialize mark object array */
     vm->mark_object_ary = rb_ary_tmp_new(1);
-}
-
-VALUE *
-ruby_vm_verbose_ptr(rb_vm_t *vm)
-{
-    return ruby_vm_specific_ptr(vm, rb_vmkey_verbose);
-}
-
-VALUE *
-ruby_vm_debug_ptr(rb_vm_t *vm)
-{
-    return ruby_vm_specific_ptr(vm, rb_vmkey_debug);
-}
-
-VALUE *
-rb_ruby_verbose_ptr(void)
-{
-    return ruby_vm_verbose_ptr(GET_VM());
-}
-
-VALUE *
-rb_ruby_debug_ptr(void)
-{
-    return ruby_vm_debug_ptr(GET_VM());
 }
