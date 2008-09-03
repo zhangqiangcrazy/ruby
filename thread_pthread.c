@@ -299,7 +299,7 @@ extern void *STACK_END_ADDRESS;
 
 #undef ruby_init_stack
 void
-ruby_init_stack(volatile VALUE *addr
+ruby_init_stack(volatile void *addr
 #ifdef __ia64
     , void *bsp
 #endif
