@@ -1,3 +1,7 @@
+Wed Sep  3 10:04:46 2008  Koichi Sasada  <ko1@atdot.net>
+
+	* mvm.c, eval.c, ruby.c, vm.c, vm_core.h: pass "make test".
+
 Mon Sep  1 11:31:26 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* mvm.c: added.

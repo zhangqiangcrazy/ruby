@@ -333,6 +333,9 @@ typedef struct rb_vm_struct {
 
     struct unlinked_method_entry_list_entry *unlinked_method_entry_list;
 
+    int argc;
+    char **argv;
+
 #ifdef RUBY_DEBUG_ENV
     int enable_coredump;
 #endif

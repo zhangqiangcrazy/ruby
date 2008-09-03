@@ -1513,22 +1513,6 @@ rb_vm_mark(void *ptr)
     RUBY_MARK_LEAVE("vm");
 }
 
-static void
-vm_free(void *ptr)
-{
-    RUBY_FREE_ENTER("vm");
-    if (ptr) {
-	rb_vm_t *vmobj = ptr;
-
-	st_free_table(vmobj->living_threads);
-	vmobj->living_threads = 0;
-	ruby_native_thread_unlock(&vmobj->global_vm_lock);
-	ruby_native_thread_lock_destroy(&vmobj->global_vm_lock);
-	ruby_xfree(ptr);
-    }
-    RUBY_FREE_LEAVE("vm");
-}
-
 static size_t
 vm_memsize(const void *ptr)
 {
@@ -1543,8 +1527,12 @@ vm_memsize(const void *ptr)
 
 static const rb_data_type_t vm_data_type = {
     "VM",
-    rb_vm_mark, vm_free, vm_memsize,
+    rb_vm_mark, 0, vm_memsize,
 };
+
+#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
+struct rb_objspace *rb_objspace_alloc(void);
+#endif
 
 static void
 vm_init2(rb_vm_t *vm)
@@ -2110,30 +2098,38 @@ void ruby_thread_init_stack(rb_thread_t *th);
 
 extern void Init_native_thread(void);
 
-void
-Init_BareVM(void)
+rb_vm_t *
+ruby_make_bare_vm(void)
 {
     /* VM bootstrap: phase 1 */
-    rb_vm_t * vm = malloc(sizeof(*vm));
-    rb_thread_t * th = malloc(sizeof(*th));
+    rb_vm_t *vm = malloc(sizeof(*vm));
+    rb_thread_t *th = malloc(sizeof(*th));
+    rb_thread_t *old_th = GET_THREAD();
+
     if (!vm || !th) {
 	fprintf(stderr, "[FATAL] failed to allocate memory\n");
 	exit(EXIT_FAILURE);
     }
     MEMZERO(th, rb_thread_t, 1);
+    vm_init2(vm);
+    vm->main_thread = th;
 
     rb_thread_set_current_raw(th);
+    {
+	th->vm = vm;
+	th_init2(th, 0);
+	ruby_thread_init_stack(th);
+    }
+    rb_thread_set_current_raw(old_th);
 
-    vm_init2(vm);
-#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
-    vm->objspace = rb_objspace_alloc();
-#endif
+    return vm;
+}
 
+void
+Init_BareVM(void)
+{
     Init_native_thread();
-    th->vm = vm;
-
-    th_init2(th, 0);
-    ruby_thread_init_stack(th);
+    ruby_make_bare_vm();
 }
 
 /* top self */
