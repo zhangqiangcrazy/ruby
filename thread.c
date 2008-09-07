@@ -993,8 +993,7 @@ rb_thread_check_ints(void)
 int
 rb_thread_check_trap_pending(void)
 {
-    /* @shyouhei hack */
-    return !!GET_THREAD()->queue.signal.head;
+    return !rb_queue_empty_p(&GET_THREAD()->queue.signal);
 }
 
 /* This function can be called in blocking region. */
@@ -1291,6 +1290,13 @@ rb_queue_shift(rb_queue_t *que, void **value)
     *value = e->value;
     free(e);
     return Qtrue;
+}
+
+int
+rb_queue_empty_p(const rb_queue_t *que)
+{
+    if (!que->head) return Qtrue;
+    return Qfalse;
 }
 
 /*

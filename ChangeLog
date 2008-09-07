@@ -1,3 +1,11 @@
+Mon Sep  8 06:38:22 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (rb_thread_check_trap_pending): fix for MVM.
+
+	* thread.c (rb_queue_empty_p): added.
+
+	* vm_core.h (rb_thread_set_current_raw): fixed typo.
+
 Wed Sep  3 10:17:55 2008  Koichi Sasada  <ko1@atdot.net>
 
 	* include/ruby/mvm.h, include/ruby/ruby.h, main.c: 
