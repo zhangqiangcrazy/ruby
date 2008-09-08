@@ -336,6 +336,8 @@ typedef struct rb_vm_struct {
     int argc;
     char **argv;
 
+    struct cache_entry *cache;
+
 #ifdef RUBY_DEBUG_ENV
     int enable_coredump;
 #endif

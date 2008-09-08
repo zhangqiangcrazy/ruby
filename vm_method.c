@@ -18,7 +18,6 @@ struct cache_entry {		/* method hash table. */
     rb_method_entry_t *me;
 };
 
-static struct cache_entry cache[CACHE_SIZE];
 #define ruby_running (GET_VM()->running)
 /* int ruby_running = 0; */
 
@@ -26,12 +25,13 @@ void
 rb_clear_cache(void)
 {
     struct cache_entry *ent, *end;
+    rb_vm_t *vm = GET_VM();
 
     rb_vm_change_state();
 
-    if (!ruby_running)
+    if (!vm->running)
 	return;
-    ent = cache;
+    ent = vm->cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
 	ent->me = 0;
@@ -44,12 +44,13 @@ static void
 rb_clear_cache_for_undef(VALUE klass, ID id)
 {
     struct cache_entry *ent, *end;
+    rb_vm_t *vm = GET_VM();
 
     rb_vm_change_state();
 
-    if (!ruby_running)
+    if (!vm->running)
 	return;
-    ent = cache;
+    ent = vm->cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
 	if ((ent->me && ent->me->klass == klass) && ent->mid == id) {
@@ -64,12 +65,13 @@ static void
 rb_clear_cache_by_id(ID id)
 {
     struct cache_entry *ent, *end;
+    rb_vm_t *vm = GET_VM();
 
     rb_vm_change_state();
 
-    if (!ruby_running)
+    if (!vm->running)
 	return;
-    ent = cache;
+    ent = vm->cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
 	if (ent->mid == id) {
@@ -84,12 +86,13 @@ void
 rb_clear_cache_by_class(VALUE klass)
 {
     struct cache_entry *ent, *end;
+    rb_vm_t *vm = GET_VM();
 
     rb_vm_change_state();
 
-    if (!ruby_running)
+    if (!vm->running)
 	return;
-    ent = cache;
+    ent = vm->cache;
     end = ent + CACHE_SIZE;
     while (ent < end) {
 	if (ent->klass == klass || (ent->me && ent->me->klass == klass)) {
@@ -418,10 +421,11 @@ rb_method_entry_t *
 rb_method_entry_get_without_cache(VALUE klass, ID id)
 {
     rb_method_entry_t *me = search_method(klass, id);
+    rb_vm_t *vm = GET_VM();
 
     if (ruby_running) {
 	struct cache_entry *ent;
-	ent = cache + EXPR1(klass, id);
+	ent = vm->cache + EXPR1(klass, id);
 	ent->klass = klass;
 
 	if (UNDEFINED_METHOD_ENTRY_P(me)) {
@@ -443,7 +447,7 @@ rb_method_entry(VALUE klass, ID id)
 {
     struct cache_entry *ent;
 
-    ent = cache + EXPR1(klass, id);
+    ent = GET_VM()->cache + EXPR1(klass, id);
     if (ent->mid == id && ent->klass == klass) {
 	return ent->me;
     }
