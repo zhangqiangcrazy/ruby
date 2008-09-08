@@ -9964,6 +9964,7 @@ void
 Init_IO(void)
 {
     Init_File();
+    ruby_native_thread_lock_initialize(&max_file_descriptor_lock);
 }
 
 void
@@ -10309,6 +10310,4 @@ InitVM_IO(rb_vm_t *vm)
     sym_textmode = ID2SYM(rb_intern("textmode"));
     sym_binmode = ID2SYM(rb_intern("binmode"));
     sym_autoclose = ID2SYM(rb_intern("autoclose"));
-
-    ruby_native_thread_lock_initialize(&max_file_descriptor_lock);
 }
