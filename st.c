@@ -59,6 +59,7 @@ static const struct st_hash_type type_strcasehash = {
 static void rehash(st_table *);
 
 #ifdef RUBY
+int rb_garbage_collect(void);
 #define garbage_collect() rb_garbage_collect()
 #else
 #define garbage_collect() 0
@@ -188,7 +189,7 @@ st_init_table_with_size(const struct st_hash_type *type, st_index_t size)
     if (!tbl) {
       nomem:
 	if (garbage_collect()) goto retry;
-	retry 0;
+	return 0;
     }
     tbl->type = type;
     tbl->num_entries = 0;
@@ -406,7 +407,7 @@ do {\
     }\
     \
     entry = alloc(st_table_entry);\
-    if (!entry) break;
+    if (!entry) break;\
     \
     entry->hash = hash_val;\
     entry->key = key;\
