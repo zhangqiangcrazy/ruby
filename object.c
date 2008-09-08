@@ -2479,13 +2479,35 @@ rb_f_array(VALUE obj, VALUE arg)
 void
 Init_Object(void)
 {
-    extern void Init_class_hierarchy(void);
+#undef rb_intern
+#define rb_intern(str) rb_intern_const(str)
     int i;
+
+    id_eq = rb_intern("==");
+    id_eql = rb_intern("eql?");
+    id_match = rb_intern("=~");
+    id_inspect = rb_intern("inspect");
+    id_init_copy = rb_intern("initialize_copy");
+    id_init_clone = rb_intern("initialize_clone");
+    id_init_dup = rb_intern("initialize_dup");
+
+    for (i=0; conv_method_names[i].method; i++) {
+	conv_method_names[i].id = rb_intern(conv_method_names[i].method);
+    }
+}
+
+void
+InitVM_Object(rb_vm_t *vm)
+{
+    extern void Init_class_hierarchy(void);
+    VALUE metaclass;
 
     Init_class_hierarchy();
 
-#undef rb_intern
-#define rb_intern(str) rb_intern_const(str)
+    metaclass = rb_make_metaclass(rb_cBasicObject, rb_cClass);
+    metaclass = rb_make_metaclass(rb_cObject, metaclass);
+    metaclass = rb_make_metaclass(rb_cModule, metaclass);
+    metaclass = rb_make_metaclass(rb_cClass, metaclass);
 
     rb_define_private_method(rb_cBasicObject, "initialize", rb_obj_dummy, -1);
     rb_define_alloc_func(rb_cBasicObject, rb_class_allocate_instance);
@@ -2650,16 +2672,4 @@ Init_Object(void)
     rb_undef_alloc_func(rb_cFalseClass);
     rb_undef_method(CLASS_OF(rb_cFalseClass), "new");
     rb_define_global_const("FALSE", Qfalse);
-
-    id_eq = rb_intern("==");
-    id_eql = rb_intern("eql?");
-    id_match = rb_intern("=~");
-    id_inspect = rb_intern("inspect");
-    id_init_copy = rb_intern("initialize_copy");
-    id_init_clone = rb_intern("initialize_clone");
-    id_init_dup = rb_intern("initialize_dup");
-
-    for (i=0; conv_method_names[i].method; i++) {
-	conv_method_names[i].id = rb_intern(conv_method_names[i].method);
-    }
 }

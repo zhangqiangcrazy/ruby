@@ -9,9 +9,17 @@
 
 **********************************************************************/
 
+#ifndef INIT_FOR_VM
 #include "ruby/ruby.h"
 
+#define INIT_FOR_VM 1
+#include "inits.c"
 #define CALL(n) {void Init_##n(void); Init_##n();}
+#define rb_call_inits() rb_call_inits(void)
+#else
+#define CALL(n) {void InitVM_##n(rb_vm_t *); InitVM_##n(vm);}
+#define rb_call_inits() rb_vm_call_inits(rb_vm_t *vm)
+#endif
 
 void
 rb_call_inits(void)
@@ -60,4 +68,5 @@ rb_call_inits(void)
     CALL(Complex);
     CALL(version);
 }
+#undef rb_call_inits
 #undef CALL

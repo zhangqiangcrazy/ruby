@@ -1496,8 +1496,11 @@ rb_enc_aliases(VALUE klass)
 void
 Init_Encoding(void)
 {
-#undef rb_intern
-#define rb_intern(str) rb_intern_const(str)
+}
+
+void
+InitVM_Encoding(rb_vm_t *vm)
+{
     VALUE list;
     int i;
 

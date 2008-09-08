@@ -20,6 +20,7 @@
 #include "ruby/encoding.h"
 #include "node.h"
 #include "parse.h"
+#include "eval_intern.h"
 #include "id.h"
 #include "regenc.h"
 #include <stdio.h>
@@ -9361,23 +9362,49 @@ static struct symbols {
     ID last_id;
     st_table *sym_id;
     st_table *id_str;
-#if ENABLE_SELECTOR_NAMESPACE
+    VALUE op_sym[tLAST_TOKEN];
+    rb_thread_lock_t lock;
+    struct rb_objspace_t *objspace;
+} global_symbols = {tLAST_ID};
+
+struct ivar_symbols {
     st_table *ivar2_id;
     st_table *id_ivar2;
-#endif
-    VALUE op_sym[tLAST_TOKEN];
-} global_symbols = {tLAST_ID};
+};
 
 static const struct st_hash_type symhash = {
     rb_str_hash_cmp,
     rb_str_hash,
 };
 
-#if ENABLE_SELECTOR_NAMESPACE
 struct ivar2_key {
     ID id;
     VALUE klass;
 };
+
+static int
+ivar2_key_mark(st_data_t key, st_data_t val, st_data_t arg)
+{
+    struct ivar2_key *k = (struct ivar2_key *)key;
+    rb_gc_mark(k->klass);
+    return ST_CONTINUE;
+}
+
+static void
+ivar2_mark(void *ptr)
+{
+    struct ivar_symbols *isym = ptr;
+    if (isym->ivar2_id) st_foreach(isym->ivar2_id, ivar2_key_mark, 0);
+}
+
+static void
+ivar2_free(void *ptr)
+{
+    struct ivar_symbols *isym = ptr;
+    if (isym->ivar2_id) st_free_table(isym->ivar2_id);
+    if (isym->id_ivar2) st_free_table(isym->id_ivar2);
+    xfree(isym);
+}
 
 static int
 ivar2_cmp(struct ivar2_key *key1, struct ivar2_key *key2)
@@ -9398,27 +9425,38 @@ static const struct st_hash_type ivar2_hash_type = {
     ivar2_cmp,
     ivar2_hash,
 };
-#endif
 
 void
 Init_sym(void)
 {
+    struct rb_objspace_t *rb_objspace_alloc(void);
+    ruby_native_thread_lock_initialize(&global_symbols.lock);
+    ruby_native_thread_lock(&global_symbols.lock);
+    global_symbols.objspace = rb_objspace_alloc();
     global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
     global_symbols.id_str = st_init_numtable_with_size(1000);
-#if ENABLE_SELECTOR_NAMESPACE
-    global_symbols.ivar2_id = st_init_table_with_size(&ivar2_hash_type, 1000);
-    global_symbols.id_ivar2 = st_init_numtable_with_size(1000);
-#endif
-
     Init_id();
+    ruby_native_thread_unlock(&global_symbols.lock);
+}
+
+void
+InitVM_sym(rb_vm_t *vm)
+{
+    struct ivar_symbols *isym = ALLOC(struct ivar_symbols);
+    VALUE iw = Data_Wrap_Struct(0, ivar2_mark, ivar2_free, isym);
+    isym->ivar2_id = st_init_table_with_size(&ivar2_hash_type, 1000);
+    isym->id_ivar2 = st_init_numtable_with_size(1000);
+    *(VALUE *)ruby_vm_specific_ptr(vm, rb_vmkey_ivar_symbols) = iw;
 }
 
 void
 rb_gc_mark_symbols(void)
 {
+#if 0
     rb_mark_tbl(global_symbols.id_str);
     rb_gc_mark_locations(global_symbols.op_sym,
 			 global_symbols.op_sym + tLAST_TOKEN);
+#endif
 }
 #endif /* !RIPPER */
 
@@ -9557,11 +9595,24 @@ rb_enc_symname2_p(const char *name, long len, rb_encoding *enc)
     return m == e;
 }
 
+static VALUE
+sym_str_new(const char *name, long len, rb_encoding *enc)
+{
+    extern VALUE rb_newobj_from_heap(struct rb_objspace_t *);
+    VALUE str = rb_newobj_from_heap(global_symbols.objspace);
+
+    RSTRING(str)->basic.flags = T_STRING;
+    RSTRING(str)->basic.klass = 0;
+    rb_enc_associate(str, enc);
+    rb_str_cat(str, name, len);
+    OBJ_FREEZE(str);
+    return str;
+}
+
 static ID
 register_symid(ID id, const char *name, long len, rb_encoding *enc)
 {
-    VALUE str = rb_enc_str_new(name, len, enc);
-    OBJ_FREEZE(str);
+    VALUE str = sym_str_new(name, len, enc);
     st_add_direct(global_symbols.sym_id, (st_data_t)str, id);
     st_add_direct(global_symbols.id_str, id, (st_data_t)str);
     return id;
@@ -9580,7 +9631,7 @@ rb_intern3(const char *name, long len, rb_encoding *enc)
     st_data_t data;
     struct RString fake_str;
     fake_str.basic.flags = T_STRING|RSTRING_NOEMBED|FL_FREEZE;
-    fake_str.basic.klass = rb_cString;
+    fake_str.basic.klass = 0;
     fake_str.as.heap.len = len;
     fake_str.as.heap.ptr = (char *)name;
     fake_str.as.heap.aux.capa = len;
@@ -9741,8 +9792,7 @@ rb_id2str(ID id)
 		char name[2];
 		name[0] = (char)id;
 		name[1] = 0;
-		str = rb_usascii_str_new(name, 1);
-		OBJ_FREEZE(str);
+		str = sym_str_new(name, 1, rb_usascii_encoding());
 		global_symbols.op_sym[i] = str;
 	    }
 	    return str;
@@ -9751,8 +9801,8 @@ rb_id2str(ID id)
 	    if (op_tbl[i].token == id) {
 		VALUE str = global_symbols.op_sym[i];
 		if (!str) {
-		    str = rb_usascii_str_new2(op_tbl[i].name);
-		    OBJ_FREEZE(str);
+		    const char *name = op_tbl[i].name;
+		    str = sym_str_new(name, strlen(name), rb_usascii_encoding());
 		    global_symbols.op_sym[i] = str;
 		}
 		return str;
@@ -10603,6 +10653,17 @@ ripper_value(VALUE self, VALUE obj)
 void
 Init_ripper(void)
 {
+    ripper_id_gets = rb_intern("gets");
+    /* ensure existing in symbol table */
+    rb_intern("||");
+    rb_intern("&&");
+    ripper_init_eventids1();
+    ripper_init_eventids2();
+}
+
+void
+InitVM_ripper(rb_vm_t *vm)
+{
     VALUE Ripper;
 
     Ripper = rb_define_class("Ripper", rb_cObject);
@@ -10623,11 +10684,7 @@ Init_ripper(void)
     rb_define_method(rb_mKernel, "validate_object", ripper_validate_object, 1);
 #endif
 
-    ripper_id_gets = rb_intern("gets");
-    ripper_init_eventids1(Ripper);
-    ripper_init_eventids2(Ripper);
-    /* ensure existing in symbol table */
-    rb_intern("||");
-    rb_intern("&&");
+    ripper_init_eventids1_table(Ripper);
+    ripper_init_eventids2_table(Ripper);
 }
 #endif /* RIPPER */

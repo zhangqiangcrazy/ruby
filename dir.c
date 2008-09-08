@@ -2526,6 +2526,11 @@ rb_dir_rmdir(VALUE dir, VALUE path)
 void
 Init_Dir(void)
 {
+}
+
+void
+InitVM_Dir(rb_vm_t *vm)
+{
     rb_cDir = rb_define_class("Dir", rb_cObject);
 
     rb_include_module(rb_cDir, rb_mEnumerable);

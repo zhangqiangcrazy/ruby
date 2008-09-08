@@ -368,6 +368,7 @@ int *ruby_initial_gc_stress_ptr = &rb_objspace.gc_stress;
 #define need_call_final 	(finalizer_table && finalizer_table->num_entries)
 
 static void rb_objspace_call_finalizer(rb_objspace_t *objspace);
+static void init_heap(rb_objspace_t *objspace);
 
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
 rb_objspace_t *
@@ -377,6 +378,7 @@ rb_objspace_alloc(void)
     memset(objspace, 0, sizeof(*objspace));
     malloc_limit = GC_MALLOC_LIMIT;
     ruby_gc_stress = ruby_initial_gc_stress;
+    init_heap(objspace);
 
     return objspace;
 }
@@ -1000,7 +1002,7 @@ heaps_increment(rb_objspace_t *objspace)
 
 #define RANY(o) ((RVALUE*)(o))
 
-static VALUE
+VALUE
 rb_newobj_from_heap(rb_objspace_t *objspace)
 {
     VALUE obj;
@@ -2289,7 +2291,14 @@ Init_stack(volatile VALUE *addr)
 void
 Init_heap(void)
 {
-    init_heap(&rb_objspace);
+}
+
+void
+InitVM_heap(rb_vm_t *vm)
+{
+#if !(defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE)
+    init_heap(vm->objspace);
+#endif
 }
 
 /*
@@ -3166,6 +3175,11 @@ gc_profile_total_time(VALUE self)
 
 void
 Init_GC(void)
+{
+}
+
+void
+InitVM_GC(rb_vm_t *vm)
 {
     VALUE rb_mObSpace;
     VALUE rb_mProfiler;

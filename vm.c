@@ -1753,7 +1753,7 @@ thread_alloc(VALUE klass)
 }
 
 static void
-th_init2(rb_thread_t *th, VALUE self)
+th_init(rb_thread_t *th, VALUE self)
 {
     th->self = self;
 
@@ -1776,12 +1776,6 @@ th_init2(rb_thread_t *th, VALUE self)
 #if USE_VALUE_CACHE
     th->value_cache_ptr = &th->value_cache[0];
 #endif
-}
-
-static void
-th_init(rb_thread_t *th, VALUE self)
-{
-    th_init2(th, self);
 }
 
 static VALUE
@@ -1965,6 +1959,11 @@ nsdr(void)
 void
 Init_VM(void)
 {
+}
+
+void
+InitVM_VM(rb_vm_t *vm)
+{
     VALUE opts;
     VALUE klass;
     VALUE fcore;
@@ -2112,15 +2111,14 @@ ruby_make_bare_vm(void)
 	exit(EXIT_FAILURE);
     }
     MEMZERO(th, rb_thread_t, 1);
+    th->vm = vm;
+    rb_thread_set_current_raw(th);
     vm_init2(vm);
     vm->main_thread = th;
 
-    rb_thread_set_current_raw(th);
-    {
-	th->vm = vm;
-	th_init2(th, 0);
-	ruby_thread_init_stack(th);
-    }
+    th_init(th, 0);
+    ruby_thread_init_stack(th);
+
     rb_thread_set_current_raw(old_th);
 
     return vm;
@@ -2150,8 +2148,11 @@ rb_vm_top_self(void)
 void
 Init_top_self(void)
 {
-    rb_vm_t *vm = GET_VM();
+}
 
+void
+InitVM_top_self(rb_vm_t *vm)
+{
     vm->top_self = rb_obj_alloc(rb_cObject);
     rb_define_singleton_method(rb_vm_top_self(), "to_s", main_to_s, 0);
 

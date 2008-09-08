@@ -2521,18 +2521,20 @@ rb_reg_compile(VALUE str, int options, const char *sourcefile, int sourceline)
     return re;
 }
 
-static VALUE reg_cache;
+static int vmkey_reg_cache;
+#define vm_reg_cache (*rb_vm_specific_ptr(vmkey_reg_cache))
 
 VALUE
 rb_reg_regcomp(VALUE str)
 {
     volatile VALUE save_str = str;
+    VALUE reg_cache = vm_reg_cache;
     if (reg_cache && RREGEXP_SRC_LEN(reg_cache) == RSTRING_LEN(str)
 	&& ENCODING_GET(reg_cache) == ENCODING_GET(str)
 	&& memcmp(RREGEXP_SRC_PTR(reg_cache), RSTRING_PTR(str), RSTRING_LEN(str)) == 0)
 	return reg_cache;
 
-    return reg_cache = rb_reg_new_str(save_str, 0);
+    return vm_reg_cache = rb_reg_new_str(save_str, 0);
 }
 
 static st_index_t reg_hash(VALUE re);
@@ -3506,12 +3508,18 @@ re_warn(const char *s)
 void
 Init_Regexp(void)
 {
-    rb_eRegexpError = rb_define_class("RegexpError", rb_eStandardError);
+    vmkey_reg_cache = rb_vm_key_create();
 
     onigenc_set_default_caseconv_table((UChar*)casetable);
     onigenc_set_default_encoding(ONIG_ENCODING_ASCII);
     onig_set_warn_func(re_warn);
     onig_set_verb_warn_func(re_warn);
+}
+
+void
+InitVM_Regexp(rb_vm_t *vm)
+{
+    rb_eRegexpError = rb_define_class("RegexpError", rb_eStandardError);
 
     rb_define_virtual_variable("$~", match_getter, match_setter);
     rb_define_virtual_variable("$&", last_match_getter, 0);
@@ -3555,8 +3563,6 @@ Init_Regexp(void)
     rb_define_const(rb_cRegexp, "EXTENDED", INT2FIX(ONIG_OPTION_EXTEND));
     rb_define_const(rb_cRegexp, "MULTILINE", INT2FIX(ONIG_OPTION_MULTILINE));
     rb_define_const(rb_cRegexp, "FIXEDENCODING", INT2FIX(ARG_ENCODING_FIXED));
-
-    rb_global_variable(&reg_cache);
 
     rb_cMatch  = rb_define_class("MatchData", rb_cObject);
     rb_define_alloc_func(rb_cMatch, match_alloc);

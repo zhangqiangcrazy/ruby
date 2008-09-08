@@ -2265,8 +2265,6 @@ Init_Rational(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
-    assert(fprintf(stderr, "assert() is now active\n"));
-
     id_abs = rb_intern("abs");
     id_cmp = rb_intern("<=>");
     id_convert = rb_intern("convert");
@@ -2282,6 +2280,12 @@ Init_Rational(void)
     id_to_i = rb_intern("to_i");
     id_to_s = rb_intern("to_s");
     id_truncate = rb_intern("truncate");
+}
+
+void
+InitVM_Rational(rb_vm_t *vm)
+{
+    assert(fprintf(stderr, "assert() is now active\n"));
 
     rb_cRational = rb_define_class("Rational", rb_cNumeric);
 

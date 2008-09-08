@@ -4696,7 +4696,11 @@ Init_Time(void)
     id_nano_num = rb_intern("nano_num");
     id_nano_den = rb_intern("nano_den");
     id_offset = rb_intern("offset");
+}
 
+void
+InitVM_Time(rb_vm_t *vm)
+{
     rb_cTime = rb_define_class("Time", rb_cObject);
     rb_include_module(rb_cTime, rb_mComparable);
 

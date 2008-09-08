@@ -240,6 +240,9 @@ default_mt(void)
     return mt;
 }
 
+static int vmkey_default_mt;
+#define default_rand (*(rb_random_t *)DATA_PTR(*rb_vm_specific_ptr(vmkey_default_mt)))
+
 unsigned int
 rb_genrand_int32(void)
 {
@@ -1162,6 +1165,7 @@ init_randomseed(struct MT *mt, unsigned int initial[DEFAULT_SEED_CNT])
 void
 Init_RandomSeed(void)
 {
+    vmkey_default_mt = rb_vm_key_create();
     rb_random_t *r = &default_rand;
     unsigned int initial[DEFAULT_SEED_CNT];
     struct MT *mt = &r->mt;
@@ -1191,8 +1195,13 @@ rb_hash_start(st_index_t h)
     return st_hash_start(hashseed + h);
 }
 
+void
+InitVM_RandomSeed(rb_vm_t *vm)
+{
+}
+
 static void
-Init_RandomSeed2(void)
+InitVM_RandomSeed2(rb_vm_t *vm)
 {
     VALUE seed = default_rand.seed;
 
@@ -1212,7 +1221,12 @@ rb_reset_random_seed(void)
 void
 Init_Random(void)
 {
-    Init_RandomSeed2();
+}
+
+void
+InitVM_Random(rb_vm_t *vm)
+{
+    InitVM_RandomSeed2(vm);
     rb_define_global_function("srand", rb_f_srand, -1);
     rb_define_global_function("rand", rb_f_rand, -1);
 

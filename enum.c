@@ -2607,6 +2607,16 @@ Init_Enumerable(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
+    id_eqq  = rb_intern("===");
+    id_each = rb_intern("each");
+    id_cmp  = rb_intern("<=>");
+    id_next = rb_intern("next");
+    id_size = rb_intern("size");
+}
+
+void
+InitVM_Enumerable(rb_vm_t *vm)
+{
     rb_mEnumerable = rb_define_module("Enumerable");
 
     rb_define_method(rb_mEnumerable, "to_a", enum_to_a, -1);
@@ -2658,10 +2668,4 @@ Init_Enumerable(void)
     rb_define_method(rb_mEnumerable, "chunk", enum_chunk, -1);
     rb_define_method(rb_mEnumerable, "slice_before", enum_slice_before, -1);
 
-    id_eqq  = rb_intern("===");
-    id_each = rb_intern("each");
-    id_cmp  = rb_intern("<=>");
-    id_next = rb_intern("next");
-    id_size = rb_intern("size");
 }
-
