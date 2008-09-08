@@ -1,3 +1,7 @@
+Mon Sep  8 17:26:51 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* st.c (garbage_collect): checks if memory can be reclaimed.
+
 Mon Sep  8 06:38:22 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (rb_thread_check_trap_pending): fix for MVM.
