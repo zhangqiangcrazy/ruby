@@ -796,9 +796,13 @@ ruby_xfree(void *x)
 VALUE
 rb_gc_enable(void)
 {
-    rb_objspace_t *objspace = &rb_objspace;
-    int old = dont_gc;
+    return rb_objspace_gc_enable(&rb_objspace);
+}
 
+VALUE
+rb_objspace_gc_enable(rb_objspace_t *objspace)
+{
+    int old = dont_gc;
     dont_gc = FALSE;
     return old ? Qtrue : Qfalse;
 }
@@ -818,9 +822,13 @@ rb_gc_enable(void)
 VALUE
 rb_gc_disable(void)
 {
-    rb_objspace_t *objspace = &rb_objspace;
-    int old = dont_gc;
+    return rb_objspace_gc_disable(&rb_objspace);
+}
 
+VALUE
+rb_objspace_gc_disable(rb_objspace_t *objspace)
+{
+    int old = dont_gc;
     dont_gc = TRUE;
     return old ? Qtrue : Qfalse;
 }

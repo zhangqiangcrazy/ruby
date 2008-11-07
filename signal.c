@@ -541,6 +541,10 @@ static int trap_last_mask;
 # endif
 #endif
 
+#ifdef RUBY_DEBUG_ENV
+int ruby_enable_coredump = 0;
+#endif
+
 #if HAVE_PTHREAD_H
 #include <pthread.h>
 #endif
@@ -1046,10 +1050,6 @@ ruby_sig_finalize(void)
     }
 }
 
-
-#ifdef RUBY_DEBUG_ENV
-int ruby_enable_coredump = 0;
-#endif
 
 /*
  * Many operating systems allow signals to be sent to running

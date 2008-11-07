@@ -21,6 +21,7 @@
 #include "node.h"
 #include "parse.h"
 #include "eval_intern.h"
+#include "gc.h"
 #include "id.h"
 #include "regenc.h"
 #include <stdio.h>
@@ -9364,7 +9365,7 @@ static struct symbols {
     st_table *id_str;
     VALUE op_sym[tLAST_TOKEN];
     rb_thread_lock_t lock;
-    struct rb_objspace_t *objspace;
+    struct rb_objspace *objspace;
 } global_symbols = {tLAST_ID};
 
 struct ivar_symbols {
@@ -9429,10 +9430,10 @@ static const struct st_hash_type ivar2_hash_type = {
 void
 Init_sym(void)
 {
-    struct rb_objspace_t *rb_objspace_alloc(void);
     ruby_native_thread_lock_initialize(&global_symbols.lock);
     ruby_native_thread_lock(&global_symbols.lock);
     global_symbols.objspace = rb_objspace_alloc();
+    rb_objspace_gc_disable(global_symbols.objspace);
     global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
     global_symbols.id_str = st_init_numtable_with_size(1000);
     Init_id();
@@ -9598,7 +9599,6 @@ rb_enc_symname2_p(const char *name, long len, rb_encoding *enc)
 static VALUE
 sym_str_new(const char *name, long len, rb_encoding *enc)
 {
-    extern VALUE rb_newobj_from_heap(struct rb_objspace_t *);
     VALUE str = rb_newobj_from_heap(global_symbols.objspace);
 
     RSTRING(str)->basic.flags = T_STRING;
