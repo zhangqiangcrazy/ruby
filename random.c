@@ -1196,12 +1196,12 @@ rb_hash_start(st_index_t h)
 }
 
 void
-InitVM_RandomSeed(rb_vm_t *vm)
+InitVM_RandomSeed(ruby_vm_t *vm)
 {
 }
 
 static void
-InitVM_RandomSeed2(rb_vm_t *vm)
+InitVM_RandomSeed2(ruby_vm_t *vm)
 {
     VALUE seed = default_rand.seed;
 
@@ -1224,7 +1224,7 @@ Init_Random(void)
 }
 
 void
-InitVM_Random(rb_vm_t *vm)
+InitVM_Random(ruby_vm_t *vm)
 {
     InitVM_RandomSeed2(vm);
     rb_define_global_function("srand", rb_f_srand, -1);

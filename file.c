@@ -5267,7 +5267,7 @@ Init_File(void)
 }
 
 void
-InitVM_File(rb_vm_t *vm)
+InitVM_File(ruby_vm_t *vm)
 {
     VALUE separator;
 

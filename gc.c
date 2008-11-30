@@ -2302,7 +2302,7 @@ Init_heap(void)
 }
 
 void
-InitVM_heap(rb_vm_t *vm)
+InitVM_heap(ruby_vm_t *vm)
 {
 #if !(defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE)
     init_heap(vm->objspace);
@@ -3187,7 +3187,7 @@ Init_GC(void)
 }
 
 void
-InitVM_GC(rb_vm_t *vm)
+InitVM_GC(ruby_vm_t *vm)
 {
     VALUE rb_mObSpace;
     VALUE rb_mProfiler;

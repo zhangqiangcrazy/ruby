@@ -1,3 +1,8 @@
+Sun Nov 30 15:26:44 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* inits.c (rb_vm_call_inits): let all InitVM functions use
+	  ruby_vm_t instead of rb_vm_t.
+
 Fri Nov  7 20:42:47 2008  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* parse.y (Init_sym):  symbol objectspace should not be GCed.
