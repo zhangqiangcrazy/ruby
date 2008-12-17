@@ -1,40 +1,6 @@
 #ifndef RUBY_PUBLIC_OBJECT_H
 #define RUBY_PUBLIC_OBJECT_H 1
 
-#include "ruby/vm.h"
-
-/*
-public_vars = %w{
-  mKernel mComparable mEnumerable mPrecision mErrno mFileTest mGC 
-  mMath mProcess cBasicObject cObject cArray cBignum cBinding 
-  cClass cCont cDir cData cFalseClass cEncoding cEnumerator cFile 
-  cFixnum cFloat cHash cInteger cIO cMatch cMethod cModule 
-  cNameErrorMesg cNilClass cNumeric cProc cRange cRational cComplex 
-  cRegexp cStat cString cStruct cSymbol cThread cTime cTrueClass 
-  cUnboundMethod cMutex cBarrier eException eStandardError 
-  eSystemExit eInterrupt eSignal eFatal eArgError eEOFError 
-  eIndexError eStopIteration eKeyError eRangeError eIOError 
-  eRuntimeError eSecurityError eSystemCallError eThreadError 
-  eTypeError eZeroDivError eNotImpError eNoMemError eNoMethodError 
-  eFloatDomainError eLocalJumpError eSysStackError eRegexpError 
-  eEncCompatError eScriptError eNameError eSyntaxError eLoadError 
-  stdin stdout stderr argf
-}
-
-public_vars2 = %w{
-  verbose debug progname
-}
-
-public_vars.each{|var|
-  puts "    rb_vmkey_#{var},"
-  puts "\#define rb_#{var} (*((VALUE *)rb_vm_specific_ptr(rb_vmkey_#{var})))"
-}
-public_vars2.each{|var|
-  puts "    rb_vmkey_#{var},"
-}
-
- */
-
 VALUE *rb_vm_specific_ptr(int key);
 
 enum ruby_public_object_vmkey {

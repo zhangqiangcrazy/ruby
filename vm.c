@@ -1962,7 +1962,7 @@ Init_VM(void)
 }
 
 void
-InitVM_VM(ruby_vm_t *vm)
+InitVM_VM(void)
 {
     VALUE opts;
     VALUE klass;
@@ -2151,8 +2151,10 @@ Init_top_self(void)
 }
 
 void
-InitVM_top_self(ruby_vm_t *vm)
+InitVM_top_self(void)
 {
+    rb_vm_t *vm = GET_VM();
+
     vm->top_self = rb_obj_alloc(rb_cObject);
     rb_define_singleton_method(rb_vm_top_self(), "to_s", main_to_s, 0);
 

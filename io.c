@@ -14,6 +14,7 @@
 #include "ruby/ruby.h"
 #include "ruby/io.h"
 #include "vm_core.h"
+#include "ruby/vm.h"
 #include "eval_intern.h"
 #include <ctype.h>
 #include <errno.h>
@@ -83,7 +84,7 @@
 #endif
 
 extern void Init_File(void);
-extern void InitVM_File(rb_vm_t *);
+extern void InitVM_File(void);
 
 #if defined(__BEOS__) || defined(__HAIKU__)
 # ifndef NOFILE
@@ -9968,7 +9969,7 @@ Init_IO(void)
 }
 
 void
-InitVM_IO(ruby_vm_t *vm)
+InitVM_IO(void)
 {
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
@@ -10249,7 +10250,7 @@ InitVM_IO(ruby_vm_t *vm)
     atexit(pipe_atexit);
 #endif
 
-    InitVM_File(vm);
+    InitVM_File();
 
     rb_define_method(rb_cFile, "initialize",  rb_file_initialize, -1);
 

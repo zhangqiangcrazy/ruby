@@ -1372,7 +1372,7 @@ Init_Exception(void)
 }
 
 void
-InitVM_Exception(ruby_vm_t *vm)
+InitVM_Exception(void)
 {
     rb_eException   = rb_define_class("Exception", rb_cObject);
     rb_define_singleton_method(rb_eException, "exception", rb_class_new_instance, -1);
@@ -1555,7 +1555,7 @@ Init_syserr(void)
 }
 
 void
-InitVM_syserr(ruby_vm_t *vm)
+InitVM_syserr(void)
 {
     rb_eNOERROR = set_syserr(0, "NOERROR");
 #define defined_error(name, num) set_syserr(num, name);

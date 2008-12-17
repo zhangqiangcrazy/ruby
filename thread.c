@@ -46,6 +46,8 @@
 
 #include "eval_intern.h"
 #include "gc.h"
+#include "ruby/util.h"
+#include "ruby/vm.h"
 
 #ifndef USE_NATIVE_THREAD_PRIORITY
 #define USE_NATIVE_THREAD_PRIORITY 0
@@ -4313,7 +4315,7 @@ Init_Thread(void)
 }
 
 void
-InitVM_Thread(ruby_vm_t *vm)
+InitVM_Thread(void)
 {
     VALUE cThGroup;
 

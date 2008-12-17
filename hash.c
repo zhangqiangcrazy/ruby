@@ -2819,7 +2819,7 @@ Init_Hash(void)
 }
 
 void
-InitVM_Hash(ruby_vm_t *vm)
+InitVM_Hash(void)
 {
     rb_cHash = rb_define_class("Hash", rb_cObject);
 

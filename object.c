@@ -2497,7 +2497,7 @@ Init_Object(void)
 }
 
 void
-InitVM_Object(ruby_vm_t *vm)
+InitVM_Object(void)
 {
     extern void Init_class_hierarchy(void);
     VALUE metaclass;

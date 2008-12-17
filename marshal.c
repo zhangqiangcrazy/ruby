@@ -1926,7 +1926,7 @@ Init_marshal(void)
 }
 
 void
-InitVM_marshal(ruby_vm_t *vm)
+InitVM_marshal(void)
 {
     VALUE rb_mMarshal = rb_define_module("Marshal");
 

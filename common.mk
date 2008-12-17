@@ -559,11 +559,11 @@ file.$(OBJEXT): {$(VPATH)}file.c $(RUBY_H_INCLUDES) {$(VPATH)}io.h \
 gc.$(OBJEXT): {$(VPATH)}gc.c $(RUBY_H_INCLUDES) {$(VPATH)}re.h \
   {$(VPATH)}regex.h $(ENCODING_H_INCLUDES) $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}gc.h {$(VPATH)}io.h {$(VPATH)}eval_intern.h {$(VPATH)}util.h \
-  {$(VPATH)}debug.h
+  {$(VPATH)}vm.h {$(VPATH)}debug.h
 hash.$(OBJEXT): {$(VPATH)}hash.c $(RUBY_H_INCLUDES) {$(VPATH)}util.h
 inits.$(OBJEXT): {$(VPATH)}inits.c $(RUBY_H_INCLUDES)
 io.$(OBJEXT): {$(VPATH)}io.c $(RUBY_H_INCLUDES) {$(VPATH)}io.h \
-  {$(VPATH)}util.h $(ENCODING_H_INCLUDES) {$(VPATH)}dln.h
+  {$(VPATH)}util.h $(ENCODING_H_INCLUDES) {$(VPATH)}dln.h {$(VPATH)}vm.h
 main.$(OBJEXT): {$(VPATH)}main.c $(RUBY_H_INCLUDES) {$(VPATH)}debug.h \
   {$(VPATH)}node.h
 marshal.$(OBJEXT): {$(VPATH)}marshal.c $(RUBY_H_INCLUDES) {$(VPATH)}io.h \
@@ -610,7 +610,7 @@ regsyntax.$(OBJEXT): {$(VPATH)}regsyntax.c {$(VPATH)}regint.h \
   {$(VPATH)}regenc.h {$(VPATH)}oniguruma.h $(RUBY_H_INCLUDES)
 ruby.$(OBJEXT): {$(VPATH)}ruby.c $(RUBY_H_INCLUDES) {$(VPATH)}util.h \
   $(ENCODING_H_INCLUDES) {$(VPATH)}eval_intern.h $(VM_CORE_H_INCLUDES) \
-  {$(VPATH)}dln.h {$(VPATH)}debug.h
+  {$(VPATH)}vm.h {$(VPATH)}dln.h {$(VPATH)}debug.h
 safe.$(OBJEXT): {$(VPATH)}safe.c $(RUBY_H_INCLUDES) \
   $(VM_CORE_H_INCLUDES) {$(VPATH)}debug.h
 signal.$(OBJEXT): {$(VPATH)}signal.c $(RUBY_H_INCLUDES) \
@@ -625,7 +625,7 @@ strftime.$(OBJEXT): {$(VPATH)}strftime.c {$(VPATH)}ruby.h \
 string.$(OBJEXT): {$(VPATH)}string.c $(RUBY_H_INCLUDES) {$(VPATH)}re.h \
   {$(VPATH)}regex.h $(ENCODING_H_INCLUDES)
 struct.$(OBJEXT): {$(VPATH)}struct.c $(RUBY_H_INCLUDES)
-thread.$(OBJEXT): {$(VPATH)}thread.c {$(VPATH)}eval_intern.h \
+thread.$(OBJEXT): {$(VPATH)}thread.c {$(VPATH)}eval_intern.h {$(VPATH)}vm.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}gc.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}debug.h {$(VPATH)}thread_$(THREAD_MODEL).c
 transcode.$(OBJEXT): {$(VPATH)}transcode.c $(RUBY_H_INCLUDES) \
@@ -640,7 +640,7 @@ mvm.$(OBJEXT): {$(VPATH)}mvm.c $(RUBY_H_INCLUDES) $(VM_CORE_H_INCLUDES) \
 util.$(OBJEXT): {$(VPATH)}util.c $(RUBY_H_INCLUDES) {$(VPATH)}util.h
 variable.$(OBJEXT): {$(VPATH)}variable.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}node.h {$(VPATH)}util.h {$(VPATH)}encoding.h \
-  {$(VPATH)}oniguruma.h
+  {$(VPATH)}oniguruma.h {$(VPATH)}vm.h
 version.$(OBJEXT): {$(VPATH)}version.c $(RUBY_H_INCLUDES) \
   {$(VPATH)}version.h $(srcdir)/revision.h {$(VPATH)}config.h
 dmyversion.$(OBJEXT): {$(VPATH)}dmyversion.c version.$(OBJEXT)
