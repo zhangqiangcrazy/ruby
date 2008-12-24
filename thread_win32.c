@@ -53,6 +53,12 @@ ruby_native_thread_yield(void)
 void
 Init_native_thread(void)
 {
+    ruby_native_thread_key = TlsAlloc();
+}
+
+static void
+InitVM_native_thread(void)
+{
     rb_thread_t *th = GET_THREAD();
 
     ruby_native_thread_key = TlsAlloc();

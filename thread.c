@@ -4312,6 +4312,9 @@ Init_Thread(void)
 #define rb_intern(str) rb_intern_const(str)
 
     recursive_key = rb_intern("__recursive_key__");
+
+    /* init thread core */
+    Init_native_thread();
 }
 
 void
@@ -4393,6 +4396,7 @@ InitVM_Thread(void)
     rb_define_method(rb_cThread, "add_trace_func", thread_add_trace_func_m, 1);
 
     /* init thread core */
+    InitVM_native_thread();
     {
 	/* main thread setting */
 	{
