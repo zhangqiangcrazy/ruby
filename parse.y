@@ -126,6 +126,7 @@ static ID cur_mid = 0;
 static int command_start = Qtrue;
 
 static NODE *deferred_nodes;
+static NODE *NEW_POSTARG();
 
 static NODE *new_args();
 
@@ -146,6 +147,7 @@ static NODE *remove_begin();
 static NODE *block_append();
 static NODE *list_append();
 static NODE *list_concat();
+static NODE *arg_append();
 static NODE *arg_concat();
 static NODE *arg_prepend();
 static NODE *literal_concat();
@@ -289,7 +291,7 @@ static void fixup_nodes();
 %type <node> assoc_list assocs assoc undef_list backref string_dvar
 %type <node> for_var block_var opt_block_var block_par
 %type <node> brace_block cmd_brace_block do_block lhs none fitem
-%type <node> mlhs mlhs_head mlhs_basic mlhs_entry mlhs_item mlhs_node
+%type <node> mlhs mlhs_head mlhs_basic mlhs_entry mlhs_item mlhs_node mlhs_post
 %type <id>   fsym variable sym symbol operation operation2 operation3
 %type <id>   cname fname op
 %type <num>  f_norm_arg f_arg
@@ -771,27 +773,83 @@ mlhs_entry	: mlhs_basic
 
 mlhs_basic	: mlhs_head
 		    {
+		    /*%%%*/
 			$$ = NEW_MASGN($1, 0);
+		    /*%
+			$$ = $1;
+		    %*/
 		    }
 		| mlhs_head mlhs_item
 		    {
+		    /*%%%*/
 			$$ = NEW_MASGN(list_append($1,$2), 0);
+		    /*%
+			$$ = mlhs_add($1, $2);
+		    %*/
 		    }
 		| mlhs_head tSTAR mlhs_node
 		    {
+		    /*%%%*/
 			$$ = NEW_MASGN($1, $3);
+		    /*%
+			$$ = mlhs_add_star($1, $3);
+		    %*/
+		    }
+		| mlhs_head tSTAR mlhs_node ',' mlhs_post
+		    {
+		    /*%%%*/
+			$$ = NEW_MASGN($1, NEW_POSTARG($3,$5));
+		    /*%
+			$$ = mlhs_add_star($1, $3);
+		    %*/
 		    }
 		| mlhs_head tSTAR
 		    {
+		    /*%%%*/
 			$$ = NEW_MASGN($1, -1);
+		    /*%
+			$$ = mlhs_add_star($1, Qnil);
+		    %*/
+		    }
+		| mlhs_head tSTAR ',' mlhs_post
+		    {
+		    /*%%%*/
+			$$ = NEW_MASGN($1, NEW_POSTARG(-1, $4));
+		    /*%
+			$$ = mlhs_add_star($1, Qnil);
+		    %*/
 		    }
 		| tSTAR mlhs_node
 		    {
+		    /*%%%*/
 			$$ = NEW_MASGN(0, $2);
+		    /*%
+			$$ = mlhs_add_star(mlhs_new(), $2);
+		    %*/
+		    }
+		| tSTAR mlhs_node ',' mlhs_post
+		    {
+		    /*%%%*/
+			$$ = NEW_MASGN(0, NEW_POSTARG($2,$4));
+		    /*%
+			$$ = mlhs_add_star(mlhs_new(), $2);
+		    %*/
 		    }
 		| tSTAR
 		    {
+		    /*%%%*/
 			$$ = NEW_MASGN(0, -1);
+		    /*%
+			$$ = mlhs_add_star(mlhs_new(), Qnil);
+		    %*/
+		    }
+		| tSTAR ',' mlhs_post
+		    {
+		    /*%%%*/
+			$$ = NEW_MASGN(0, NEW_POSTARG(-1, $3));
+		    /*%
+			$$ = mlhs_add_star(mlhs_new(), Qnil);
+		    %*/
 		    }
 		;
 
@@ -809,6 +867,24 @@ mlhs_head	: mlhs_item ','
 		| mlhs_head mlhs_item ','
 		    {
 			$$ = list_append($1, $2);
+		    }
+		;
+
+mlhs_post	: mlhs_item
+		    {
+		    /*%%%*/
+			$$ = NEW_LIST($1);
+		    /*%
+			$$ = mlhs_add(mlhs_new(), $1);
+		    %*/
+		    }
+		| mlhs_post ',' mlhs_item
+		    {
+		    /*%%%*/
+			$$ = list_append($1, $3);
+		    /*%
+			$$ = mlhs_add($1, $3);
+		    %*/
 		    }
 		;
 
@@ -4976,6 +5052,24 @@ new_evstr(node)
 	}
     }
     return NEW_EVSTR(head);
+}
+
+static VALUE
+new_postarg_internal_raise(argc, argv)
+    int argc;
+    VALUE *argv;
+{
+    rb_raise(rb_eSyntaxError, "Unsupported 1.9-ism: loose multiple assignment (LHS)");
+    return Qundef; /* NOTREACHED */
+}
+
+static NODE *
+NEW_POSTARG(n1, n2)
+    NODE *n1, *n2;
+{
+    VALUE obj = rb_obj_alloc(rb_cObject);
+    rb_define_singleton_method(obj, "raise", new_postarg_internal_raise, -1);
+    return NEW_CALL(NEW_LIT(obj), rb_intern("raise"), NEW_LIST(0));
 }
 
 static NODE *

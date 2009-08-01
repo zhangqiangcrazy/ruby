@@ -1,3 +1,7 @@
+Sun Aug  2 05:06:12 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y (mlhs_basic): looser splatting in multi-assignment.
+
 Sun Aug  2 04:54:01 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* parse.y (f_args): looser formal optional / rest argumets.
