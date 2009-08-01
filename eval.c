@@ -6077,7 +6077,10 @@ rb_call0(klass, recv, id, oid, argc, argv, body, flags)
 		    body = body->nd_next;
 		}
 		if (node) {
-		    if (nd_type(node) != NODE_ARGS) {
+                    if (nd_type(node) == NODE_FCALL) {
+                        eval_node(recv, node);
+                    }
+		    else if (nd_type(node) != NODE_ARGS) {
 			rb_bug("no argument-node");
 		    }
 

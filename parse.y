@@ -127,6 +127,8 @@ static int command_start = Qtrue;
 
 static NODE *deferred_nodes;
 
+static NODE *new_args();
+
 static NODE *cond();
 static NODE *logop();
 static int cond_negative();
@@ -2312,39 +2314,123 @@ f_arglist	: '(' f_args opt_nl ')'
 
 f_args		: f_arg ',' f_optarg ',' f_rest_arg opt_f_block_arg
 		    {
-			$$ = block_append(NEW_ARGS($1, $3, $5), $6);
+		    /*%%%*/
+			$$ = new_args($1, $3, $5, 0, $6);
+		    /*%
+			$$ = params_new($1, $3, $5, Qnil, escape_Qundef($6));
+		    %*/
+		    }
+		| f_arg ',' f_optarg ',' f_rest_arg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, $5, $7, $8);
+		    /*%
+			$$ = params_new($1, $3, $5, $7, escape_Qundef($8));
+		    %*/
 		    }
 		| f_arg ',' f_optarg opt_f_block_arg
 		    {
-			$$ = block_append(NEW_ARGS($1, $3, 0), $4);
+		    /*%%%*/
+			$$ = new_args($1, $3, 0, 0, $4);
+		    /*%
+			$$ = params_new($1, $3, Qnil, Qnil, escape_Qundef($4));
+		    %*/
+		    }
+		| f_arg ',' f_optarg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, $3, 0, $5, $6);
+		    /*%
+			$$ = params_new($1, $3, Qnil, $5, escape_Qundef($6));
+		    %*/
 		    }
 		| f_arg ',' f_rest_arg opt_f_block_arg
 		    {
-			$$ = block_append(NEW_ARGS($1, 0, $3), $4);
+		    /*%%%*/
+			$$ = new_args($1, 0, $3, 0, $4);
+		    /*%
+			$$ = params_new($1, Qnil, $3, Qnil, escape_Qundef($4));
+		    %*/
+		    }
+		| f_arg ',' f_rest_arg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args($1, 0, $3, $5, $6);
+		    /*%
+			$$ = params_new($1, Qnil, $3, $5, escape_Qundef($6));
+		    %*/
 		    }
 		| f_arg opt_f_block_arg
 		    {
-			$$ = block_append(NEW_ARGS($1, 0, 0), $2);
+		    /*%%%*/
+			$$ = new_args($1, 0, 0, 0, $2);
+		    /*%
+			$$ = params_new($1, Qnil, Qnil, Qnil,escape_Qundef($2));
+		    %*/
 		    }
 		| f_optarg ',' f_rest_arg opt_f_block_arg
 		    {
-			$$ = block_append(NEW_ARGS(0, $1, $3), $4);
+		    /*%%%*/
+			$$ = new_args(0, $1, $3, 0, $4);
+		    /*%
+			$$ = params_new(Qnil, $1, $3, Qnil, escape_Qundef($4));
+		    %*/
+		    }
+		| f_optarg ',' f_rest_arg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, $3, $5, $6);
+		    /*%
+			$$ = params_new(Qnil, $1, $3, $5, escape_Qundef($6));
+		    %*/
 		    }
 		| f_optarg opt_f_block_arg
 		    {
-			$$ = block_append(NEW_ARGS(0, $1, 0), $2);
+		    /*%%%*/
+			$$ = new_args(0, $1, 0, 0, $2);
+		    /*%
+			$$ = params_new(Qnil, $1, Qnil, Qnil,escape_Qundef($2));
+		    %*/
+		    }
+		| f_optarg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, $1, 0, $3, $4);
+		    /*%
+			$$ = params_new(Qnil, $1, Qnil, $3, escape_Qundef($4));
+		    %*/
 		    }
 		| f_rest_arg opt_f_block_arg
 		    {
-			$$ = block_append(NEW_ARGS(0, 0, $1), $2);
+		    /*%%%*/
+			$$ = new_args(0, 0, $1, 0, $2);
+		    /*%
+			$$ = params_new(Qnil, Qnil, $1, Qnil,escape_Qundef($2));
+		    %*/
+		    }
+		| f_rest_arg ',' f_arg opt_f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, 0, $1, $3, $4);
+		    /*%
+			$$ = params_new(Qnil, Qnil, $1, $3, escape_Qundef($4));
+		    %*/
 		    }
 		| f_block_arg
 		    {
-			$$ = block_append(NEW_ARGS(0, 0, 0), $1);
+		    /*%%%*/
+			$$ = new_args(0, 0, 0, 0, $1);
+		    /*%
+			$$ = params_new(Qnil, Qnil, Qnil, Qnil, $1);
+		    %*/
 		    }
 		| /* none */
 		    {
-			$$ = NEW_ARGS(0, 0, 0);
+		    /*%%%*/
+			$$ = new_args(0, 0, 0, 0, 0);
+		    /*%
+			$$ = params_new(Qnil, Qnil, Qnil, Qnil, Qnil);
+		    %*/
 		    }
 		;
 
@@ -4846,6 +4932,23 @@ literal_concat(head, tail)
     return head;
 }
 
+static NODE*
+new_args(m, o, r, p, b)
+    NODE *m, *o, *p, *b;
+    ID r;
+{
+    if (p) {
+        ID i = rb_intern("raise");
+        VALUE e = rb_eSyntaxError; /* or maybe a subclass of it? */
+        VALUE s = rb_str_new2("Unsupported 1.9-ism: loose formal opt/rest args");
+        NODE *n = NEW_FCALL(i, list_append(NEW_LIST(NEW_LIT(e)), NEW_LIT(s)));
+        NODE *b = NEW_BLOCK(n);
+        b->nd_end = b;
+        return b;
+    }
+    return block_append(NEW_ARGS(m, o, r), b);
+}
+                                  
 static NODE *
 evstr2dstr(node)
     NODE *node;
