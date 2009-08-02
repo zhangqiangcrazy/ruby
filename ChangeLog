@@ -124,6 +124,10 @@ Sun Aug  2 06:08:17 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* parse.y (string_type): ditto.
 
+Sun Aug  2 11:58:22 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y: looser splatting in arguments.
+
 Sun Aug  2 06:51:41 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* parse.y (when_args): no longer needed.
