@@ -31,7 +31,7 @@ VALUE rb_cTrueClass;
 VALUE rb_cFalseClass;
 VALUE rb_cSymbol;
 
-static ID id_eq, id_eql, id_inspect, id_init_copy;
+static ID id_eq, id_eql, id_match, id_inspect, id_init_copy;
 
 /*
  *  call-seq:
@@ -111,6 +111,33 @@ rb_obj_id_obsolete(obj)
 {
     rb_warn("Object#id is deprecated; use Object#object_id");
     return rb_obj_id(obj);
+}
+
+/*
+ *  call-seq:
+ *     !obj    => true or false
+ *
+ *  Boolean negate.
+ */
+
+VALUE
+rb_obj_not(VALUE obj)
+{
+    return RTEST(obj) ? Qfalse : Qtrue;
+}
+
+/*
+ *  call-seq:
+ *     obj != other        => true or false
+ *
+ *  Returns true if two objects are not-equal, otherwise false.
+ */
+
+VALUE
+rb_obj_not_equal(VALUE obj1, VALUE obj2)
+{
+    VALUE result = rb_funcall(obj1, id_eq, 1, obj2);
+    return RTEST(result) ? Qfalse : Qtrue;
 }
 
 VALUE
@@ -1079,6 +1106,21 @@ rb_obj_pattern_match(obj1, obj2)
     VALUE obj1, obj2;
 {
     return Qfalse;
+}
+
+/*
+ *  call-seq:
+ *     obj !~ other  => true or false
+ *
+ *  Returns true if two objects do not match (using the <i>=~</i>
+ *  method), otherwise false.
+ */
+
+static VALUE
+rb_obj_not_match(VALUE obj1, VALUE obj2)
+{
+    VALUE result = rb_funcall(obj1, id_match, 1, obj2);
+    return RTEST(result) ? Qfalse : Qtrue;
 }
 
 /**********************************************************************
@@ -2734,9 +2776,12 @@ Init_Object()
 
     rb_define_method(rb_mKernel, "nil?", rb_false, 0);
     rb_define_method(rb_mKernel, "==", rb_obj_equal, 1);
+    rb_define_method(rb_mKernel, "!", rb_obj_not, 0);
+    rb_define_method(rb_mKernel, "!=", rb_obj_not_equal, 1);
     rb_define_method(rb_mKernel, "equal?", rb_obj_equal, 1);
     rb_define_method(rb_mKernel, "===", rb_equal, 1); 
     rb_define_method(rb_mKernel, "=~", rb_obj_pattern_match, 1);
+    rb_define_method(rb_mKernel, "!~", rb_obj_not_match, 1);
 
     rb_define_method(rb_mKernel, "eql?", rb_obj_equal, 1);
 
@@ -2904,6 +2949,7 @@ Init_Object()
 
     id_eq = rb_intern("==");
     id_eql = rb_intern("eql?");
+    id_match = rb_intern("match");
     id_inspect = rb_intern("inspect");
     id_init_copy = rb_intern("initialize_copy");
 }

@@ -129,7 +129,6 @@ static NODE *deferred_nodes;
 
 static NODE *cond();
 static NODE *logop();
-static int cond_negative();
 
 static NODE *newline_node();
 static void fixpos();
@@ -447,19 +446,11 @@ stmt		: kALIAS fitem {lex_state = EXPR_FNAME;} fitem
 		    {
 			$$ = NEW_IF(cond($3), remove_begin($1), 0);
 		        fixpos($$, $3);
-			if (cond_negative(&$$->nd_cond)) {
-		            $$->nd_else = $$->nd_body;
-		            $$->nd_body = 0;
-			}
 		    }
 		| stmt kUNLESS_MOD expr_value
 		    {
 			$$ = NEW_UNLESS(cond($3), remove_begin($1), 0);
 		        fixpos($$, $3);
-			if (cond_negative(&$$->nd_cond)) {
-		            $$->nd_body = $$->nd_else;
-		            $$->nd_else = 0;
-			}
 		    }
 		| stmt kWHILE_MOD expr_value
 		    {
@@ -469,9 +460,6 @@ stmt		: kALIAS fitem {lex_state = EXPR_FNAME;} fitem
 			else {
 			    $$ = NEW_WHILE(cond($3), $1, 1);
 			}
-			if (cond_negative(&$$->nd_cond)) {
-			    nd_set_type($$, NODE_UNTIL);
-			}
 		    }
 		| stmt kUNTIL_MOD expr_value
 		    {
@@ -480,9 +468,6 @@ stmt		: kALIAS fitem {lex_state = EXPR_FNAME;} fitem
 			}
 			else {
 			    $$ = NEW_UNTIL(cond($3), $1, 1);
-			}
-			if (cond_negative(&$$->nd_cond)) {
-			    nd_set_type($$, NODE_WHILE);
 			}
 		    }
 		| stmt kRESCUE_MOD stmt
@@ -632,11 +617,11 @@ expr		: command_call
 		    }
 		| kNOT expr
 		    {
-			$$ = NEW_NOT(cond($2));
+			$$ = call_op($2, "!", 0, 0);
 		    }
 		| '!' command_call
 		    {
-			$$ = NEW_NOT(cond($2));
+			$$ = call_op($2, "!", 0, 0);
 		    }
 		| arg
 		;
@@ -952,10 +937,12 @@ op		: '|'		{ $$ = '|'; }
 		| tEQ		{ $$ = tEQ; }
 		| tEQQ		{ $$ = tEQQ; }
 		| tMATCH	{ $$ = tMATCH; }
+		| tNMATCH	{ $$ = tNMATCH; }
 		| '>'		{ $$ = '>'; }
 		| tGEQ		{ $$ = tGEQ; }
 		| '<'		{ $$ = '<'; }
 		| tLEQ		{ $$ = tLEQ; }
+		| tNEQ		{ $$ = tNEQ; }
 		| tLSHFT	{ $$ = tLSHFT; }
 		| tRSHFT	{ $$ = tRSHFT; }
 		| '+'		{ $$ = '+'; }
@@ -965,6 +952,7 @@ op		: '|'		{ $$ = '|'; }
 		| '/'		{ $$ = '/'; }
 		| '%'		{ $$ = '%'; }
 		| tPOW		{ $$ = tPOW; }
+		| '!'		{ $$ = '!'; }
 		| '~'		{ $$ = '~'; }
 		| tUPLUS	{ $$ = tUPLUS; }
 		| tUMINUS	{ $$ = tUMINUS; }
@@ -1189,7 +1177,7 @@ arg		: lhs '=' arg
 		    }
 		| arg tNEQ arg
 		    {
-			$$ = NEW_NOT(call_op($1, tEQ, 1, $3));
+			$$ = call_op($1, tNEQ, 1, $3);
 		    }
 		| arg tMATCH arg
 		    {
@@ -1197,11 +1185,11 @@ arg		: lhs '=' arg
 		    }
 		| arg tNMATCH arg
 		    {
-			$$ = NEW_NOT(match_gen($1, $3));
+			$$ = call_op($1, tNMATCH, 1, $3);
 		    }
 		| '!' arg
 		    {
-			$$ = NEW_NOT(cond($2));
+			$$ = call_op($2, '!', 0, 0);
 		    }
 		| '~' arg
 		    {
@@ -1559,11 +1547,6 @@ primary		: literal
 		    {
 			$$ = NEW_IF(cond($2), $4, $5);
 		        fixpos($$, $2);
-			if (cond_negative(&$$->nd_cond)) {
-		            NODE *tmp = $$->nd_body;
-		            $$->nd_body = $$->nd_else;
-		            $$->nd_else = tmp;
-			}
 		    }
 		| kUNLESS expr_value then
 		  compstmt
@@ -1572,11 +1555,6 @@ primary		: literal
 		    {
 			$$ = NEW_UNLESS(cond($2), $4, $5);
 		        fixpos($$, $2);
-			if (cond_negative(&$$->nd_cond)) {
-		            NODE *tmp = $$->nd_body;
-		            $$->nd_body = $$->nd_else;
-		            $$->nd_else = tmp;
-			}
 		    }
 		| kWHILE {COND_PUSH(1);} expr_value do {COND_POP();}
 		  compstmt
@@ -1584,9 +1562,6 @@ primary		: literal
 		    {
 			$$ = NEW_WHILE(cond($3), $6, 1);
 		        fixpos($$, $3);
-			if (cond_negative(&$$->nd_cond)) {
-			    nd_set_type($$, NODE_UNTIL);
-			}
 		    }
 		| kUNTIL {COND_PUSH(1);} expr_value do {COND_POP();}
 		  compstmt
@@ -1594,9 +1569,6 @@ primary		: literal
 		    {
 			$$ = NEW_UNTIL(cond($3), $6, 1);
 		        fixpos($$, $3);
-			if (cond_negative(&$$->nd_cond)) {
-			    nd_set_type($$, NODE_WHILE);
-			}
 		    }
 		| kCASE expr_value opt_terms
 		  case_body
@@ -3547,8 +3519,17 @@ yylex()
 	return c;
 
       case '!':
-	lex_state = EXPR_BEG;
-	if ((c = nextc()) == '=') {
+	c = nextc();
+	if (lex_state == EXPR_FNAME || lex_state == EXPR_DOT) {
+	    lex_state = EXPR_ARG;
+	    if (c == '@') {
+		return '!';
+	    }
+	}
+	else {
+	    lex_state = EXPR_BEG;
+	}
+	if (c == '=') {
 	    return tNEQ;
 	}
 	if (c == '~') {
@@ -5568,26 +5549,6 @@ logop(type, left, right)
     return NEW_NODE(type, left, right, 0);
 }
 
-static int
-cond_negative(nodep)
-    NODE **nodep;
-{
-    NODE *c = *nodep;
-
-    if (!c) return 0;
-    switch (nd_type(c)) {
-      case NODE_NOT:
-	*nodep = c->nd_body;
-	return 1;
-      case NODE_NEWLINE:
-	if (c->nd_next && nd_type(c->nd_next) == NODE_NOT) {
-	    c->nd_next = c->nd_next->nd_body;
-	    return 1;
-	}
-    }
-    return 0;
-}
-
 static void
 no_blockarg(node)
     NODE *node;
@@ -6023,6 +5984,7 @@ static struct {
     {'|',	"|"},
     {'^',	"^"},
     {'&',	"&"},
+    {'!',	"!"},
     {tCMP,	"<=>"},
     {'>',	">"},
     {tGEQ,	">="},
@@ -6033,12 +5995,12 @@ static struct {
     {tNEQ,	"!="},
     {tMATCH,	"=~"},
     {tNMATCH,	"!~"},
-    {'!',	"!"},
     {'~',	"~"},
-    {'!',	"!(unary)"},
     {'~',	"~(unary)"},
-    {'!',	"!@"},
     {'~',	"~@"},
+    {'!',	"!"},
+    {'!',	"!(unary)"},
+    {'!',	"!@"},
     {tAREF,	"[]"},
     {tASET,	"[]="},
     {tLSHFT,	"<<"},
