@@ -1,3 +1,7 @@
+Mon Aug  3 15:04:01 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y (expr): bug fix to prevent SEGV
+
 Sun Aug  2 21:23:49 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* parse.y (expr): redefinable not operators. Backport from trunk.

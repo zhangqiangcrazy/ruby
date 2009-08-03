@@ -617,11 +617,11 @@ expr		: command_call
 		    }
 		| kNOT expr
 		    {
-			$$ = call_op($2, "!", 0, 0);
+			$$ = call_op($2, '!', 0, 0);
 		    }
 		| '!' command_call
 		    {
-			$$ = call_op($2, "!", 0, 0);
+			$$ = call_op($2, '!', 0, 0);
 		    }
 		| arg
 		;
