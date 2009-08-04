@@ -1,3 +1,7 @@
+Tue Aug  4 11:30:09 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y (bv_decls): new state.
+
 Tue Aug  4 03:56:51 2009  Hidetoshi NAGAI  <nagai@ai.kyutech.ac.jp>
 
 	* ext/tk/lib/tcltklib.c: fix trouble on old-style C function

@@ -286,6 +286,7 @@ static void fixup_nodes();
 %type <node> f_arglist f_args f_optarg f_opt f_rest_arg f_block_arg opt_f_block_arg
 %type <node> assoc_list assocs assoc undef_list backref string_dvar
 %type <node> for_var block_var opt_block_var block_par
+%type <node> opt_bv_decl
 %type <node> brace_block cmd_brace_block do_block lhs none fitem
 %type <node> mlhs mlhs_head mlhs_basic mlhs_entry mlhs_item mlhs_node
 %type <id>   fsym variable sym symbol operation operation2 operation3
@@ -1841,11 +1842,38 @@ opt_block_var	: none
 			$$ = (NODE*)1;
 			command_start = Qtrue;
 		    }
-		| '|' block_var '|'
+		| '|' block_var opt_bv_decl '|'
 		    {
 			$$ = $2;
 			command_start = Qtrue;
 		    }
+		;
+
+opt_bv_decl	: none
+		| ';' bv_decls
+		    {
+		    /*%%%*/
+			$$ = 0;
+		    /*%
+			$$ = $2;
+		    %*/
+		    }
+		;
+
+bv_decls	: lhs
+		    /*%c%*/
+		    /*%c
+		    {
+			$$ = rb_ary_new2($1);
+		    }
+		    %*/
+		| bv_decls ',' lhs
+		    /*%c%*/
+		    /*%c
+		    {
+			rb_ary_push($$, $3);
+		    }
+		    %*/
 		;
 
 do_block	: kDO_BLOCK
