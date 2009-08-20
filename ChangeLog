@@ -1,4 +1,6 @@
-Fri Aug 21 00:25:07 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
+Fri Aug 21 00:39:17 2009  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y (opt_call_args): fix to pass "make test-all".
 
 	* parse.y (arg_value): fix to pass "make test".
 

@@ -1344,7 +1344,7 @@ aref_args	: none
 		    }
 		;
 
-paren_args	: '(' opt_call_args opt_nl ')'
+paren_args	: '(' opt_call_args ')'
 		    {
 			$$ = $2;
 		    }
@@ -1354,8 +1354,14 @@ opt_paren_args	: none
 		| paren_args
 		;
 
-opt_call_args	: none
-		| call_args
+opt_call_args	: opt_nl
+		    {
+			$$ = 0;
+		    }
+		| call_args opt_nl
+		    {
+			$$ = $1;
+		    }
 		;
 
 call_args	: command
