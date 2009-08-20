@@ -285,7 +285,7 @@ static void fixup_nodes();
 %type <node> bodystmt compstmt stmts stmt expr arg primary command command_call method_call
 %type <node> expr_value arg_value primary_value
 %type <node> if_tail opt_else case_body cases opt_rescue exc_list exc_var opt_ensure
-%type <node> args call_args call_args2 opt_call_args
+%type <node> args args2 call_args call_args2 opt_call_args
 %type <node> open_args paren_args opt_paren_args
 %type <node> command_args aref_args opt_block_arg block_arg var_ref var_lhs
 %type <node> mrhs superclass block_call block_command
@@ -1362,7 +1362,7 @@ call_args	: command
 		    {
 			$$ = NEW_LIST($1);
 		    }
-		| args opt_block_arg
+		| args2 opt_block_arg
 		    {
 			$$ = arg_blk_pass($1, $2);
 		    }
@@ -1371,7 +1371,7 @@ call_args	: command
 			$$ = NEW_LIST(NEW_HASH($1));
 			$$ = arg_blk_pass($$, $2);
 		    }
-		| args ',' assocs opt_block_arg
+		| args2 ',' assocs opt_block_arg
 		    {
 			$$ = list_append($1, NEW_HASH($3));
 			$$ = arg_blk_pass($$, $4);
@@ -1443,7 +1443,39 @@ opt_block_arg	: ',' block_arg
 		| none
 		;
 
-args 		: arg_value
+args		: arg_value
+		    {
+			$$ = NEW_LIST($1);
+		    }
+		| tSTAR arg_value
+		    {
+		    /*%%%*/
+			$$ = NEW_TO_ARY($2);
+		    /*%
+			$$ = arg_add_star(arg_new(), $2);
+		    %*/
+		    }
+		| args ',' arg_value
+		    {
+			$$ = list_append($1, $3);
+		    }
+		| args ',' tSTAR arg_value
+		    {
+		    /*%%%*/
+			NODE *n1;
+			if ((nd_type($4) == NODE_ARRAY) && (n1 = splat_array($1)) != 0) {
+			    $$ = list_concat(n1, $4);
+			}
+			else {
+			    $$ = arg_concat($1, $4);
+			}
+		    /*%
+			$$ = arg_add_star($1, $4);
+		    %*/
+		    }
+		;
+
+args2		: arg_value
 		    {
 			$$ = NEW_LIST($1);
 		    }
@@ -1455,11 +1487,11 @@ args 		: arg_value
 			$$ = arg_add_star(arg_new(), $2);
 		    %*/
 		    }
-		| args ',' arg_value
+		| args2 ',' arg_value
 		    {
 			$$ = list_append($1, $3);
 		    }
-		| args ',' tSTAR arg_value
+		| args2 ',' tSTAR arg_value
 		    {
 		    /*%%%*/
 			NODE *n1;
