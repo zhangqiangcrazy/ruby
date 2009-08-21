@@ -289,9 +289,10 @@ static void fixup_nodes();
 %type <node> open_args paren_args opt_paren_args
 %type <node> command_args aref_args opt_block_arg block_arg var_ref var_lhs
 %type <node> mrhs superclass block_call block_command
+%type <node> f_block_optarg f_block_opt
 %type <node> f_arglist f_args f_optarg f_opt f_rest_arg f_block_arg opt_f_block_arg
 %type <node> assoc_list assocs assoc undef_list backref string_dvar
-%type <node> for_var block_var opt_block_var block_par
+%type <node> for_var block_var opt_block_var
 %type <node> opt_bv_decl
 %type <node> brace_block cmd_brace_block do_block lhs none fitem
 %type <node> mlhs mlhs_head mlhs_basic mlhs_entry mlhs_item mlhs_node mlhs_post
@@ -1833,71 +1834,128 @@ for_var 	: lhs
 		| mlhs
 		;
 
-block_par	: mlhs_item
+block_var	: f_arg ',' f_block_optarg ',' f_rest_arg opt_f_block_arg
 		    {
-			$$ = NEW_LIST($1);
+		    /*%%%*/
+			$$ = new_args($1, $3, $5, 0, $6);
+		    /*%
+			$$ = params_new($1, $3, $5, Qnil, escape_Qundef($6));
+		    %*/
 		    }
-		| block_par ',' mlhs_item
+		| f_arg ',' f_block_optarg ',' f_rest_arg ',' f_arg opt_f_block_arg
 		    {
-			$$ = list_append($1, $3);
+		    /*%%%*/
+			$$ = new_args($1, $3, $5, $7, $8);
+		    /*%
+			$$ = params_new($1, $3, $5, $7, escape_Qundef($8));
+		    %*/
 		    }
-		;
-
-block_var	: block_par
+		| f_arg ',' f_block_optarg opt_f_block_arg
 		    {
-			if ($1->nd_alen == 1) {
-			    $$ = $1->nd_head;
-			    rb_gc_force_recycle((VALUE)$1);
-			}
-			else {
-			    $$ = NEW_MASGN($1, 0);
-			}
+		    /*%%%*/
+			$$ = new_args($1, $3, 0, 0, $4);
+		    /*%
+			$$ = params_new($1, $3, Qnil, Qnil, escape_Qundef($4));
+		    %*/
 		    }
-		| block_par ','
+		| f_arg ',' f_block_optarg ',' f_arg opt_f_block_arg
 		    {
-			$$ = NEW_MASGN($1, 0);
+		    /*%%%*/
+			$$ = new_args($1, $3, 0, $5, $6);
+		    /*%
+			$$ = params_new($1, $3, Qnil, $5, escape_Qundef($6));
+		    %*/
 		    }
-		| block_par ',' tAMPER lhs
+                | f_arg ',' f_rest_arg opt_f_block_arg
 		    {
-			$$ = NEW_BLOCK_VAR($4, NEW_MASGN($1, 0));
+		    /*%%%*/
+			$$ = new_args($1, 0, $3, 0, $4);
+		    /*%
+			$$ = params_new($1, Qnil, $3, Qnil, escape_Qundef($4));
+		    %*/
 		    }
-		| block_par ',' tSTAR lhs ',' tAMPER lhs
+		| f_arg ','
 		    {
-			$$ = NEW_BLOCK_VAR($7, NEW_MASGN($1, $4));
+		    /*%%%*/
+			$$ = new_args($1, 0, 1, 0, 0);
+		    /*%
+			$$ = params_new($1, Qnil, Qnil, Qnil, Qnil);
+                        dispatch1(excessed_comma, $$);
+		    %*/
 		    }
-		| block_par ',' tSTAR ',' tAMPER lhs
+		| f_arg ',' f_rest_arg ',' f_arg opt_f_block_arg
 		    {
-			$$ = NEW_BLOCK_VAR($6, NEW_MASGN($1, -1));
+		    /*%%%*/
+			$$ = new_args($1, 0, $3, $5, $6);
+		    /*%
+			$$ = params_new($1, Qnil, $3, $5, escape_Qundef($6));
+		    %*/
 		    }
-		| block_par ',' tSTAR lhs
+		| f_arg opt_f_block_arg
 		    {
-			$$ = NEW_MASGN($1, $4);
+		    /*%%%*/
+			$$ = new_args($1, 0, 0, 0, $2);
+		    /*%
+			$$ = params_new($1, Qnil,Qnil, Qnil, escape_Qundef($2));
+		    %*/
 		    }
-		| block_par ',' tSTAR
+		| f_block_optarg ',' f_rest_arg opt_f_block_arg
 		    {
-			$$ = NEW_MASGN($1, -1);
+		    /*%%%*/
+			$$ = new_args(0, $1, $3, 0, $4);
+		    /*%
+			$$ = params_new(Qnil, $1, $3, Qnil, escape_Qundef($4));
+		    %*/
 		    }
-		| tSTAR lhs ',' tAMPER lhs
+		| f_block_optarg ',' f_rest_arg ',' f_arg opt_f_block_arg
 		    {
-			$$ = NEW_BLOCK_VAR($5, NEW_MASGN(0, $2));
+		    /*%%%*/
+			$$ = new_args(0, $1, $3, $5, $6);
+		    /*%
+			$$ = params_new(Qnil, $1, $3, $5, escape_Qundef($6));
+		    %*/
 		    }
-		| tSTAR ',' tAMPER lhs
+		| f_block_optarg opt_f_block_arg
 		    {
-			$$ = NEW_BLOCK_VAR($4, NEW_MASGN(0, -1));
+		    /*%%%*/
+			$$ = new_args(0, $1, 0, 0, $2);
+		    /*%
+			$$ = params_new(Qnil, $1, Qnil, Qnil,escape_Qundef($2));
+		    %*/
 		    }
-		| tSTAR lhs
+		| f_block_optarg ',' f_arg opt_f_block_arg
 		    {
-			$$ = NEW_MASGN(0, $2);
+		    /*%%%*/
+			$$ = new_args(0, $1, 0, $3, $4);
+		    /*%
+			$$ = params_new(Qnil, $1, Qnil, $3, escape_Qundef($4));
+		    %*/
 		    }
-		| tSTAR
+		| f_rest_arg opt_f_block_arg
 		    {
-			$$ = NEW_MASGN(0, -1);
+		    /*%%%*/
+			$$ = new_args(0, 0, $1, 0, $2);
+		    /*%
+			$$ = params_new(Qnil, Qnil, $1, Qnil, escape_Qundef($2));
+		    %*/
 		    }
-		| tAMPER lhs
+		| f_rest_arg ',' f_arg opt_f_block_arg
 		    {
-			$$ = NEW_BLOCK_VAR($2, (NODE*)1);
+		    /*%%%*/
+			$$ = new_args(0, 0, $1, $3, $4);
+		    /*%
+			$$ = params_new(Qnil, Qnil, $1, $3, escape_Qundef($4));
+		    %*/
 		    }
-		;
+		| f_block_arg
+		    {
+		    /*%%%*/
+			$$ = new_args(0, 0, 0, 0, $1);
+		    /*%
+			$$ = params_new(Qnil, Qnil, Qnil, Qnil, $1);
+		    %*/
+		    }
+		; 
 
 opt_block_var	: none
 		| '|' /* none */ '|'
@@ -2571,6 +2629,40 @@ f_opt		: tIDENTIFIER '=' arg_value
 			else if (local_id($1))
 			    yyerror("duplicate optional argument name");
 			$$ = assignable($1, $3);
+		    }
+		;
+
+f_block_opt	: tIDENTIFIER '=' primary_value
+		    {
+		    /*%%%*/
+			$$ = assignable($1, $3);
+		    /*%
+			$$ = rb_assoc_new($1, $3);
+		    %*/
+		    }
+		;
+
+f_block_optarg	: f_block_opt
+		    {
+		    /*%%%*/
+			$$ = $1;
+		    /*%
+			$$ = rb_ary_new3(1, $1);
+		    %*/
+		    }
+		| f_block_optarg ',' f_block_opt
+		    {
+		    /*%%%*/
+			NODE *opts = $1;
+
+			while (opts->nd_next) {
+			    opts = opts->nd_next;
+			}
+			opts->nd_next = $3;
+			$$ = $1;
+		    /*%
+			$$ = rb_ary_push($1, $3);
+		    %*/
 		    }
 		;
 

@@ -5093,6 +5093,9 @@ rb_yield_0(val, self, klass, flags, avalue)
 		}
 		massign(self, var, val, lambda);
 	    }
+            else if (nd_type(var) == NODE_ARGS) {
+                rb_bug("to be written.");
+            }
 	    else {
 		int len = 0;
 		if (avalue) {
