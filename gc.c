@@ -635,10 +635,10 @@ garbage_collect_with_gvl(rb_objspace_t *objspace)
     }
 }
 
-static void vm_xfree(rb_objspace_t *objspace, void *ptr);
+void rb_objspace_xfree(rb_objspace_t *objspace, void *ptr);
 
-static void *
-vm_xmalloc(rb_objspace_t *objspace, size_t size)
+void *
+rb_objspace_xmalloc(rb_objspace_t *objspace, size_t size)
 {
     void *mem;
 
@@ -676,17 +676,17 @@ vm_xmalloc(rb_objspace_t *objspace, size_t size)
     return mem;
 }
 
-static void *
-vm_xrealloc(rb_objspace_t *objspace, void *ptr, size_t size)
+void *
+rb_objspace_xrealloc(rb_objspace_t *objspace, void *ptr, size_t size)
 {
     void *mem;
 
     if ((ssize_t)size < 0) {
 	negative_size_allocation_error("negative re-allocation size");
     }
-    if (!ptr) return vm_xmalloc(objspace, size);
+    if (!ptr) return rb_objspace_xmalloc(objspace, size);
     if (size == 0) {
-	vm_xfree(objspace, ptr);
+	rb_objspace_xfree(objspace, ptr);
 	return 0;
     }
     if (ruby_gc_stress && !ruby_disable_gc_stress)
@@ -718,8 +718,8 @@ vm_xrealloc(rb_objspace_t *objspace, void *ptr, size_t size)
     return mem;
 }
 
-static void
-vm_xfree(rb_objspace_t *objspace, void *ptr)
+void
+rb_objspace_xfree(rb_objspace_t *objspace, void *ptr)
 {
 #if CALC_EXACT_MALLOC_SIZE
     size_t size;
@@ -735,7 +735,7 @@ vm_xfree(rb_objspace_t *objspace, void *ptr)
 void *
 ruby_xmalloc(size_t size)
 {
-    return vm_xmalloc(&rb_objspace, size);
+    return rb_objspace_xmalloc(&rb_objspace, size);
 }
 
 void *
@@ -745,7 +745,7 @@ ruby_xmalloc2(size_t n, size_t size)
     if (n != 0 && size != len / n) {
 	rb_raise(rb_eArgError, "malloc: possible integer overflow");
     }
-    return vm_xmalloc(&rb_objspace, len);
+    return rb_objspace_xmalloc(&rb_objspace, len);
 }
 
 void *
@@ -760,7 +760,7 @@ ruby_xcalloc(size_t n, size_t size)
 void *
 ruby_xrealloc(void *ptr, size_t size)
 {
-    return vm_xrealloc(&rb_objspace, ptr, size);
+    return rb_objspace_xrealloc(&rb_objspace, ptr, size);
 }
 
 void *
@@ -777,7 +777,7 @@ void
 ruby_xfree(void *x)
 {
     if (x)
-	vm_xfree(&rb_objspace, x);
+	rb_objspace_xfree(&rb_objspace, x);
 }
 
 
