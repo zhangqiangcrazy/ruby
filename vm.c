@@ -2163,7 +2163,6 @@ ruby_make_bare_vm(void)
 
     th->vm = vm;
     rb_thread_set_current_raw(th);
-    vm_init2(vm);
     vm->main_thread = th;
 
     th_init(th, 0);
