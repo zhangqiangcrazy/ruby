@@ -19,15 +19,6 @@
 
 static int native_mutex_trylock(pthread_mutex_t *lock);
 
-static void native_cond_signal(pthread_cond_t *cond);
-static void native_cond_broadcast(pthread_cond_t *cond);
-static void native_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
-static void native_cond_initialize(pthread_cond_t *cond);
-static void native_cond_destroy(pthread_cond_t *cond);
-
-#define native_mutex_lock ruby_native_thread_lock
-#define native_mutex_unlock ruby_native_thread_unlock
-
 void
 ruby_native_thread_lock(pthread_mutex_t *lock)
 {
@@ -84,8 +75,8 @@ ruby_native_thread_lock_destroy(pthread_mutex_t *lock)
     }
 }
 
-static void
-native_cond_initialize(pthread_cond_t *cond)
+void
+ruby_native_cond_initialize(pthread_cond_t *cond)
 {
     int r = pthread_cond_init(cond, 0);
     if (r != 0) {
@@ -93,7 +84,7 @@ native_cond_initialize(pthread_cond_t *cond)
     }
 }
 
-static void
+void
 native_cond_destroy(pthread_cond_t *cond)
 {
     int r = pthread_cond_destroy(cond);
@@ -102,25 +93,25 @@ native_cond_destroy(pthread_cond_t *cond)
     }
 }
 
-static void
+void
 native_cond_signal(pthread_cond_t *cond)
 {
     pthread_cond_signal(cond);
 }
 
-static void
+void
 native_cond_broadcast(pthread_cond_t *cond)
 {
     pthread_cond_broadcast(cond);
 }
 
-static void
+void
 native_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex)
 {
     pthread_cond_wait(cond, mutex);
 }
 
-static int
+int
 native_cond_timedwait(pthread_cond_t *cond, pthread_mutex_t *mutex, struct timespec *ts)
 {
     return pthread_cond_timedwait(cond, mutex, ts);

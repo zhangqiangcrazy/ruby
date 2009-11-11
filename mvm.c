@@ -11,6 +11,7 @@
 
 #include "ruby/vm.h"
 #include "ruby/ruby.h"
+#include "ruby/vm.h"
 #include "vm_core.h"
 #include "eval_intern.h"
 
@@ -18,13 +19,21 @@ static void vmmgr_add(rb_vm_t *vm);
 static void vmmgr_del(rb_vm_t *vm);
 static rb_vm_t *vm_new(int argc, char *argv[]);
 static void vm_cleanup(rb_vm_t *vm);
+void rb_vm_free(rb_vm_t *vm);
+
+static int vm_join(rb_vm_t *vm);
 
 /* core API */
 
 rb_vm_t *
 ruby_vm_new(int argc, char *argv[])
 {
-    rb_vm_t *vm = vm_new(argc, argv);
+    rb_vm_t *vm = ruby_init();
+
+    if (!vm) return 0;
+    if (!(vm = ruby_make_bare_vm())) return 0;
+    vm->argc = argc;
+    vm->argv = argv;
     vmmgr_add(vm);
 
     return vm;
@@ -40,8 +49,7 @@ ruby_vm_start(rb_vm_t *vm)
 int
 ruby_vm_join(rb_vm_t *vm)
 {
-    rb_bug("unsupporeted");
-    return 0;
+    return vm_join(vm);
 }
 
 int
@@ -289,7 +297,6 @@ ruby_vm_foreach(int (*func)(rb_vm_t *, void *), void *arg)
 
 	    while (entry) {
 		if (func(entry->vm, arg) == 0) {
-		    printf("ruby_vm_foreach: break\n");
 		    break;
 		}
 		entry = entry->next;
@@ -298,13 +305,14 @@ ruby_vm_foreach(int (*func)(rb_vm_t *, void *), void *arg)
     }
 }
 
-rb_vm_t *ruby_make_bare_vm();
-
-static rb_vm_t *
-vm_new(int argc, char *argv[])
+static int
+vm_join(rb_vm_t *vm)
 {
-    rb_vm_t *vm = ruby_make_bare_vm();
-    vm->argc = argc;
-    vm->argv = argv;
-    return vm;
+    st_table *living_threads = vm->living_threads;
+
+    if (!living_threads) return 0;
+    MVM_CRITICAL(vm_manager.lock, do {
+	ruby_native_cond_wait(&vm->global_vm_waiting, &vm_manager.lock);
+    } while (vm->living_threads));
+    return 0;
 }

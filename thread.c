@@ -61,6 +61,14 @@
 
 #define native_mutex_initialize(lock) ruby_native_thread_lock_initialize(lock)
 #define native_mutex_destroy(lock) ruby_native_thread_lock_destroy(lock)
+#define native_mutex_lock(lock) ruby_native_thread_lock(lock)
+#define native_mutex_unlock(lock) ruby_native_thread_unlock(lock)
+#define native_cond_initialize(cond) ruby_native_cond_initialize(cond)
+#define native_cond_destroy(cond) ruby_native_cond_destroy(cond)
+#define native_cond_signal(cond) ruby_native_cond_signal(cond)
+#define native_cond_broadcast(cond) ruby_native_cond_broadcast(cond)
+#define native_cond_wait(cond, lock) ruby_native_cond_wait(cond, lock)
+#define native_cond_timedwait(cond, lock, ts) ruby_native_cond_timedwait(cond, lock, ts)
 
 static void sleep_timeval(rb_thread_t *th, struct timeval time);
 static void sleep_wait_for_interrupt(rb_thread_t *th, double sleepsec);
@@ -3443,7 +3451,7 @@ rb_mutex_unlock_all(mutex_t *mutexes, rb_thread_t *th)
     while (mutexes) {
 	mutex = mutexes;
 	rb_warn("mutex #<%p> remains to be locked by terminated thread",
-		mutexes);
+		(void *)mutexes);
 	mutexes = mutex->next_mutex;
 	err = mutex_unlock(mutex, th);
 	if (err) rb_bug("invalid keeping_mutexes: %s", err);

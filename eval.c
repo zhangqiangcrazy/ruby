@@ -31,10 +31,8 @@ void rb_thread_stop_timer_thread(void);
 void rb_vm_clear_trace_func(rb_vm_t *vm);
 
 void rb_call_inits(void);
-void Init_heap(void);
-void Init_BareVM(void);
+rb_vm_t *Init_BareVM(void);
 void rb_vm_call_inits(void);
-void InitVM_heap(void);
 void InitVM_ext(void);
 void ruby_vm_prog_init(rb_vm_t *vm);
 
@@ -46,18 +44,19 @@ NORETURN(void rb_raise_jump(VALUE));
 
 static int ruby_vm_cleanup(rb_vm_t *vm, int ex);
 
-void
+rb_vm_t *
 ruby_init(void)
 {
     static int initialized = 0;
     int state;
+    rb_vm_t *vm;
 
     if (initialized)
-	return;
+	return 0;
     initialized = 1;
 
     ruby_init_stack((void *)&state);
-    Init_BareVM();
+    vm = Init_BareVM();
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
@@ -70,14 +69,13 @@ ruby_init(void)
 	error_print();
 	exit(EXIT_FAILURE);
     }
+    return vm;
 }
 
 int
 ruby_vm_init(rb_vm_t *vm)
 {
     int state;
-
-    InitVM_heap();
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {

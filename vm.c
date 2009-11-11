@@ -1538,13 +1538,15 @@ static void
 vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
+    vm->argc = -1;
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
     vm->objspace = rb_objspace_alloc();
     vm->src_encoding_index = -1;
     vm->global_state_version = 1;
     vm->specific_storage.len = rb_vm_key_count();
-    vm->specific_storage.ptr = calloc(vm->specific_storage.len, sizeof(VALUE));
-    vm->cache = ALLOC_N(struct cache_entry, CACHE_SIZE);
+    vm->specific_storage.ptr = rb_objspace_xmalloc2(vm->objspace, vm->specific_storage.len, sizeof(VALUE));
+    MEMZERO(vm->specific_storage.ptr, VALUE, vm->specific_storage.len);
+    vm->cache = rb_objspace_xmalloc2(vm->objspace, CACHE_SIZE, sizeof(struct cache_entry));
 }
 
 /* Thread */
@@ -1956,6 +1958,56 @@ nsdr(void)
     return ary;
 }
 
+static VALUE
+rb_vm_s_alloc(VALUE klass)
+{
+    return TypedData_Wrap_Struct(klass, &vm_data_type, 0);
+}
+
+static void
+vm_parse_opt(rb_vm_t *vm, VALUE opt)
+{
+}
+
+static VALUE
+rb_vm_initialize(int argc, VALUE *argv, VALUE self)
+{
+    VALUE opt = Qnil;
+    rb_vm_t *vm;
+
+    GetVMPtr(self, vm);
+    if (vm) rb_raise(rb_eArgError, "alread initialized VM");
+    DATA_PTR(self) = vm = malloc(sizeof(*vm));
+    vm_init2(vm);
+    if (argc > 0 && NIL_P(opt = rb_check_string_type(argv[argc-1]))) {
+	--argc;
+	vm_parse_opt(vm, opt);
+    }
+    if (argc > 0) {
+	int i;
+	char **args, *argp;
+	VALUE argsval = 0;
+	size_t len = rb_long2int(argc * sizeof(char *)), total = 0;
+	for (i = 0; i < argc; ++i) {
+	    StringValue(argv[i]);
+	    argv[i] = rb_str_new_frozen(argv[i]);
+	    rb_long2int(total += RSTRING_LEN(argv[i]) + 1);
+	}
+	args = rb_objspace_xmalloc(vm->objspace, len);
+	argsval = rb_str_wrap((char *)args, len);
+	RBASIC(argsval)->klass = 0;
+	argp = (char *)(args + argc);
+	for (i = 0; i < argc; ++i) {
+	    long n = RSTRING_LEN(argv[i]);
+	    args[i] = argp;
+	    memcpy(argp, RSTRING_PTR(argv[i]), n);
+	    argp += n;
+	    *argp++ = '\0';
+	}
+    }
+    return self;
+}
+
 void
 Init_VM(void)
 {
@@ -1970,8 +2022,8 @@ InitVM_VM(void)
 
     /* ::VM */
     rb_cRubyVM = rb_define_class("RubyVM", rb_cObject);
-    rb_undef_alloc_func(rb_cRubyVM);
-    rb_undef_method(CLASS_OF(rb_cRubyVM), "new");
+    rb_define_alloc_func(rb_cRubyVM, rb_vm_s_alloc);
+    rb_define_method(rb_cRubyVM, "initialize", rb_vm_initialize, -1);
 
     /* ::VM::FrozenCore */
     fcore = rb_class_new(rb_cBasicObject);
@@ -2096,21 +2148,19 @@ rb_vm_set_progname(VALUE filename)
 
 void ruby_thread_init_stack(rb_thread_t *th);
 
-extern void Init_native_thread(void);
-
 rb_vm_t *
 ruby_make_bare_vm(void)
 {
     /* VM bootstrap: phase 1 */
     rb_vm_t *vm = malloc(sizeof(*vm));
     rb_thread_t *th = malloc(sizeof(*th));
-    rb_thread_t *old_th = GET_THREAD();
 
     if (!vm || !th) {
-	fprintf(stderr, "[FATAL] failed to allocate memory\n");
-	exit(EXIT_FAILURE);
+	if (vm) free(vm);
+	if (th) free(th);
+	return 0;
     }
-    MEMZERO(th, rb_thread_t, 1);
+
     th->vm = vm;
     rb_thread_set_current_raw(th);
     vm_init2(vm);
@@ -2119,16 +2169,25 @@ ruby_make_bare_vm(void)
     th_init(th, 0);
     ruby_thread_init_stack(th);
 
-    rb_thread_set_current_raw(old_th);
-
     return vm;
 }
 
-void
+rb_vm_t *
 Init_BareVM(void)
 {
+    void Init_vmmgr(void);
+    void Init_native_thread(void);
+    rb_vm_t *vm;
+
+    /* init thread core */
     Init_native_thread();
-    ruby_make_bare_vm();
+    Init_vmmgr();
+    vm = ruby_make_bare_vm();
+    if (!vm) {
+	fprintf(stderr, "[FATAL] failed to allocate memory\n");
+	exit(EXIT_FAILURE);
+    }
+    return vm;
 }
 
 /* top self */
