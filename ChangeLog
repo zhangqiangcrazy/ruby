@@ -1,3 +1,8 @@
+Thu Nov 12 16:34:49 2009  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm.c (thread_recycle_stack, rb_thread_recycle_stack_release):
+	  stack belongs to no object space.
+
 Wed Nov 11 18:20:36 2009  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* gc.c (rb_objspace_free): finalizer should have been done already.
