@@ -1338,8 +1338,8 @@ mark_locations_array(rb_objspace_t *objspace, register VALUE *x, register long n
     }
 }
 
-static void
-gc_mark_locations(rb_objspace_t *objspace, VALUE *start, VALUE *end)
+void
+rb_objspace_mark_locations(rb_objspace_t *objspace, VALUE *start, VALUE *end)
 {
     long n;
 
@@ -1351,10 +1351,10 @@ gc_mark_locations(rb_objspace_t *objspace, VALUE *start, VALUE *end)
 void
 rb_gc_mark_locations(VALUE *start, VALUE *end)
 {
-    gc_mark_locations(&rb_objspace, start, end);
+    rb_objspace_mark_locations(&rb_objspace, start, end);
 }
 
-#define rb_gc_mark_locations(start, end) gc_mark_locations(objspace, start, end)
+#define rb_gc_mark_locations(start, end) rb_objspace_mark_locations(objspace, start, end)
 
 struct mark_tbl_arg {
     rb_objspace_t *objspace;
@@ -1487,6 +1487,12 @@ rb_free_m_table(st_table *tbl)
 {
     st_foreach(tbl, free_method_entry_i, 0);
     st_free_table(tbl);
+}
+
+void
+rb_objspace_mark_tbl(rb_objspace_t *objspace, st_table *tbl)
+{
+    mark_tbl(objspace, tbl, 0);
 }
 
 void
