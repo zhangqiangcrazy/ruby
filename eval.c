@@ -42,8 +42,6 @@ VALUE rb_binding_new(void);
 ID rb_frame_callee(void);
 NORETURN(void rb_raise_jump(VALUE));
 
-static int ruby_vm_cleanup(rb_vm_t *vm, int ex);
-
 rb_vm_t *
 ruby_init(void)
 {
@@ -132,7 +130,7 @@ th_exec_iseq(rb_thread_t *th, VALUE iseq)
 }
 
 int
-ruby_vm_run(rb_vm_t *vm)
+ruby_vm_run(rb_vm_t *vm, int *signo)
 {
     VALUE iseq;
     int status;
@@ -155,7 +153,7 @@ ruby_vm_run(rb_vm_t *vm)
 	    status = th_exec_iseq(vm->main_thread, iseq);
 	}
     }
-    return ruby_vm_cleanup(vm, status);
+    return ruby_vm_cleanup(vm, status, signo);
 }
 
 static void
@@ -188,8 +186,8 @@ ruby_finalize(void)
 
 void rb_thread_stop_timer_thread(void);
 
-static int
-ruby_vm_cleanup(rb_vm_t *vm, int ex)
+int
+ruby_vm_cleanup(rb_vm_t *vm, volatile int ex, int *signo)
 {
     int state;
     volatile VALUE errs[2];
@@ -245,14 +243,13 @@ ruby_vm_cleanup(rb_vm_t *vm, int ex)
 	else if (rb_obj_is_kind_of(err, rb_eSignal)) {
 	    VALUE sig = rb_iv_get(err, "signo");
 	    state = NUM2INT(sig);
+	    if (signo) *signo = state;
 	    break;
 	}
 	else if (ex == 0) {
 	    ex = 1;
 	}
     }
-    ruby_vm_destruct(GET_VM());
-    if (state) ruby_default_signal(state);
 
 #if EXIT_SUCCESS != 0 || EXIT_FAILURE != 1
     switch (ex) {
@@ -271,7 +268,11 @@ ruby_vm_cleanup(rb_vm_t *vm, int ex)
 int
 ruby_cleanup(int ex)
 {
-    return ruby_vm_cleanup(GET_VM(), ex);
+    rb_vm_t *vm = GET_VM();
+    int signo = 0, status = ruby_vm_cleanup(vm, ex, &signo);
+    ruby_vm_destruct(vm);
+    if (signo) ruby_default_signal(signo);
+    return status;
 }
 
 void
