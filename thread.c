@@ -473,7 +473,7 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
 
     native_mutex_lock(&th->vm->global_vm_lock);
     {
-	thread_debug("thread start (get lock): %p\n", (void *)th);
+	thread_debug("thread start (get lock): %p %p\n", (void *)th, th->vm);
 	rb_thread_set_current(th);
 
 	TH_PUSH_TAG(th);
@@ -560,7 +560,11 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
     thread_unlock_all_locking_mutexes(th);
     if (th != main_th) rb_check_deadlock(th->vm);
     if (th->vm->main_thread == th) {
-	ruby_cleanup(state);
+	int signo = 0;
+	ruby_vm_cleanup(th->vm, state, &signo);
+	if (signo && !ruby_vm_alone()) signo = 0;
+	ruby_vm_destruct(th->vm);
+	if (signo) ruby_default_signal(signo);
     }
     else {
 	thread_cleanup_func(th);
@@ -4418,6 +4422,7 @@ InitVM_Thread(void)
 	{
 	    /* acquire global vm lock */
 	    rb_thread_lock_t *lp = &GET_THREAD()->vm->global_vm_lock;
+	    thread_debug("InitVM_Thread: %p", GET_THREAD()->vm);
 	    native_mutex_lock(lp);
 	    native_mutex_initialize(&GET_THREAD()->interrupt_lock);
 	}
