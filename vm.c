@@ -1513,6 +1513,42 @@ rb_vm_mark(void *ptr)
     RUBY_MARK_LEAVE("vm");
 }
 
+#define vm_free 0
+
+void
+rb_vm_free(void *ptr)
+{
+    rb_vm_t *vm = ptr;
+
+    RUBY_FREE_ENTER("vm");
+    if (vm && vm == GET_VM()) {
+	rb_thread_t *th = vm->main_thread;
+#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
+	struct rb_objspace *objspace = vm->objspace;
+#endif
+	rb_gc_force_recycle(vm->self);
+	vm->main_thread = 0;
+	if (th) {
+	    thread_free(th);
+	}
+	if (vm->living_threads) {
+	    st_free_table(vm->living_threads);
+	    vm->living_threads = 0;
+	}
+	ruby_native_thread_unlock(&vm->global_vm_lock);
+	ruby_native_thread_lock_destroy(&vm->global_vm_lock);
+	ruby_native_cond_signal(&vm->global_vm_waiting);
+	ruby_native_cond_destroy(&vm->global_vm_waiting);
+#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
+	if (objspace) {
+	    rb_objspace_free(objspace);
+	}
+#endif
+	free(vm);
+    }
+    RUBY_FREE_LEAVE("vm");
+}
+
 static size_t
 vm_memsize(const void *ptr)
 {
@@ -1540,6 +1576,7 @@ vm_init2(rb_vm_t *vm)
     MEMZERO(vm, rb_vm_t, 1);
     vm->argc = -1;
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
+    ruby_native_cond_initialize(&vm->global_vm_waiting);
     vm->objspace = rb_objspace_alloc();
     vm->src_encoding_index = -1;
     vm->global_state_version = 1;
@@ -1972,6 +2009,7 @@ rb_vm_s_alloc(VALUE klass)
 static void
 vm_parse_opt(rb_vm_t *vm, VALUE opt)
 {
+    rb_notimplement();
 }
 
 static VALUE
@@ -2002,6 +2040,7 @@ rb_vm_initialize(int argc, VALUE *argv, VALUE self)
 	argsval = rb_str_wrap((char *)args, len);
 	RBASIC(argsval)->klass = 0;
 	argp = (char *)(args + argc);
+	vm->argv = args;
 	for (i = 0; i < argc; ++i) {
 	    long n = RSTRING_LEN(argv[i]);
 	    args[i] = argp;
@@ -2019,9 +2058,11 @@ static VALUE
 vm_create(void *arg)
 {
     rb_vm_t *vm = arg;
-
-    ruby_native_thread_lock(&vm->global_vm_lock);
-    return (VALUE)ruby_vm_run(vm, 0);
+    int status;
+    ruby_native_thread_unlock(&vm->global_vm_lock);
+    status = ruby_vm_run(vm, 0);
+    ruby_native_cond_signal(&vm->global_vm_waiting);
+    return (VALUE)status;
 }
 
 static VALUE
