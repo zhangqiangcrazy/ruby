@@ -242,7 +242,6 @@ get_stack(void **addr, size_t *size)
 	STACK_DIR_UPPER((void)0, (void)(*addr = (char *)*addr + guard));
 	*size -= guard;
     }
-    *size -= guard;
     STACK_DIR_UPPER((void)0, *addr = (char *)*addr + *size);
 # ifndef HAVE_PTHREAD_GETATTR_NP
     pthread_attr_destroy(&attr);
