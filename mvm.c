@@ -17,9 +17,6 @@
 
 static void vmmgr_add(rb_vm_t *vm);
 static void vmmgr_del(rb_vm_t *vm);
-static rb_vm_t *vm_new(int argc, char *argv[]);
-static void vm_cleanup(rb_vm_t *vm);
-void rb_vm_free(rb_vm_t *vm);
 
 static int vm_join(rb_vm_t *vm);
 
@@ -83,8 +80,10 @@ ruby_vm_destruct(rb_vm_t *vm)
     return 0;
 }
 #endif
-    rb_vm_free(vm);
-    vmmgr_del(vm);
+    if (ruby_vm_free(vm)) {
+	vmmgr_del(vm);
+	free(vm);
+    }
     return 0;
 }
 
