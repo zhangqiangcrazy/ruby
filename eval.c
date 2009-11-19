@@ -75,6 +75,8 @@ ruby_vm_init(rb_vm_t *vm)
 {
     int state;
 
+    if (vm->running) return 0;
+
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
 	rb_vm_call_inits(vm);
@@ -127,33 +129,6 @@ th_exec_iseq(rb_thread_t *th, VALUE iseq)
     }
     POP_TAG();
     return state;
-}
-
-int
-ruby_vm_run(rb_vm_t *vm, int *signo)
-{
-    VALUE iseq;
-    int status;
-
-    Init_stack((void *)&vm);
-    rb_thread_set_current_raw(vm->main_thread);
-
-    ruby_init();
-    if ((status = ruby_vm_init(vm)) == 0) {
-	iseq = vm_parse_options(vm);
-
-	switch (iseq) {
-	  case Qtrue:  status = EXIT_SUCCESS; break; /* -v */
-	  case Qfalse: status = EXIT_FAILURE; break;
-	  default:
-	    if (FIXNUM_P(iseq)) {
-		status = FIX2INT(iseq);
-		break;
-	    }
-	    status = th_exec_iseq(vm->main_thread, iseq);
-	}
-    }
-    return ruby_vm_cleanup(vm, status, signo);
 }
 
 static void
@@ -279,6 +254,57 @@ void
 ruby_stop(int ex)
 {
     exit(ruby_cleanup(ex));
+}
+
+int
+ruby_executable_node(void *n, int *status)
+{
+    VALUE v = (VALUE)n;
+    int s;
+
+    switch (v) {
+      case Qtrue:  s = EXIT_SUCCESS; break;
+      case Qfalse: s = EXIT_FAILURE; break;
+      default:
+	if (!FIXNUM_P(v)) return TRUE;
+	s = FIX2INT(v);
+    }
+    if (status) *status = s;
+    return FALSE;
+}
+
+#define ruby_vm_exec_internal(vm, n) ruby_exec_internal((vm)->main_thread, n)
+
+int
+ruby_vm_exec_node(rb_vm_t *vm, void *n)
+{
+    ruby_init_stack((void *)&n);
+    return ruby_vm_exec_internal(vm, n);
+}
+
+int
+ruby_vm_run(rb_vm_t *vm, int *signo)
+{
+    return ruby_vm_start(vm, ruby_vm_init(vm), signo);
+}
+
+int
+ruby_vm_start(rb_vm_t *vm, int status, int *signo)
+{
+    void *n;
+
+    rb_thread_set_current_raw(vm->main_thread);
+    Init_stack((void *)&vm);
+    if (status != 0) {
+	return ruby_vm_cleanup(vm, status, signo);
+    }
+    n = ruby_vm_parse_options(vm);
+    if (!ruby_executable_node(n, &status)) {
+	ruby_vm_cleanup(vm, 0, signo);
+	return status;
+    }
+    status = ruby_vm_exec_internal(vm, n);
+    return ruby_vm_cleanup(vm, status, signo);
 }
 
 /*
