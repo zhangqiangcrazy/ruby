@@ -7617,6 +7617,8 @@ InitVM_String(void)
     rb_define_method(rb_cSymbol, "swapcase", sym_swapcase, 0);
 
     rb_define_method(rb_cSymbol, "encoding", sym_encoding, 0);
+}
+
 
 struct rb_objspace;
 VALUE rb_newobj_from_heap(struct rb_objspace*);
@@ -7635,5 +7637,4 @@ rb_str_copy_to_vm(VALUE str, struct rb_objspace *objspace)
 	ptr[size] = 0;
     }
     return copy;
-}
 }
