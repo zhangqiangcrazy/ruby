@@ -1509,6 +1509,8 @@ rb_vm_mark(void *ptr)
 	    if (vm->trap_list[i].cmd)
 		rb_gc_mark(vm->trap_list[i].cmd);
 	}
+
+	rb_queue_mark(&vm->queue.message);
     }
 
     RUBY_MARK_LEAVE("vm");
