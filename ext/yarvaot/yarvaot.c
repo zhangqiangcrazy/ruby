@@ -1,16 +1,6 @@
-# if 1
-# define __END__
-# else
-require("erb");
-DATA.rewind();
-ERB.new(DATA.read(), 0, "-").run();
-# endif
-__END__
-/*
- * Ruby to C (and then,  to machine executable) compiler, originally written by
+/* Ruby to C (and then,  to machine executable) compiler, originally written by
  * Urabe Shyouhei  <shyouhei@ruby-lang.org> during  2010.  See the  COPYING for
- * legal info.
- */
+ * legal info. */
 #include <ruby/ruby.h>
 #include "eval_intern.h"
 #include "iseq.h"
@@ -42,7 +32,7 @@ rb_vm_insn_ ## nam (                            \
 void
 Init_yarvaot(void)
 {
-    rb_define_module("YARVAOT", rb_cObject);
+    rb_define_module("YARVAOT");
 }
 
 /*
