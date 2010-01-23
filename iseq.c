@@ -538,10 +538,14 @@ rb_iseq_compile_with_option(VALUE src, VALUE file, VALUE line, VALUE opt)
     rb_compile_option_t option;
     const char *fn = StringValueCStr(file);
     int ln = NUM2INT(line);
-    NODE *node = parse_string(StringValue(src), fn, ln);
+    NODE *node;
     rb_thread_t *th = GET_THREAD();
     make_compile_option(&option, opt);
 
+    if (rb_obj_respond_to(src, rb_intern("gets"), 0))
+        node = rb_compile_file(fn, src, ln);
+    else
+        node = rb_compile_string(fn, StringValue(src), ln);
     if (th->base_block && th->base_block->iseq) {
 	return rb_iseq_new_with_opt(node, th->base_block->iseq->name,
 				    file, line, th->base_block->iseq->self,
