@@ -4,6 +4,7 @@
 # Ruby to C  (and then, to machine executable)  compiler, originally written by
 # Urabe  Shyouhei <shyouhei@ruby-lang.org>  during 2010.   See the  COPYING for
 # legal info.
+require 'erb'
 
 # This is the compiler proper, ruby -> C transformation engine.
 class YARVAOT::Compiler < YARVAOT::Subcommand
@@ -47,9 +48,9 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
                                    through  3  are  defined:  0 does  no  opti-
                                    mization, 1 to  enable something, 2 to more,
                                    and 3 to even  more.  All values below 0 are
-                                   intepreted  as 0, while  all values  above 3
+                                   interpreted as  0, while all  values above 3
                                    are interpreted as  3.  Note that this level
-                                   is for  opimization done when  a ruby script
+                                   is for optimization  done when a ruby script
                                    is  compiled into C  program.  A  C compiler
                                    may have different compile options.
 		begin
@@ -77,18 +78,17 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		end
 	end
 
-	def run_file f, n
-		g, h = IO.pipe
-		Thread.start do
+	def run f, n
+		run_in_pipe f do |g|
 			verbose_out 'compiler started.'
 			RubyVM::InstructionSequence.compile_option = @iseq_compile_option
 			iseq = RubyVM::InstructionSequence.new f, n
 			verbose_out 'compiler generated iseq.'
-			h.puts iseq.inspect
+			verbose_out 'compiler generated template.'
+			str = compile iseq.to_a, n
+			puts str
 			verbose_out 'compiler finished.'
-			h.close
 		end
-		return g
 	end
 
 	private
@@ -96,6 +96,73 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		lambda do |optarg|
 			@iseq_compile_option[flag] = optarg
 		end
+	end
+
+	def compile ary, n
+		b = File.basename n, '.rb'
+		q = as_tr_cpp b
+		buf = String.new
+		tmp = Marshal.dump ary
+		buf << "#include <ruby/ruby.h>\n"
+		buf << "static unsigned char marshal_data[] = {\n"
+		tmp.each_byte.with_index do |i, j|
+			buf << i.ord.to_s << ', '
+			buf << "\n" if j % 32 == 0
+		end
+		buf << <<-"end"
+0 };
+static struct RString marshal_string = {
+    { T_STRING|RSTRING_NOEMBED, Qnil, },
+    { { #{tmp.length}, (char*)marshal_data, { 0, }, }, }, };
+struct RString *#{q} = &marshal_string;
+		end
+		return buf
+	end
+
+	def recursive_transform ary, erb
+		buf = String.new
+		x, y, z, w, *ary = *ary
+		if x != 'YARVInstructionSequence/SimpleDataFormat' or
+			y != 1 or z != 2 or w != 1 then
+			raise ArgumentError, 'wrong format'
+		end
+		misc, nam, file, line, type, locals, args, excs, body = *ary
+		qnam = quote nam
+		hdr = sprintf "iseq_entry(%s)\n{\n", qnam
+		buf << hdr
+		body.each do |i|
+			case i
+			when Symbol
+				buf << i.to_s << ":\n"
+			when Numeric
+				l = sprintf %'#line %d "%s"\n', i, file
+				buf << l
+			when Array
+				op = i.shift
+				buf << op.to_s << ' '
+				ta = YARVAOT::INSNS[op].first.each_char.zip i
+				ta.each do |(t, a)|
+					case t
+					when "S"
+						if a.nil?
+							buf << "nil"
+						else
+							recursive_transform a, erb do |j|
+								yield j
+							end
+							buf << a[6]
+						end
+					else
+						buf << [t, a].inspect
+					end
+				end
+				buf << "\n"
+			else
+				raise TypeError, "unknown %p", i
+			end
+		end
+		buf << "}\n\n"
+		yield buf
 	end
 end
 
