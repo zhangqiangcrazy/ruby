@@ -2,6 +2,14 @@
 # Urabe  Shyouhei <shyouhei@ruby-lang.org>  during 2010.   See the  COPYING for
 # legal info.
 
+.rb.c:
+	$(ruby) -- $<> $@
+
+install: install-hdr
+install-hdr: yarvaot.h $(ARCHHDRDIR) 
+	@-$(COPY) $^
+
+yarvaot.h: yarvaot.o
 yarvaot.o:				\
   $(arch_hdrdir)/ruby/config.h		\
   $(hdrdir)/ruby/defines.h		\
@@ -9,7 +17,6 @@ yarvaot.o:				\
   $(hdrdir)/ruby/missing.h		\
   $(hdrdir)/ruby/ruby.h			\
   $(hdrdir)/ruby/st.h			\
-  $(srcdir)/yarvaot.c			\
   $(top_srcdir)/debug.h			\
   $(top_srcdir)/eval_intern.h		\
   $(top_srcdir)/id.h			\
@@ -26,7 +33,8 @@ yarvaot.o:				\
   $(top_srcdir)/vm_opts.h		\
   $(topdir)/insns.inc			\
   $(topdir)/vm.inc			\
-  extconf.h
+  extconf.h				\
+  yarvaot.c
 
 # 
 # Local Variables:

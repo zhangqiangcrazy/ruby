@@ -1,3 +1,11 @@
+#if 1
+#define __END__ /* void */
+#else
+require 'erb'
+e = ERB.new DATA.read
+e.run
+#endif
+__END__
 /* Ruby to C (and then,  to machine executable) compiler, originally written by
  * Urabe Shyouhei  <shyouhei@ruby-lang.org> during  2010.  See the  COPYING for
  * legal info. */

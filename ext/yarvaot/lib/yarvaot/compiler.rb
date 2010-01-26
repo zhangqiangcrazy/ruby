@@ -98,27 +98,6 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		end
 	end
 
-	def compile ary, n
-		b = File.basename n, '.rb'
-		q = as_tr_cpp b
-		buf = String.new
-		tmp = Marshal.dump ary
-		buf << "#include <ruby/ruby.h>\n"
-		buf << "static unsigned char marshal_data[] = {\n"
-		tmp.each_byte.with_index do |i, j|
-			buf << i.ord.to_s << ', '
-			buf << "\n" if j % 32 == 0
-		end
-		buf << <<-"end"
-0 };
-static struct RString marshal_string = {
-    { T_STRING|RSTRING_NOEMBED, Qnil, },
-    { { #{tmp.length}, (char*)marshal_data, { 0, }, }, }, };
-struct RString *#{q} = &marshal_string;
-		end
-		return buf
-	end
-
 	def recursive_transform ary, erb
 		buf = String.new
 		x, y, z, w, *ary = *ary

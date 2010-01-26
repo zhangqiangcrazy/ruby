@@ -15,6 +15,7 @@ END
 
 $VPATH << '$(top_srcdir)' << '$(topdir)'
 $INCFLAGS << ' -I$(top_srcdir) -I$(topdir)'
+$objs = ['yarvaot.o']
 create_makefile 'yarvaot'
 
 # 
