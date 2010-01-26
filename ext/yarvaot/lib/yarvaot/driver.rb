@@ -22,54 +22,69 @@ class YARVAOT::Subcommand
 	end
 
 	def initialize
-		@pipe    = false
 		@verbose = false
+		@sink    = nil
+		@exec    = Array.new
 		@opt     = OptionParser.new self.class.name_to_display + ' OPTIONS:', 30
-
-		# some default options
-		@opt.on_tail '-v', '--verbose', 'Gets annoying.' do |optarg|
-			@verbose = optarg
-		end
-		@opt.on_tail '-h', '--help', 'This is it.' do puts @opt end
 	end
 
-	def help_string
+	def to_s
 		@opt.to_s
 	end
 
 	def consume argv
-		# argv must be destructively modified not to propagate unknown options to
+		# argv must be  destructively modified not to propagate  known options to
 		# children  subcommands, so  order! should  directly be  applied  to argv
 		# itself, not a copy of it.
-		i = argv.size
-		@opt.order! argv
-		return argv.size == i
-	rescue OptionParser::InvalidOption => e
-		# pass unknown options
-		e.recover argv
-		return false
-	end
-
-	def run argv
-		# should be overridden by subclasses
-		consume argv
-		argv.each do |i|
-			open i, 'rb' do |f|
-				run_file f, i
-			end
+		a = Array.new
+		begin
+			@opt.parse! argv
+		rescue OptionParser::InvalidOption => e
+			# pass unknown options
+			e.recover a
+			retry
+		else
+			argv[0, 0] = a
 		end
 	end
 
-	def run_file f, i
+	def run f, i
 		# should be overridden by subclasses
 		f
 	end
 
 	private
-	def verbose_out fmt, *va_list
-		STDERR.printf fmt.chomp << "\n", *va_list if @verbose
+
+	# run in parallel
+	def run_in_pipe f
+		g = IO.popen '-', 'rb'
+		if g
+			f.close
+			return g
+		else
+			begin
+				yield g
+			ensure
+				Process.exit
+			end
+		end
 	end
 
+	def as_tr_cpp nam
+		q = nam.dup
+		q.gsub! /\s/m, '_'
+		q.gsub! /[^a-zA-Z0-9_]/ do |m|
+			sprintf '%08b', m.ord
+		end
+		q[0, 0] = 'q_' if /\d/ =~ q
+		q
+	end
+
+	def verbose_out fmt, *va_list
+		STDERR.printf fmt.chomp << "\n", *va_list if $VERBOSE
+	end
+
+	# Generic IO redirection
 	def redirect h
 		buf = String.new
 		h.each_pair do |from, to|
@@ -79,7 +94,6 @@ class YARVAOT::Subcommand
 					raise Errno::EPIPE if j != buf.length
 				end
 			rescue EOFError
-			rescue IOError
 			end
 		end
 	end
@@ -99,21 +113,22 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 
 		@arg0         = $0
 		@stop_after   = nil
-		@sink         = nil
-		@preprocessor = YARVAOT::Preprocessor.new
-		@compiler     = YARVAOT::Compiler.new
-		@assembler    = YARVAOT::Assembler.new
-		@linker       = YARVAOT::Linker.new
-		@subcommands  = [@preprocessor, @compiler, @assembler, @linker]
+		@subcommands  = {
+			preprocessor: YARVAOT::Preprocessor.new,
+			compiler:     YARVAOT::Compiler.new, 
+			assembler:    YARVAOT::Assembler.new, 
+			linker:       YARVAOT::Linker.new
+		}
 
 		objext = ::RbConfig::CONFIG["OBJEXT"]
 		exeext = ::RbConfig::CONFIG["EXEEXT"]
 		exeext = 'out' if exeext.empty?
+
 		@opt.on '-E', '--stop-after-preprocess', <<-'begin'.strip do
                                    Just do preprocess, do not link.  The output
                                    is in the form of preprocessed ruby script.
 		begin
-			@stop_after = :preprocess
+			@stop_after = :preprocessor
 		end
 
 		@opt.on '-c', '--stop-after-compile', <<-'begin'.strip do
@@ -121,43 +136,69 @@ class YARVAOT::Driver < YARVAOT::Subcommand
                                    assemble.  The  output is  in the form  of C
                                    language.
 		begin
-			@stop_after = :compile
+			@stop_after = :compiler
 		end
 
 		@opt.on '-S', '--stop-after-assemble', <<-'begin'.strip do
                                    Compile and  assemble the input,  but do not
-                                   link.   The  output  is  in the  form  of  a
-                                   machine  native object  file,  e.g.  an  ELF
-                                   object.
+                                   link.  The  output is in  the form of  a ma-
+                                   chine native  object file, e.g.   an ELF ob-
+                                   ject.
 		begin
-			@stop_after = :assemble
+			@stop_after = :assembler
 		end
+
+		# no --stop-after-linker, because that's the default.
 
 		@opt.on '-o', '--output=FILE', <<-"begin".strip do |optarg|
                                    Output to  a file  named FILE, instead  of a
                                    default sink.  Without this option a default
-                                   data   sink  for   an  executable   file  is
-                                   `a.#{exeext}',  for an  assembled  object is
-                                   `SOURCE.#{objext}', for a compiled assembler
-                                   code is  `SOURCE.c', and for  a preprocessed
-                                   ruby script is the standard output.
+                                   data sink for an executable file is `a.#{exeext}',
+                                   for an assembled object is `SOURCE.#{objext}', for a
+                                   compiled  assembler code is  `SOURCE.c', and
+                                   for  a  preprocessed   ruby  script  is  the
+                                   standard output.
 		begin
 			@sink = optarg
 		end
 
-		@opt.on_tail '-v', '--verbose', 'Gets annoying.' do |optarg|
-			@verbose = optarg
-			@subcommands.each do |i|
-				i.consume ['--verbose']
-			end
+		@opt.on_tail '--metadebug', <<-'begin'.strip do
+                                   Sets $DEBUG of  this compiler suite, not for
+                                   the ruby script  to compile.  This is useful
+                                   when you debug the suite.
+		begin
+			$DEBUG = 1
+		end
+
+		@opt.on_tail '--metaverbose', <<-'begin'.strip do
+                                   Compiler  gets  annoying.  Sets $VERBOSE  of
+                                   this compiler suite, not for the ruby script
+                                   to compile.   This is useful  when you debug
+                                   the suite.
+		begin
+			$VERBOSE = true
 			STDERR.puts RUBY_DESCRIPTION
 		end
 
+		@opt.on_tail '-r', '--require=FEATURE', <<-"begin".strip do |optarg|
+                                   Requires a  feature FEATURE, just  like ruby
+                                   itself.  This is  mainly for debugging (-rpp
+                                   or something).
+		begin
+			# FIXME: This should propagate to preprocessor
+			require optarg
+		end
+
+		@opt.on_tail '-e', '--execute=STRING', <<-"begin".strip do |optarg|
+                                   Instead of reading from  a file or a pipe or
+                                   a  socket  or  something, just  compile  the
+                                   given STRING.  Can be handy.
+		begin
+			@exec.push optarg
+		end
+
 		@opt.on_tail '-h', '--help', 'This is it.' do
-			sub = [
-					 self, @preprocessor, @compiler, @assembler, @linker
-			].map do |i| i.help_string + "\n" end
-			puts <<'HDR1', <<"HDR2", *sub
+			puts <<'HDR1', <<"HDR2", self, *@subcommands.values
                   __  _____    ____ _    _____   ____  ______
                   \ \/ /   |  / __ \ |  / /   | / __ \/_  __/
                    \  / /| | / /_/ / | / / /| |/ / / / / /
@@ -179,13 +220,13 @@ SYNOPSIS:
     compile                        Compile a  ruby code into a C  code that can
                                    then  be processed  by  a system-provided  C
                                    compiler.
-    assemble                       This   is  a  wrapper   to  a   C  compiler.
-                                   Generates a  assembler-output machine binary
-                                   object from a C source code generated by the
+    assemble                       This is  a wrapper to a  C compiler.  Gener-
+                                   ates  a assembler-output machine  binary ob-
+                                   ject from  a C source code  generated by the
                                    above compiler subcommand.
-    link                           Links   every    necessary   libraries   and
-                                   assembler  outputs into a  single executable
-                                   file, or a single ruby extension library.
+    link                           Links  every necessary libraries  and assem-
+                                   bler outputs into  a single executable file,
+                                   or a single ruby extension library.
 
 HDR2
 			Process.exit
@@ -193,54 +234,59 @@ HDR2
 	end
 
 	# actually drive subcommands
-	def run arg0, argv
+	def start arg0, argv
 		@arg0 = arg0
-		remain = @subcommands.dup
-		remain.unshift self # order matters
-		until remain.empty?
-			remain.reject! do |i|
-				i.consume argv
-			end
+		consume argv
+		@subcommands.each_value do |i|
+			i.consume argv
 		end
+		@opt.parse! argv			  # force optoinparser to raise error
 		verbose_out 'driver started.'
 
-		case target = argv.shift
-		when 'preprocess' then @preprocessor.run argv
-		when 'compile'    then @compiler.run argv
-		when 'assemble'   then @assembler.run argv
-		when 'link'       then @linker.run argv
-		else
-			verbose_out 'driver entered in-order mode.'
-			# opening input file here, preventing outer-process attackers to choke
-			# our filesystem.
+		who = case target = argv.shift
+				when /^preprocess(or)?$/ then @subcommands[:preprocessor]
+				when /^compiler?$/       then @subcommands[:compiler]
+				when /^assembler?$/      then @subcommands[:assembler]
+				when /^link(er)?$/       then @subcommands[:linker]
+				else                   self
+				end
+		target = argv.shift if who != self
+		# opening input file here, preventing outer-process attackers to choke
+		# our filesystem.
+		if @exec.empty?
+			target ||= '-'
 			fin = case target
-					when '-', NilClass
+					when '-'
 						STDIN
 					when String
 						File.open target, 'rb'
 					else
 						raise TypeError, target.inspect
 					end
-			verbose_out 'driver opened input file %s.', fin.path
-			fout = run_file fin, target
-			sink = compute_sink target
-			redirect fout => sink
+		else
+			require 'stringio'
+			str = @exec.join "\n"
+			fin = StringIO.new str
+			target = '-e'
+		end
+		verbose_out 'driver opened input file %s.', target
+		fout = who.run fin, target
+		sink = compute_sink target
+		redirect fout => sink
+		if who == @subcommands[:linker] or @stop_after.nil?
+			# a.out should be executable
+			File.chmod 0755, sink if sink.kind_of? File
 		end
 	end
 
-	def run_file fin, fn
-		verbose_out 'driver runs preprocessor'
-		fd1 = @preprocessor.run_file fin, fn
-		return fd1 if @stop_after == :preprocess
-		verbose_out 'driver runs compiler'
-		fd2 = @compiler.run_file fd1, fn
-		return fd2 if @stop_after == :compile
-		verbose_out 'driver runs assembler'
-		fd3 = @assembler.run_file fd2, fn
-		return fd3 if @stop_after == :assemble
-		verbose_out 'driver runs linker'
-		fd4 = @linker.run_file fd3, fn
-		return fd4
+	def run f, n
+		verbose_out 'driver entered in-order mode.'
+		@subcommands.each_pair do |k, v|
+			verbose_out "driver runs #{k}"
+			f = v.run f, n
+			return f if @stop_after == k
+		end
+		return f
 	end
 
 	private
@@ -264,9 +310,9 @@ HDR2
 		unless sink
 			# extname calculation.
 			extname = case @stop_after
-						 when :preprocess then return STDOUT
-						 when :compile    then 'c'
-						 when :assemble   then ::RbConfig::CONFIG["OBJEXT"]
+						 when :preprocessor then return STDOUT
+						 when :compiler     then 'c'
+						 when :assembler    then ::RbConfig::CONFIG["OBJEXT"]
 						 else
 							 # generate a.out or whatever
 							 basename = 'a'

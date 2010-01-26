@@ -6,7 +6,7 @@
 # legal info.
 
 require 'yarvaot'
-YARVAOT::Driver.new.run $0, ARGV
+YARVAOT::Driver.new.start $0, ARGV
 
 # 
 # Local Variables:
