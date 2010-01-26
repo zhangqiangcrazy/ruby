@@ -29,7 +29,7 @@ class YARVAOT::Subcommand
 	end
 
 	def to_s
-		@opt.to_s
+		"\n" << @opt.to_s
 	end
 
 	def consume argv
