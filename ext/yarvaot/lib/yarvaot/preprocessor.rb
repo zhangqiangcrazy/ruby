@@ -30,23 +30,22 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 		end
 
 		@opt.on '--[no-]obfuscate', <<-'begin'.strip do |optarg|
-                                   Do (or prohibit)  a obfuscation.  Normally a
-                                   YARVAOT compiler preserves  as much names as
-                                   possible  --  such  as class  names,  module
+                                   Enable (or disable) a obfuscation.  Normally
+                                   a YARVAOT  compiler preserves as  much names
+                                   as possible  -- such as  class names, module
                                    names, method names,  variable names, and so
-                                   on.     Those   names   are    visible   via
-                                   system-provided   debugger.    This   option
-                                   prevents  that behaviour  by  filtering ruby
-                                   script names.
+                                   on.  Those names are visible via system pro-
+                                   vided debuggers.   This option prevents that
+                                   behaviour  by  smashing  those  names  using
+                                   Digest::SHA512.
 		begin
 			@obfuscate = optarg
 		end
 	end
 
-	# Run.  Eat the file, do neccesary conversions, then return a new file.
-	def run_file f, n = '-'
-		g, h = IO.pipe
-		Thread.start do
+	# Run.  Eat the file, do necessary conversions, then return a new file.
+	def run f, n
+		run_in_pipe f do |g|
 			verbose_out 'preprocessor started.'
 			ripper = YARVAOT::Ripper.new f, n
 			@terminals, @nonterminals = ripper.parse
@@ -58,15 +57,13 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 			verbose_out 'preprocessor done conversion.'
 
 			# output
-			@terminals.each do |i| h.write i.token end
+			@terminals.each do |i| STDOUT.write i.token end
 			# Ripper do  not read below __END__,  and fp remains  open to continue
 			# reading  from it on  those cases.   That should  be appended  to our
 			# output.
-			redirect f => h
+			redirect f => STDOUT
 			verbose_out 'preprocessor finished.'
-			h.close
 		end
-		return g
 	end
 
 	private
@@ -81,36 +78,50 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 	end
 
 	def obfuscate
-		safe = Array.new
-		ObjectSpace.each_object Module do |i|
-			if /YARVAOT/ !~ i.to_s
-				safe << i
+		i = Hash.new
+		k = Hash.new
+		c = Hash.new
+		g = Hash.new
+		ObjectSpace.each_object Module do |m|
+			if /YARVAOT/ !~ m.to_s
+				[m.public_instance_methods,
+				 m.protected_instance_methods,
+				 m.private_instance_methods].each do |a|
+					a.each do |v|
+						i[v] = true
+					end
+				end
+				m.constants.each do |v|
+					k[v] = true
+				end
+				m.class_variables.each do |v|
+					c[v] = true
+				end
+			end
+			global_variables.each do |v|
+				g[v] = true
 			end
 		end
-		safe.map! do |i| i.instance_methods true end
-		safe.flatten!
-		safe.uniq!
-		safe.map! do |i| i.to_s end
-		safe = safe.inject Hash.new do |r, i|
-			r[i] = true
-			r
-		end
-		@terminals.each do |i|
-			j = i.token
-			k = Digest::SHA512.hexdigest j
-			case i.symbol
+
+		@terminals.each do |x|
+			y = x.token.dup
+			z = Digest::SHA512.hexdigest y
+			case x.symbol
 			when :ident
-				i.token.replace "i" << k unless safe.has_key? j
+				x.token.replace "i" << z unless i[y.intern]
 			when :const
-				i.token.replace "K" << k
+				x.token.replace "K" << z unless k[y.intern]
 			when :cvar
-				i.token.replace "@@c" << k
+				x.token.replace "@@c" << z unless c[y.intern]
 			when :ivar
-				i.token.replace "@i" << k
+				x.token.replace "@i" << z
 			when :gvar
-				i.token.replace "$g" << k
+				x.token.replace "$g" << z unless g[y.intern]
 			when :comment
-				i.token.replace "# " << k << "\n"
+				x.token.replace "# " << z << "\n"
+			end
+			if y != x.token
+				verbose_out "preprocessor obfuscation mapping %s => %s", y, x.token
 			end
 		end
 	end
@@ -118,8 +129,8 @@ end
 
 # You know, Ripper is  a kind of event-driven AST visitor like  SAX in XML.  So
 # when you  do a program  transformation you need  to catch every  single event
-# that it emits.  EVERYTIHING.  Or you would lose data.  How to achieve that is
-# not documented  even in Jananese, but  when you read  the implementation, you
+# that it emits.  EVERYTHING.  Or you  would lose data.  How to achieve that is
+# not documented  even in Japanese, but  when you read  the implementation, you
 # can conclude that
 # (1) those event emitted from lexer are listed in SCANNER_EVENT_TABLE
 # (2) those event emitted from parser are listed in PARSER_EVENT_TABLE
