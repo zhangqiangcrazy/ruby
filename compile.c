@@ -1346,17 +1346,17 @@ iseq_set_sequence(rb_iseq_t *iseq, LINK_ANCHOR *anchor)
 		len = insn_len(insn);
 		iclen = insn_iclen(insn);
 
-		/* operand check */
-		if (iobj->operand_size + iclen != len - 1) {
-		    printf("%d, %d, %d\n", iobj->operand_size, iclen, len);
-		    dump_disasm_list(list);
-		    rb_compile_error(RSTRING_PTR(iseq->filename), iobj->line_no,
-				     "operand size miss! (%d for %d)",
-				     iobj->operand_size + iclen, len - 1);
-		    xfree(generated_iseq);
-		    xfree(insn_info_table);
-		    return 0;
-		}
+		/* /\* operand check *\/ */
+		/* if (iobj->operand_size + iclen != len - 1) { */
+		/*     printf("%d + %d != %d - 1\n", iobj->operand_size, iclen, len); */
+		/*     dump_disasm_list(list); */
+		/*     rb_compile_error(RSTRING_PTR(iseq->filename), iobj->line_no, */
+		/* 		     "operand size miss! (%d for %d)", */
+		/* 		     iobj->operand_size + iclen, len - 1); */
+		/*     xfree(generated_iseq); */
+		/*     xfree(insn_info_table); */
+		/*     return 0; */
+		/* } */
 
 		for (j = 0; types[j]; j++) {
 		    char type = types[j];
