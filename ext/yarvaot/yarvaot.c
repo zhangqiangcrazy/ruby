@@ -28,11 +28,33 @@ rb_vm_insn_ ## nam (                            \
 ) {
 #include "vm_insnhelper.c"
 #include "vm.inc"
+#include "insns_info.inc"
+
+static VALUE
+gen_insns_info(void)
+{
+    VALUE ret = rb_hash_new();
+    int n = sizeof insn_name_info / sizeof insn_name_info[0];
+    int i;
+    for(i=0; i<n; i++) {
+        VALUE key = ID2SYM(rb_intern(insn_name_info[i]));
+        VALUE val = rb_ary_new();
+        const char* types = insn_operand_info[i];
+        int len = insn_len_info[i];
+        int iclen = insn_iclen_info[i];
+        rb_ary_push(val, rb_str_new_cstr(types));
+        rb_ary_push(val, INT2FIX(len));
+        rb_ary_push(val, INT2FIX(iclen));
+        rb_hash_aset(ret, key, val);
+    }
+    return ret;
+}
 
 void
 Init_yarvaot(void)
 {
-    rb_define_module("YARVAOT");
+    VALUE rb_mYARVAOT = rb_define_module("YARVAOT");
+    rb_define_const(rb_mYARVAOT, "INSNS", gen_insns_info());
 }
 
 /*
