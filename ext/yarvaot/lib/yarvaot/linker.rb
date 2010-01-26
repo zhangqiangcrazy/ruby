@@ -76,6 +76,7 @@ class YARVAOT::Linker < YARVAOT::Subcommand
 #include <ruby/ruby.h>
 extern struct RString* #{q};
 extern VALUE rb_iseq_load(VALUE, VALUE, VALUE);
+extern void ruby_init_loadpath_safe(int);
 static VALUE
 load_insns(VALUE ign)
 {
