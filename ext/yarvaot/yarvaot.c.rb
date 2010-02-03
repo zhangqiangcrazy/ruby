@@ -22,12 +22,21 @@ __END__
 #include "vm_opts.h"
 /* This AOT  compiler massively  uses Ruby's VM  feature called  "call threaded
  * code", so we have to enale that option here. */
-#ifndef OPT_CALL_THREADED_CODE
-#define OPT_CALL_THREADED_CODE 1
-#elif   OPT_CALL_THREADED_CODE == 0
+#ifdef  OPT_CALL_THREADED_CODE
 #undef  OPT_CALL_THREADED_CODE
-#define OPT_CALL_THREADED_CODE 1
 #endif
+#define OPT_CALL_THREADED_CODE 1
+
+/* FIXME! inline chaches are to be implemented. */
+#ifdef  OPT_INLINE_CONST_CACHE
+#undef  OPT_INLINE_CONST_CACHE
+#endif
+#define OPT_INLINE_CONST_CACHE 0
+#ifdef  OPT_INLINE_METHOD_CACHE
+#undef  OPT_INLINE_METHOD_CACHE
+#endif
+#define OPT_INLINE_METHOD_CACHE 0
+
 #include "vm_core.h"
 #include "vm_insnhelper.h"
 #include "vm_exec.h"
@@ -39,7 +48,7 @@ __END__
 #define INSN_LABEL(l) l
 
 % insns.each {|insn|
-#line <%= __LINE__ %> "yarvaot.c"
+#line <%= _erbout.lines.to_a.size + 1 %> "yarvaot.c"
 
 rb_control_frame_t*
 yarvaot_insn_<%= insn.name %>(
@@ -99,13 +108,13 @@ yarvaot_insn_<%= insn.name %>(
     USAGE_ANALYSIS_OPERAND(BIN(<%= insn.name %>), <%= j %>, <%= nam %>);
 %   }    
     {
-%   b = insn.body.gsub(/^/, "    ").rstrip
+%   b = insn.body.gsub(/^\s*/, '\\&    ').rstrip
 %   if(line = insn.body.instance_variable_get(:"@line_no"))
 %       file = insn.body.instance_variable_get(:"@file");
 #line <%= line + 1 %> "<%= file %>"
 %   end;
 <%= b %>
-#line <%= __LINE__ %> "yarvaot.c"
+#line <%= _erbout.lines.to_a.size + 1 %> "yarvaot.c"
     }
     /* make_footer_stack_val */
 %   n = insn.rets.reverse.inject(0) {|r, (typ, nam, rst)|
@@ -154,7 +163,7 @@ gen_insns_info(void)
     VALUE ret = rb_hash_new();
     int i;
     for (i = 0; insns_info[i].name; i++) {
-        VALUE key = rb_str_new_cstr(insns_info[i].name);
+        VALUE key = ID2SYM(rb_intern(insns_info[i].name));
         VALUE val = rb_ary_new();
         VALUE op1 = rb_str_new_cstr(insns_info[i].operands);
         VALUE op2 = rb_str_split(op1, ", ");
@@ -162,8 +171,22 @@ gen_insns_info(void)
         rb_ary_push(val, INT2FIX(insns_info[i].instruction_size));
         rb_ary_push(val, INT2FIX(insns_info[i].icoperands_num));
         rb_ary_push(val, INT2FIX(insns_info[i].stack_push_num));
+        rb_hash_aset(ret, key, val);
     }
     return ret;
+}
+
+struct iseq_inline_cache_entry*
+rb_yarvaot_get_ic(rb_control_frame_t* reg_cfp, int nth)
+{
+    rb_iseq_t* iseq = 0;
+    struct iseq_inline_cache_entry* ic_entries = 0;
+
+    if(nth < 0) return NULL;
+    if((iseq = reg_cfp->iseq) == NULL) return NULL;
+    if((ic_entries = iseq->ic_entries) == NULL) return NULL;
+    if(iseq->ic_size < nth) return NULL;
+    return &ic_entries[nth];
 }
 
 void

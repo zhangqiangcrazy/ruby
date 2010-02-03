@@ -1,5 +1,6 @@
 #! /some/path/to/ruby
 # coding=utf-8
+# :main: YARVAOT::Driver
 
 # Ruby to C  (and then, to machine executable)  compiler, originally written by
 # Urabe  Shyouhei <shyouhei@ruby-lang.org>  during 2010.   See the  COPYING for

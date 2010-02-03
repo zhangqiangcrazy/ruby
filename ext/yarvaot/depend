@@ -2,14 +2,23 @@
 # Urabe  Shyouhei <shyouhei@ruby-lang.org>  during 2010.   See the  COPYING for
 # legal info.
 
-.rb.c:
-	$(ruby) -- $<> $@
-
 install: install-hdr
 install-hdr: yarvaot.h $(ARCHHDRDIR) 
 	@-$(COPY) $^
 
-yarvaot.h: yarvaot.o
+yarvaot.c:				\
+  $(srcdir)/yarvaot.c.rb		\
+  $(top_srcdir)/tool/instruction.rb	\
+  $(top_srcdir)/insns.def		\
+  yarvaot.h
+	$(ruby) -- $^ > $@
+
+yarvaot.h:				\
+  $(srcdir)/yarvaot.h.rb		\
+  $(top_srcdir)/tool/instruction.rb	\
+  $(top_srcdir)/insns.def
+	$(ruby) -- $^ > $@
+
 yarvaot.o:				\
   $(arch_hdrdir)/ruby/config.h		\
   $(hdrdir)/ruby/defines.h		\
@@ -24,6 +33,7 @@ yarvaot.o:				\
   $(top_srcdir)/method.h		\
   $(top_srcdir)/node.h			\
   $(top_srcdir)/thread_pthread.h	\
+  $(top_srcdir)/thread_win32.h		\
   $(top_srcdir)/vm_core.h		\
   $(top_srcdir)/vm_core.h		\
   $(top_srcdir)/vm_exec.h		\
@@ -34,7 +44,9 @@ yarvaot.o:				\
   $(topdir)/insns.inc			\
   $(topdir)/vm.inc			\
   extconf.h				\
+  yarvaot.h				\
   yarvaot.c
+
 
 # 
 # Local Variables:

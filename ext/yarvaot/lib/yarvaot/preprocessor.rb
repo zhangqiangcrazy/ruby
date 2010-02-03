@@ -5,22 +5,31 @@
 # Urabe  Shyouhei <shyouhei@ruby-lang.org>  during 2010.   See the  COPYING for
 # legal info.
 
-# This might be one of the  biggest ripper application written so far ...  that
+# This might be one of the  biggest Ripper application written so far ...  that
 # extension totally lacks documentations  (especially those written in English)
 # so it is  almost impossible for third parties to  manipulate ruby parse tree.
 # Feel free to take a look at the codes below and learn what's going on.
 require 'ripper'
-require 'digest'
+require 'uuid'
 
-# This is the preprocessor, ruby->ruby transformation engine.
+# This is the preprocessor, ruby -> ruby transformation engine.
+#
+# Once upon a  time when there was  no Ripper, this kind of  product was almost
+# impossible.  The  author of this class  want to acknowledge  Minero Aoki, the
+# author of Ripper, for his great work.
 class YARVAOT::Preprocessor < YARVAOT::Subcommand
+
+	# Obfuscator namespace
+	Namespace = UUID.parse "urn:uuid:182f10b8-0e42-11df-b3b6-cb6300000000"
 
 	# Instantiate.  Does nothing yet.
 	def initialize
 		super
 		@simulated_load_path = $LOAD_PATH.dup
-		@obfuscate = true
+		@obfuscate = false
 		@ahead_of_time_require = false
+		@terminals = nil
+		@nonterminals = nil
 
 		@opt.on '-I', '--search PATH', <<-'begin'.strip do |optarg|
                                    Append (in a way like Array#push) the passed
@@ -43,7 +52,14 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 		end
 	end
 
+	attr_reader :terminals, :nonterminals
+
 	# Run.  Eat the file, do necessary conversions, then return a new file.
+	#
+	# One thing  to note is that this  method invokes a thread  inside because a
+	# pipe can occasionally stop up and  may blocks the whole ruby process.  You
+	# can detect  the liveness of that  internal thread by testing  the EOF flag
+	# of a returing file.
 	def run f, n
 		run_in_pipe f do |g|
 			verbose_out 'preprocessor started.'
@@ -57,17 +73,18 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 			verbose_out 'preprocessor done conversion.'
 
 			# output
-			@terminals.each do |i| STDOUT.write i.token end
-			# Ripper do  not read below __END__,  and fp remains  open to continue
+			@terminals.each do |i| g.write i.token end
+			# Ripper do not  read towards __END__, and f  remains open to continue
 			# reading  from it on  those cases.   That should  be appended  to our
 			# output.
-			redirect f => STDOUT
+			redirect f => g
 			verbose_out 'preprocessor finished.'
 		end
 	end
 
 	private
 
+	# Kernel.require needs special care in this phase...
 	def recursive_require_resolution
 		raise NotImplementedError, "to be written"
 		@nonterminals.each do |i|
@@ -77,6 +94,9 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 		end
 	end
 
+	# Does   the  token  obfuscation.    Currently  methods,   local  variables,
+	# constants, class variables, instance  variables, global variables, as well
+	# as comment lines are subject to scramble.
 	def obfuscate
 		i = Hash.new
 		k = Hash.new
@@ -104,24 +124,25 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 		end
 
 		@terminals.each do |x|
-			y = x.token.dup
-			z = Digest::SHA512.hexdigest y
+			y = Namespace.new_sha1 x.token
+			z = y.guid.gsub '-', '_'
+			w = x.token.intern
 			case x.symbol
 			when :ident
-				x.token.replace "i" << z unless i[y.intern]
+				x.token.replace "i" << z unless i[w]
 			when :const
-				x.token.replace "K" << z unless k[y.intern]
+				x.token.replace "K" << z unless k[w]
 			when :cvar
-				x.token.replace "@@c" << z unless c[y.intern]
+				x.token.replace "@@c" << z unless c[w]
 			when :ivar
 				x.token.replace "@i" << z
 			when :gvar
-				x.token.replace "$g" << z unless g[y.intern]
+				x.token.replace "$g" << z unless g[w]
 			when :comment
 				x.token.replace "# " << z << "\n"
 			end
-			if y != x.token
-				verbose_out "preprocessor obfuscation mapping %s => %s", y, x.token
+			if z != x.token
+				verbose_out "preprocessor obfuscation mapping %s => %s", z, x.token
 			end
 		end
 	end
@@ -132,8 +153,8 @@ end
 # that it emits.  EVERYTHING.  Or you  would lose data.  How to achieve that is
 # not documented  even in Japanese, but  when you read  the implementation, you
 # can conclude that
-# (1) those event emitted from lexer are listed in SCANNER_EVENT_TABLE
-# (2) those event emitted from parser are listed in PARSER_EVENT_TABLE
+# - those event emitted from lexer are listed in SCANNER_EVENT_TABLE
+# - those event emitted from parser are listed in PARSER_EVENT_TABLE
 # and that's all.
 class YARVAOT::Ripper < Ripper
 	# A very tiny AST implementation
@@ -157,11 +178,13 @@ class YARVAOT::Ripper < Ripper
 	# Terminal symbols
 	Terminal = Struct.new :lineno, :column, :symbol, :token
 
+	# Parses the  given input  file (passed to  #initialize) and  generates AST.
+	# The return values are a set of terminal symbols, and a tree of nonterminal
+	# symbols.
 	def parse
 		@terminals = Array.new
 		nonterminals = super
 		terminals, @terminals = @terminals, nil
-		return terminals, nonterminals
 	end
 
 	Ripper::SCANNER_EVENT_TABLE.each do |(e, f)|

@@ -14,88 +14,108 @@ class YARVAOT::Linker < YARVAOT::Subcommand
 	# Instantiate.  Does nothing yet.
 	def initialize
 		super
-		@opt.separator '    linker has no option yet.'
+		@shared = false
+
+		@opt.on '--shared', <<-'begin'.strip do |optarg|
+                                   Invokes a linker,  instead of a compiler, to
+                                   create an extension  library (which can then
+                                   be  loaded   from  other  ruby   scripts  by
+                                   requireing that shared object).
+		begin
+			@shared = optarg
+		end
 	end
+
+	# attribute reader needed from driver
+	attr_reader :shared
 
 	def run f, n
-		g = create_mainobj n
-		b = File.basename n, 'rb'
-		h = Tempfile.new b
-		c = RbConfig::CONFIG.merge 'hdrdir' => $hdrdir.quote,
-											'arch_hdrdir' => $arch_hdrdir
-		l = sprintf "%s %s %s %s %s %s%s %s %s %s %s",
-			RbConfig::CONFIG['CC'],
-			$CFLAGS,
-			$ARCH_FLAG,
-			$LIBPATH.join,
-			$LDFLAGS,
-			COUTFLAG,
-			h.path,
-			f.path,
-			g.path,
-			$LIBRUBYARG_STATIC,
-			$LIBS
-		l = RbConfig.expand l, c
-		verbose_out "running C compiler: %s", l
-		p = Process.spawn l
-		Process.waitpid p
-		return h		
-	end
-
-	def create_mainobj n
-		b = File.basename n, 'rb'
-		g = Tempfile.new b
-		r, w = IO.pipe
-		c = RbConfig::CONFIG.merge 'hdrdir' => $hdrdir.quote,
-											'arch_hdrdir' => $arch_hdrdir
-		l = sprintf "%s %s %s %s %s -c %s%s -xc -",
-			RbConfig::CONFIG['CC'],
-			$INCFLAGS,
-			$CPPFLAGS,
-			$CFLAGS,
-			$ARCH_FLAG,
-			COUTFLAG,
-			g.path
-		l = RbConfig.expand l, c
-		verbose_out "running C compiler: %s", l
-		p = Process.spawn l, in: r
-		genmain w, n
-		w.close
-		Process.waitpid p
-		g.close
-		g.open
-		return g
+		run_in_tempfile n do |h|
+			c = RbConfig::CONFIG.merge 'hdrdir' => $hdrdir.quote,
+												'arch_hdrdir' => $arch_hdrdir
+			l = if @shared
+					 linker_line f, h
+				 else
+					 aout_line f, n, h
+				 end
+			l = RbConfig.expand l, c
+			verbose_out "running Linker: %s", l
+			p = Process.spawn l
+			Process.waitpid p
+		end
 	end
 
 	private
+
+	def linker_line f, h
+		sprintf "$(LDSHARED) %s%s %s -L$(archdir) -l:yarvaot.$(DLEXT)" \
+				  " %s %s %s %s %s",
+				  COUTFLAG,
+				  h.path,
+				  f.path,
+				  $LIBPATH.join,
+				  $DLDFLAGS,
+				  $LOCAL_LIBS,
+				  $LIBRUBYARG_SHARED,
+				  $LIBS
+	end
+
+	def aout_line f, n, h
+		g = create_mainobj n
+		sprintf "$(CC) %s%s %s %s -L$(archdir) -l:yarvaot.$(DLEXT)" \
+				  " %s %s %s %s %s",
+				  COUTFLAG,
+				  h.path,
+				  f.path,
+				  g.path,
+				  $LIBPATH.join,
+				  $DLDFLAGS,
+				  $LOCAL_LIBS,
+				  $LIBRUBYARG_SHARED,
+				  $LIBS
+	end
+
+	def create_mainobj n
+		run_in_tempfile n do |g|
+			r, w = IO.pipe
+			c = RbConfig::CONFIG.merge 'hdrdir' => $hdrdir.quote,
+												'arch_hdrdir' => $arch_hdrdir
+			l = sprintf "$(CC) %s %s %s %s -c %s%s -xc -",
+							$INCFLAGS,
+							$CPPFLAGS,
+							$CFLAGS,
+							$ARCH_FLAG,
+							COUTFLAG,
+							g.path
+			l = RbConfig.expand l, c
+			verbose_out "running C compiler: %s", l
+			p = Process.spawn l, in: r
+			genmain w, n
+			w.close
+			Process.waitpid p
+			g.close
+			g.open
+		end
+	end
+
 	def genmain io, n
-		b = File.basename n, '.rb'
-		q = as_tr_cpp b
+		c = canonname n
 		io.write <<-end
 #include <string.h>
 #include <ruby/ruby.h>
-extern struct RString* #{q};
-extern VALUE rb_iseq_load(VALUE, VALUE, VALUE);
+extern VALUE Init_#{c}(VALUE);
 extern void ruby_init_loadpath_safe(int);
-static VALUE
-load_insns(VALUE ign)
-{
-    VALUE ary;
-    VALUE str = (VALUE)#{q};
-    #{q}->basic.klass = rb_cString;
-    ary = rb_marshal_load((VALUE)#{q});
-    return rb_iseq_load(ary, 0, 0);
-}
+RUBY_GLOBAL_SETUP
 int
 main(int argc, char** argv)
 {
+    int state = 0;
     RUBY_INIT_STACK;
     ruby_sysinit(&argc, &argv);
     ruby_init();
     ruby_init_loadpath_safe(0);
-ruby_debug = Qtrue;
-ruby_verbose = Qtrue;
-    return ruby_run_node((void*)rb_protect(load_insns, Qnil, 0));
+    rb_protect(Init_#{c}, Qnil, &state);
+    return state;
 }
 		end
 	end
