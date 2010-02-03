@@ -305,7 +305,7 @@ typedef struct rb_vm_struct {
 #endif
 } rb_vm_t;
 
-typedef struct {
+typedef struct rb_control_frame_struct {
     VALUE *pc;			/* cfp[0] */
     VALUE *sp;			/* cfp[1] */
     VALUE *bp;			/* cfp[2] */
