@@ -9,6 +9,8 @@ insns = RubyVM::InstructionsLoader.new({
     VPATH: [top_srcdir].extend(RubyVM::VPATH)
 });
 
+extconfh = File.read(ARGV[2]);
+
 DATA.rewind();
 ERB.new(DATA.read(), 0, '%').run();
 Process.exit();
@@ -51,11 +53,13 @@ extern rb_control_frame_t* yarvaot_insn_<%=
 insn.name
 
 %>(rb_thread_t* th, rb_control_frame_t* reg_cfp<%=
-
-insn.opes.map {|(typ, nam)|
-     (typ == "...") ? ", ..." : ", #{typ} #{nam}"
-}.join
-
+   if(/^#define CABI_OPERANDS 1$/.match(extconfh))
+       insn.opes.map {|(typ, nam)|
+          (typ == "...") ? ", ..." : ", #{typ} #{nam}"
+       }.join();
+   else
+       '';
+   end
 %>);
 % };
 

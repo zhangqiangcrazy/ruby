@@ -7,16 +7,27 @@
 
 require 'mkmf'
 require 'rbconfig'
+extend RbConfig
 
-raise <<END unless RbConfig::CONFIG['EXTSTATIC'].empty?
-Sorry,  YARVAOT feature  needs an  explicit dynamic  loading of  this extension
-library.  You cannot compile this lib without dynamic loadings.
+exit true unless enable_config 'yarvaot', true
+
+if CONFIG['ENABLE_SHARED'] != 'yes' or !CONFIG['EXTSTATIC'].empty?
+	message <<END
+Sorry, YARVAOT feature needs an explicit dynamic loading of both this extension
+library and the libruby.#{CONFIG['DLEXT']}.
+You cannot compile this lib without dynamic loadings.
 END
+	exit
+end
+
+$defs.push '-DCABI_OPERANDS' if enable_config 'cabi-operands', nil
+$defs.push '-DCABI_ACCUM' if enable_config 'cabi-accumlator', nil
 
 $VPATH << '$(top_srcdir)' << '$(topdir)'
 $INCFLAGS << ' -I$(top_srcdir) -I$(topdir)'
 $objs = %w'yarvaot.o'
 $srcs = %w'yarvaot.c.rb yarvaot.h.rb'
+create_header
 create_makefile 'yarvaot'
 
 # 

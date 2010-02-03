@@ -9,6 +9,8 @@ insns = RubyVM::InstructionsLoader.new({
     VPATH: [top_srcdir].extend(RubyVM::VPATH)
 });
 
+extconfh = File.read(ARGV[2]);
+
 DATA.rewind();
 ERB.new(DATA.read(), 0, '%').run();
 #endif
@@ -54,9 +56,14 @@ rb_control_frame_t*
 yarvaot_insn_<%= insn.name %>(
     rb_thread_t* th,
     rb_control_frame_t* reg_cfp<%=
+if(/^#define CABI_OPERANDS 1$/.match(extconfh))
     insn.opes.map {|(typ, nam)|
         (typ == "...") ? ",\n     ..." : ",\n    #{typ} #{nam}"
-    }.join%>)
+    }.join();
+else
+    '';
+end
+%>)
 {
     /* make_header_prepare_stack omitted */
     /* make_header_stack_val */
@@ -67,7 +74,18 @@ yarvaot_insn_<%= insn.name %>(
 %       end
 %   }
     /* make_header_default_operands ommited */
+%   if(/^#define CABI_OPERANDS 1$/.match(extconfh))
     /* make_header_operands moved to machine ABI */
+%   else
+    /* make_header_operands */
+%       insn.opes.each_with_index {|(typ, nam), i|
+%           if(typ == "...")
+%               break;
+%           else
+    <%= typ %> <%= nam %> = (<%= typ %>)GET_OPERAND(<%= i + 1 %>);
+%           end
+%       }
+%   end
     /* make_header_temporary_vars */
 %   insn.tvars.each() {|(typ, nam)|
         <%= typ %> <%= nam %>;

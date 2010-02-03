@@ -10,13 +10,15 @@ yarvaot.c:				\
   $(srcdir)/yarvaot.c.rb		\
   $(top_srcdir)/tool/instruction.rb	\
   $(top_srcdir)/insns.def		\
+  extconf.h				\
   yarvaot.h
 	$(ruby) -- $^ > $@
 
 yarvaot.h:				\
   $(srcdir)/yarvaot.h.rb		\
   $(top_srcdir)/tool/instruction.rb	\
-  $(top_srcdir)/insns.def
+  $(top_srcdir)/insns.def		\
+  extconf.h
 	$(ruby) -- $^ > $@
 
 yarvaot.o:				\
