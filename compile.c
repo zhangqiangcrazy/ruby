@@ -11,6 +11,30 @@
 
 #include "ruby/ruby.h"
 
+
+/* FIXME! this bunch of preprocessor business was cut'n'pasted from
+ * dln.c. dln.c should have provided a nessecasy functionality. */
+
+#if defined(__APPLE__) && defined(__MACH__)   /* Mac OS X */
+# if defined(HAVE_DLOPEN)
+   /* Mac OS X with dlopen (10.3 or later) */
+#  define MACOSX_DLOPEN
+# else
+#  define MACOSX_DYLD
+# endif
+#endif
+
+#if defined(HAVE_DLOPEN) && !defined(USE_DLN_A_OUT) && !defined(_AIX) && !defined(MACOSX_DYLD) && !defined(_UNICOSMP)
+/* dynamic load with dlopen() */
+# define USE_DLN_DLOPEN
+#endif
+
+#ifdef USE_DLN_DLOPEN
+# include <dlfcn.h>
+#endif
+
+/* FIXME! cut&paste section end */
+
 #define USE_INSN_STACK_INCREASE 1
 #include "vm_core.h"
 #include "iseq.h"
@@ -1448,6 +1472,9 @@ iseq_set_sequence(rb_iseq_t *iseq, LINK_ANCHOR *anchor)
 			    generated_iseq[pos + 1 + j] = (VALUE)entry;
 			}
 			break;
+                      case TS_FUNCPTR:
+                        generated_iseq[pos + 1 + j] = (VALUE)operands[j];
+                        break;
 		      default:
 			rb_compile_error(RSTRING_PTR(iseq->filename), iobj->line_no,
 					 "unknown operand type: %c", type);
@@ -5289,6 +5316,20 @@ iseq_build_body(rb_iseq_t *iseq, LINK_ANCHOR *anchor,
 			    argv[j] = op;
 			}
 			break;
+                    case TS_FUNCPTR:
+                        #ifndef USE_DLN_DLOPEN
+                        rb_notimplement();
+                        #else
+                        {
+                            void* p = (void*)NUM2ULONG(op);
+                            Dl_info i;
+                            if(dladdr(p, &i) == 0)
+                                rb_raise(rb_eRuntimeError, "%s", dlerror());
+                            else
+                                argv[j] = p;
+                        }
+			#endif
+                        break;
 		      default:
 			rb_raise(rb_eSyntaxError, "unknown operand: %c", insn_op_type(insn_id, j));
 		    }
