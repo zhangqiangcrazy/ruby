@@ -325,8 +325,8 @@ rb_control_frame_t*
 					'    yarvaot_insn_branchif(t, r, %s);' % i
 				when :jump
 					'    goto %s;' % i
-				when :leave
-					'    /* yarvaot_insn_leave(t, r) */'
+				# when :leave
+				# 	'    /* yarvaot_insn_leave(t, r) */'
 				else
 					args = %w[t r]
 					ta.each do |(t, a)|
