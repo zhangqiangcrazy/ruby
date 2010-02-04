@@ -198,8 +198,8 @@ struct rb_control_frame_struct {
 };
 
 /* GET_SP() needs COLLECT_USAGE_ANALYSIS but it seems not inplemented */
-#define yarvaot_insn_branchunless(t, r, l) if(!RTEST(*r->sp--)) goto l
-#define yarvaot_insn_branchif(t, r, l)     if(!RTEST(*r->sp--)) goto l
+#define yarvaot_insn_branchunless(t, r, l) if(!RTEST(*(r->sp-- - 1))) goto l
+#define yarvaot_insn_branchif(t, r, l)     if(!RTEST(*(r->sp-- - 1))) goto l
 /* This cannot be a typedef */
 #if !defined(__GNUC__) || (__GNUC__ < 4) || \
       ((__GNUC__ == 4) && __GNUC_MINOR__ < 4)
@@ -325,8 +325,8 @@ rb_control_frame_t*
 					'    yarvaot_insn_branchif(t, r, %s);' % i
 				when :jump
 					'    goto %s;' % i
-				# when :leave
-				# 	'    /* yarvaot_insn_leave(t, r) */'
+				when :leave
+					'    /* yarvaot_insn_leave(t, r) */'
 				else
 					args = %w[t r]
 					ta.each do |(t, a)|
