@@ -29,7 +29,7 @@ __END__
 #ifndef RUBY_INSNHELPER_H
 typedef struct rb_iseq_struct rb_iseq_t;
 typedef struct rb_thread_struct rb_thread_t;
-typedef struct rb_control_frame_struct rb_control_frame_t; /* fake */
+typedef VALUE* rb_control_frame_t; /* fake */
 typedef long OFFSET;
 typedef unsigned long rb_num_t;
 typedef unsigned long lindex_t;
@@ -44,7 +44,10 @@ typedef rb_control_frame_t* rb_insn_func_t(rb_thread_t* th, rb_control_frame_t* 
 #define hide_obj(obj) (void)(RBASIC(obj)->klass = 0)
 /* rb_global_entry() is not exported either. */
 extern struct rb_global_entry* rb_global_entry(ID);
-
+/* neither. */
+extern void rb_vmdebug_debug_print_register(rb_thread_t *th);
+/* neither. */
+extern void RUBY_VM_CHECK_INTS_TH(rb_thread_t* th);
 #endif
 
 % insns.each {|insn|

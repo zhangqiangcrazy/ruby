@@ -24,6 +24,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		@functions           = Array.new
 		@generators          = Hash.new
 		@iseq_compile_option = Hash.new
+
 		allopts = {
 			inline_const_cache:       true,
 			peephole_optimization:    true,
@@ -45,6 +46,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 			peephole_optimization:    true,
 			specialized_instruction:  true,
 		}
+
 		@opt.on '-g [N]', <<-'begin'.strip, Integer do |level|
                                    Debug  level, default is  1.  This  sets the
                                    debug level of ruby.  It seems values from 0
@@ -53,6 +55,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		begin
 			@iseq_compile_option[:debug_level] = level || 1
 		end
+
 		@opt.on '-O [N]', <<-'begin'.strip, Integer do |level|
                                    Sets  optimization "level".   Default  is 0.
                                    Currently  optimization  levels  of range  0
@@ -182,24 +185,6 @@ Init_#{c}(VALUE ign)
 #include <ruby/encoding.h>
 #include <ruby/yarvaot.h>
 
-/* debug */
-struct rb_control_frame_struct {
-    VALUE *pc;			/* cfp[0] */
-    VALUE *sp;			/* cfp[1] */
-    VALUE *bp;			/* cfp[2] */
-    rb_iseq_t *iseq;		/* cfp[3] */
-    VALUE flag;			/* cfp[4] */
-    VALUE self;			/* cfp[5] / block[0] */
-    VALUE *lfp;			/* cfp[6] / block[1] */
-    VALUE *dfp;			/* cfp[7] / block[2] */
-    rb_iseq_t *block_iseq;	/* cfp[8] / block[3] */
-    VALUE proc;			/* cfp[9] / block[4] */
-    const void *me;/* cfp[10] */
-};
-
-/* GET_SP() needs COLLECT_USAGE_ANALYSIS but it seems not inplemented */
-#define yarvaot_insn_branchunless(t, r, l) if(!RTEST(*(r->sp-- - 1))) goto l
-#define yarvaot_insn_branchif(t, r, l)     if(!RTEST(*(r->sp-- - 1))) goto l
 /* This cannot be a typedef */
 #if !defined(__GNUC__) || (__GNUC__ < 4) || \
       ((__GNUC__ == 4) && __GNUC_MINOR__ < 4)
@@ -207,6 +192,11 @@ struct rb_control_frame_struct {
 #else
 #define sourcecode_t __attribute__((__unused__)) static char const
 #endif
+
+/* control frame is opaque */
+#define cfp_pc(reg) (reg[0])
+#define cfp_sp(reg) (reg[1])
+
 		end
 	end
 
@@ -296,6 +286,7 @@ struct rb_control_frame_struct {
 
 	# This is almost a Ruby-version iseq_build_body().
 	def genfunc func, iseq, orignam, body, file, line, type
+		labels_seen = Hash.new
 		hdr = sprintf <<-end, type, orignam, file, line, func
 /* %s %s */
 /* from %s line %d */
@@ -312,6 +303,7 @@ rb_control_frame_t*
 		stmts = body.map do |i|
 			case i
 			when Symbol
+				labels_seen.store i, true
 				"\n%s:" % i.to_s
 			when Numeric
 #				sprintf %'#line %d "%s"\n', i, file
@@ -319,12 +311,28 @@ rb_control_frame_t*
 				op = i.shift
 				ta = YARVAOT::INSNS[op].first.zip i
 				case op
-				when :branchunless
-					'    yarvaot_insn_branchunless(t, r, %s);' % i
-				when :branchif
-					'    yarvaot_insn_branchif(t, r, %s);' % i
-				when :jump
-					'    goto %s;' % i
+				when :branchunless, :branchif, :jump
+					m = /\d+/.match i.to_s
+					s = if labels_seen.has_key? i[0]
+							 "RUBY_VM_CHECK_INTS_TH(t);\n        "
+						 else
+							 ''
+						 end
+					b = sprintf <<-end, s, m[0], i[0]
+						%s*cfp_pc(r) = %d;
+						goto %s;
+					end
+					case op
+					when :branchunless
+						b.gsub! %r/^\t+/, '        '
+						"    if(!RTEST(*--cfp_sp(r))){\n%s    }" % b
+					when :branchif
+						b.gsub! %r/^\t+/, '        '
+						"    if(RTEST(*--cfp_sp(r))){\n%s    }" % b
+					when :jump
+						b.gsub! %r/^\t+/, '    '
+						b
+					end
 				# when :leave
 				# 	'    /* yarvaot_insn_leave(t, r) */'
 				else
@@ -368,7 +376,7 @@ rb_control_frame_t*
 						args << str
 					end
 					str = args.join ', '
-					sprintf '    yarvaot_insn_%s(%s);', op, str
+					sprintf '    r = yarvaot_insn_%s(%s);', op, str
 				end
 			else
 				raise TypeError, "unknown %p", i
@@ -418,7 +426,7 @@ rb_control_frame_t*
 		when Fixnum
 			get  = 'LONG2FIX(%d)' % obj
 		when TrueClass, FalseClass, NilClass
-			get  = "Q%p" % obj
+			get  = 'Q%p' % obj
 		when Bignum
 			put  = 'rb_cstr2inum("%s", 10)', obj.to_s
 			qnam = namegen obj.to_s, type
@@ -440,12 +448,19 @@ rb_control_frame_t*
 				raise TypeError, "unknown literal object #{obj}"
 			end
 		when Symbol
+			# Why a  symbol is not cached  as a VALUE?   Well a VALUE in  C static
+			# variable needs to be scanned during GC because VALUEs can have links
+			# against some other objects in  general.  But that's not the case for
+			# Symbols -- they do not  have links internally.  An ID variable needs
+			# no GC because  it's clear they are  not related to GC at  all.  So a
+			# Symbol is more efficient when stored as an ID, rather than a VALUE.
 			str  = rstring2cstr obj.to_s
 			type = 'ID'
 			qnam = namegen obj.to_s, type
 			get  = 'ID2SYM(%s)' % qnam
 			put  = 'rb_intern(%s)' % str.first.first
 		when Encoding
+			# Same as above; no GC please.
 			str  = rstring2cstr obj.name
 			type = 'rb_encoding*'
 			qnam = namegen obj.name, type

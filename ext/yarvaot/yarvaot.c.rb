@@ -48,6 +48,13 @@ __END__
 #include "vm_insnhelper.c"
 
 #define INSN_LABEL(l) l
+#undef DEBUG_ENTER_INSN
+#if defined VMDEBUG && VMDEBUG > 2
+#define DEBUG_ENTER_INSN(nam) fprintf(stderr, "%18s@%p ", nam, reg_cfp);       \
+    rb_vmdebug_debug_print_register(th)
+#else
+#define DEBUG_ENTER_INSN(nam)   /* void */
+#endif
 
 % insns.each {|insn|
 #line <%= _erbout.lines.to_a.size + 1 %> "yarvaot.c"
@@ -205,6 +212,14 @@ rb_yarvaot_get_ic(rb_control_frame_t* reg_cfp, int nth)
     if((ic_entries = iseq->ic_entries) == NULL) return NULL;
     if(iseq->ic_size < nth) return NULL;
     return &ic_entries[nth];
+}
+
+#undef RUBY_VM_CHECK_INTS_TH
+void
+RUBY_VM_CHECK_INTS_TH(rb_thread_t* th)
+{
+    if (th->interrupt_flag)
+        rb_threadptr_execute_interrupts(th);
 }
 
 void
