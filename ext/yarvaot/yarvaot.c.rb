@@ -205,7 +205,7 @@ gen_insns_info(void)
 }
 
 struct iseq_inline_cache_entry*
-rb_yarvaot_get_ic(
+yarvaot_get_ic(
     rb_control_frame_t const* reg_cfp,
     int nth)
 {

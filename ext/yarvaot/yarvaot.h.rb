@@ -125,7 +125,7 @@ extern void RUBY_VM_CHECK_INTS_TH(rb_thread_t* th);
  * @retval    NULL        no such IC
  * @retval    otherwise   a valid pointer to a inline cache entry.
  */
-extern IC rb_yarvaot_get_ic(rb_control_frame_t const* reg_cfp, int nth);
+extern IC yarvaot_get_ic(rb_control_frame_t const* reg_cfp, int nth);
 
 /*
  * Local Variables:
