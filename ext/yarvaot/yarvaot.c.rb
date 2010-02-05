@@ -15,9 +15,11 @@ DATA.rewind();
 ERB.new(DATA.read(), 0, '%').run();
 #endif
 __END__
+
 /* Ruby to C (and then,  to machine executable) compiler, originally written by
  * Urabe Shyouhei  <shyouhei@ruby-lang.org> during  2010.  See the  COPYING for
  * legal info. */
+#define VMDEBUG INT_MAX
 #include <ruby/ruby.h>
 #include "eval_intern.h"
 #include "iseq.h"
@@ -50,6 +52,7 @@ __END__
 #define INSN_LABEL(l) l
 #undef DEBUG_ENTER_INSN
 #if defined VMDEBUG && VMDEBUG > 2
+extern void rb_vmdebug_debug_print_register(rb_thread_t*);
 #define DEBUG_ENTER_INSN(nam) fprintf(stderr, "%18s@%p ", nam, reg_cfp);       \
     rb_vmdebug_debug_print_register(th)
 #else
@@ -202,7 +205,9 @@ gen_insns_info(void)
 }
 
 struct iseq_inline_cache_entry*
-rb_yarvaot_get_ic(rb_control_frame_t* reg_cfp, int nth)
+rb_yarvaot_get_ic(
+    rb_control_frame_t const* reg_cfp,
+    int nth)
 {
     rb_iseq_t* iseq = 0;
     struct iseq_inline_cache_entry* ic_entries = 0;
