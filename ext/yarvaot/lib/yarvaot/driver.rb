@@ -134,8 +134,8 @@ class YARVAOT::Subcommand
 			begin
 				yield STDOUT
 			rescue Exception => e
-				puts e.message
-				puts e.backtrace.reverse
+				STDERR.puts e.message
+				STDERR.puts e.backtrace
 				Process.abort
 			else
 				Process.exit
