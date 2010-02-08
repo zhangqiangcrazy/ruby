@@ -22,22 +22,14 @@ VALUE rb_iseq_build_from_ary(rb_iseq_t *iseq, VALUE locals, VALUE args,
 VALUE rb_iseq_load(VALUE data, VALUE parent, VALUE opt);
 struct st_table *ruby_insn_make_insn_table(void);
 
-#define ISEQ_TYPE_TOP    INT2FIX(1)
-#define ISEQ_TYPE_METHOD INT2FIX(2)
-#define ISEQ_TYPE_BLOCK  INT2FIX(3)
-#define ISEQ_TYPE_CLASS  INT2FIX(4)
-#define ISEQ_TYPE_RESCUE INT2FIX(5)
-#define ISEQ_TYPE_ENSURE INT2FIX(6)
-#define ISEQ_TYPE_EVAL   INT2FIX(7)
-#define ISEQ_TYPE_MAIN   INT2FIX(8)
-#define ISEQ_TYPE_DEFINED_GUARD INT2FIX(9)
-
-#define CATCH_TYPE_RESCUE ((int)INT2FIX(1))
-#define CATCH_TYPE_ENSURE ((int)INT2FIX(2))
-#define CATCH_TYPE_RETRY  ((int)INT2FIX(3))
-#define CATCH_TYPE_BREAK  ((int)INT2FIX(4))
-#define CATCH_TYPE_REDO   ((int)INT2FIX(5))
-#define CATCH_TYPE_NEXT   ((int)INT2FIX(6))
+enum yarvaot_catch_type_tag {
+    CATCH_TYPE_RESCUE = ((int)INT2FIX(1)),
+    CATCH_TYPE_ENSURE = ((int)INT2FIX(2)),
+    CATCH_TYPE_RETRY  = ((int)INT2FIX(3)),
+    CATCH_TYPE_BREAK  = ((int)INT2FIX(4)),
+    CATCH_TYPE_REDO   = ((int)INT2FIX(5)),
+    CATCH_TYPE_NEXT   = ((int)INT2FIX(6))
+};
 
 struct iseq_insn_info_entry {
     unsigned short position;
@@ -46,7 +38,7 @@ struct iseq_insn_info_entry {
 };
 
 struct iseq_catch_table_entry {
-    VALUE type;
+    enum yarvaot_catch_type_tag type;
     VALUE iseq;
     unsigned long start;
     unsigned long end;

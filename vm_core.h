@@ -134,6 +134,18 @@ struct iseq_inline_cache_entry {
     } ic_value;
 };
 
+enum yarvaot_iseq_type_tag {
+    ISEQ_TYPE_TOP           = INT2FIX(1),
+    ISEQ_TYPE_METHOD        = INT2FIX(2),
+    ISEQ_TYPE_BLOCK         = INT2FIX(3),
+    ISEQ_TYPE_CLASS         = INT2FIX(4),
+    ISEQ_TYPE_RESCUE        = INT2FIX(5),
+    ISEQ_TYPE_ENSURE        = INT2FIX(6),
+    ISEQ_TYPE_EVAL          = INT2FIX(7),
+    ISEQ_TYPE_MAIN          = INT2FIX(8),
+    ISEQ_TYPE_DEFINED_GUARD = INT2FIX(9)
+};
+
 #if 1
 #define GetCoreDataFromValue(obj, type, ptr) do { \
     ptr = (type*)DATA_PTR(obj); \
@@ -152,7 +164,7 @@ struct rb_iseq_struct {
     /* static data */
     /***************/
 
-    VALUE type;          /* instruction sequence type */
+    enum yarvaot_iseq_type_tag type;          /* instruction sequence type */
     VALUE name;	         /* String: iseq name */
     VALUE filename;      /* file information where this sequence from */
     VALUE *iseq;         /* iseq (insn number and openrads) */
