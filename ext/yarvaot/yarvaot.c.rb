@@ -53,7 +53,7 @@ __END__
 #undef DEBUG_ENTER_INSN
 #if defined VMDEBUG && VMDEBUG > 2
 extern void rb_vmdebug_debug_print_register(rb_thread_t*);
-#define DEBUG_ENTER_INSN(nam) fprintf(stderr, "%18s@%p ", nam, reg_cfp);       \
+#define DEBUG_ENTER_INSN(nam) fprintf(stderr, "%18s @ %p", nam, reg_cfp);       \
     rb_vmdebug_debug_print_register(th)
 #else
 #define DEBUG_ENTER_INSN(nam)   /* void */

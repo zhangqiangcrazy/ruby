@@ -5,7 +5,6 @@
 # Urabe  Shyouhei <shyouhei@ruby-lang.org>  during 2010.   See the  COPYING for
 # legal info.
 require 'uuid'
-require 'pp'
 
 # This is the compiler proper, ruby -> C transformation engine.
 class YARVAOT::Compiler < YARVAOT::Subcommand
@@ -173,8 +172,7 @@ Init_#{c}(VALUE ign)
 		yield <<-end
 
     /* kick */
-    ruby_run_node((void*)#@toplevel);
-    return Qnil;
+    return rb_iseq_eval(#@toplevel);
 }
 		end
 	end
@@ -196,7 +194,6 @@ Init_#{c}(VALUE ign)
 /* control frame is opaque */
 #define cfp_pc(reg) (reg[0])
 #define cfp_sp(reg) (reg[1])
-
 		end
 	end
 
@@ -293,6 +290,7 @@ Init_#{c}(VALUE ign)
 rb_control_frame_t*
 %s(rb_thread_t* t, rb_control_frame_t* r)
 {
+    VALUE* pc = r[0];
 		end
 		ftr = <<-end
 
@@ -319,7 +317,7 @@ rb_control_frame_t*
 							 ''
 						 end
 					b = sprintf <<-end, s, m[0], i[0]
-						%s*cfp_pc(r) = %d;
+						%scfp_pc(r) = pc + %d;
 						goto %s;
 					end
 					case op

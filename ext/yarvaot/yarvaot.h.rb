@@ -61,9 +61,27 @@ extern struct rb_global_entry* rb_global_entry(ID id);
 /**
  * Neither.
  *
- * @paran[in] th thread
+ * @param[in] th thread
  */
 extern void rb_vmdebug_debug_print_register(rb_thread_t *th);
+
+/**
+ * Neither.
+ *
+ * @param[in] array ISeq#to_a output array
+ * @param[in] parent anothyer ISeq instance, or a Qnil
+ * @param[opt] compile optoins
+ * @returns a new ISeq instance
+ */
+extern VALUE rb_iseq_load(VALUE array, VALUE parent, VALUE opt);
+
+/**
+ * Neither.
+ *
+ * @param[in] iseqval  An ISeq object that wraps a rb_iseq_t
+ * @returns  an evaluated value for iseqval's internal iseq
+ */
+extern VALUE rb_iseq_eval(VALUE iseqval);
 #endif
 
 % insns.each {|insn|

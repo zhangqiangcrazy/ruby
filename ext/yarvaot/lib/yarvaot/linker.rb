@@ -105,6 +105,7 @@ class YARVAOT::Linker < YARVAOT::Subcommand
 #include <ruby/ruby.h>
 extern VALUE Init_#{c}(VALUE);
 extern void ruby_init_loadpath_safe(int);
+extern void Init_prelude(void);
 RUBY_GLOBAL_SETUP
 int
 main(int argc, char** argv)
