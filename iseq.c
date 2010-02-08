@@ -877,7 +877,7 @@ rb_iseq_disasm_insn(VALUE ret, VALUE *iseq, size_t pos,
 	rb_str_concat(ret, str);
     }
     else {
-	printf("%s\n", RSTRING_PTR(str));
+	fprintf(stderr, "%s\n", RSTRING_PTR(str));
     }
     return len;
 }

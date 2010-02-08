@@ -366,7 +366,7 @@ rb_vmdebug_debug_print_pre(rb_thread_t *th, rb_control_frame_t *cfp)
 	VALUE *seq = iseq->iseq;
 	ptrdiff_t pc = cfp->pc - iseq->iseq_encoded;
 
-	printf("%3"PRIdPTRDIFF" ", VM_CFP_CNT(th, cfp));
+	fprintf(stderr, "%3"PRIdPTRDIFF" ", VM_CFP_CNT(th, cfp));
 	if (pc >= 0) {
 	    rb_iseq_disasm_insn(0, seq, (size_t)pc, iseq, 0);
 	}
