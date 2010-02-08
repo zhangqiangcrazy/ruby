@@ -59,6 +59,8 @@ extern void rb_vmdebug_debug_print_register(rb_thread_t*);
 #define DEBUG_ENTER_INSN(nam)   /* void */
 #endif
 
+static VALUE gen_insns_info(void);
+
 % insns.each {|insn|
 #line <%= _erbout.lines.to_a.size + 1 %> "yarvaot.c"
 

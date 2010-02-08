@@ -159,7 +159,7 @@ Init_#{c}(VALUE ign)
     /* register global variables */
 		end
 		n2t.each do |(t, n)|
-			yield "    rb_global_variable(&#{n});\n" if t == 'VALUE'
+			yield "    rb_gc_register_mark_object(#{n});\n" if t == 'VALUE'
 		end
 		yield "\n    /* initializations */\n"
 		# generator entries have mutual dependencies so order matters
@@ -350,7 +350,7 @@ rb_control_frame_t*
 									a.to_s
 								when 'IC'
 									ic_idx += 1
-									'rb_yarvaot_get_ic(r, %d)' % ic_idx
+									'yarvaot_get_ic(r, %d)' % ic_idx
 								when 'OFFSET'
 									robject2csource a # ??
 								when 'CDHASH', 'VALUE'

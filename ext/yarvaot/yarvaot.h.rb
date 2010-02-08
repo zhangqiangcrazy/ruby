@@ -65,6 +65,7 @@ extern struct rb_global_entry* rb_global_entry(ID id);
  */
 extern void rb_vmdebug_debug_print_register(rb_thread_t *th);
 #endif
+
 % insns.each {|insn|
 
 /**

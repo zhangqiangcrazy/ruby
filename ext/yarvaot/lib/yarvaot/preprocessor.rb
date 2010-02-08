@@ -188,7 +188,7 @@ class YARVAOT::Ripper < Ripper
 	end
 
 	Ripper::SCANNER_EVENT_TABLE.each do |(e, f)|
-		define_method 'on_' + e do |tok|
+		define_method 'on_' + e.to_s do |tok|
 			ret = Terminal.new lineno, column, e, tok
 			@terminals.push ret
 			ret
@@ -196,7 +196,7 @@ class YARVAOT::Ripper < Ripper
 	end
 
 	Ripper::PARSER_EVENT_TABLE.each do |(e, f)|
-		f = 'on_' + e
+		f = 'on_' + e.to_s
 		case e.to_s
 		when /_add$/
 			define_method f do |l, i|
