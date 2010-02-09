@@ -56,9 +56,9 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 
 	# Run.  Eat the file, do necessary conversions, then return a new file.
 	#
-	# One thing  to note is that this  method invokes a thread  inside because a
-	# pipe can occasionally stop up and  may blocks the whole ruby process.  You
-	# can detect  the liveness of that  internal thread by testing  the EOF flag
+	# One thing to  note is that this method invokes a  process inside because a
+	# pipe can  occasionally stop up  and may blocks  the whole thing.   You can
+	# detect the liveness of that internal child process by testing the EOF flag
 	# of a returing file.
 	def run f, n
 		run_in_pipe f do |g|

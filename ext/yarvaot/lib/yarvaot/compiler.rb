@@ -95,6 +95,11 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		end
 	end
 
+	# Run.  Eat the file, do necessary conversions, then return a new file.
+	#
+	# One thing  to note is  that this method  invokes a process  inside because
+	# the input file  is normally a pipe from  preprocessor stage... which means
+	# reading from it tend to block.
 	def run f, n
 		run_in_pipe f do |g|
 			verbose_out 'compiler started.'
@@ -113,7 +118,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 
 	private
 
-	# toplevel to trigger compilation
+	# Toplevel to trigger compilation
 	def compile str, n, iseq
 		@preambles = PreamblesTemplate.result binding
 		embed_sourcecode str, n
@@ -135,7 +140,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		@trailers = TrailersTemplate.result binding
 	end
 
-	# feeds compiled C source code little by little to the given block.
+	# Feeds compiled C source code little by little to the given block.
 	def stringize name # :yields: string
 		yield @preambles
 		@namedb.each do |(t, n)|
@@ -159,7 +164,22 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		yield @trailers
 	end
 
+	# This  is a n  ERB template  to generate  a C  file preamble.   It normally
+	# generates a series of #include's  needed, a series of #define's needed and
+	# (if  any) a  series of  external  function declarations  missing from  the
+	# included header files.
 	PreamblesTemplate = ERB.new <<-'end', 0, '%'
+/*
+ * Auto-generated C sourcecode using YARVAOT, a Ruby to C compiler.
+ *
+ * This  file includes  some materials  from  the Ruby  distribution. They  are
+ * copyrighted by their authors, and  are provided here either under the Ruby's
+ * license, or under the GNU Public License version 2.  If you are not familiar
+ * to them, please consult:
+ *
+ *   - http://www.ruby-lang.org/en/about/license.txt
+ *   - http://www.gnu.org/licenses/gpl-2.0.txt
+ */
 #include <ruby/ruby.h>
 #include <ruby/encoding.h>
 #include <ruby/yarvaot.h>
@@ -207,7 +227,16 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
     }
 
 	end
+	#' <- needed to f*ck emacs
 
+	# This is an ERB template to  generate a C sourcecode trailer, which is, the
+	# DLL entry point function.
+	#
+	# Technical note: prior to its  invocation, an extension library entry point
+	# is casted as "void (*)(void)".   But a function which rb_protect() expects
+	# to have in its first argument is of type "VALUE (*)(VALUE)".  The function
+	# type of  a generated entry  point is subject  to change in future  when we
+	# abandon rb_protect().
 	TrailersTemplate = ERB.new <<-'end', 0, '%'
 
 VALUE
@@ -268,6 +297,10 @@ Init_<%= canonname n %>(VALUE unused)
 		@sourcecodes << str << "\n*/\n"
 	end
 
+	# This is where  the conversion happens.  ISeq array is  nested, so this can
+	# be called recursively.
+	#
+	# returns a name to refer to the converted ISeq (not the function body).
 	def recursive_transform iseq, maybe_parent = 'Qnil'
 		info, name, file, line, type, locals, args, excs, body = format_check iseq
 		fnam = namegen name, 'rb_insn_func_t', :uniq
@@ -318,14 +351,14 @@ Init_<%= canonname n %>(VALUE unused)
 		register_generator_for inam, "rb_iseq_load(#{rnam}, #{maybe_parent}, Qnil)"
 	end
 
-	# This is almost a Ruby-version iseq_build_body().
-	def genfunc func, iseq, orignam, body, file, line, type
+	def genfunc func, iseq, orignam, body, file, line, type # :nodoc:
 		labels_seen = Hash.new
 		ic_idx = [0]
 		func = FunctionTemplate.result binding
 		@functions.push func
 	end
 
+	# This is almost a Ruby-version iseq_build_body().
 	FunctionTemplate = ERB.new <<-'end', 0, '%-'
 
 /* <%= type %>: <%= orignam %> */
