@@ -1472,9 +1472,9 @@ iseq_set_sequence(rb_iseq_t *iseq, LINK_ANCHOR *anchor)
 			    generated_iseq[pos + 1 + j] = (VALUE)entry;
 			}
 			break;
-                      case TS_FUNCPTR:
-                        generated_iseq[pos + 1 + j] = (VALUE)operands[j];
-                        break;
+		      case TS_FUNCPTR:
+			generated_iseq[pos + 1 + j] = (VALUE)operands[j];
+			break;
 		      default:
 			rb_compile_error(RSTRING_PTR(iseq->filename), iobj->line_no,
 					 "unknown operand type: %c", type);
@@ -5316,20 +5316,20 @@ iseq_build_body(rb_iseq_t *iseq, LINK_ANCHOR *anchor,
 			    argv[j] = op;
 			}
 			break;
-                    case TS_FUNCPTR:
-                        #ifndef USE_DLN_DLOPEN
-                        rb_notimplement();
-                        #else
-                        {
-                            void* p = (void*)NUM2ULONG(op);
-                            Dl_info i;
-                            if(dladdr(p, &i) == 0)
-                                rb_raise(rb_eRuntimeError, "%s", dlerror());
-                            else
-                                argv[j] = p;
-                        }
+		    case TS_FUNCPTR:
+			#ifndef USE_DLN_DLOPEN
+			rb_notimplement();
+			#else
+			{
+			    void* p = (void*)NUM2ULONG(op);
+			    Dl_info i;
+			    if(dladdr(p, &i) == 0)
+				rb_raise(rb_eRuntimeError, "%s", dlerror());
+			    else
+				argv[j] = p;
+			}
 			#endif
-                        break;
+			break;
 		      default:
 			rb_raise(rb_eSyntaxError, "unknown operand: %c", insn_op_type(insn_id, j));
 		    }
