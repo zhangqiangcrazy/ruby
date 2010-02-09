@@ -12,14 +12,13 @@ insns = RubyVM::InstructionsLoader.new({
 extconfh = File.read(ARGV[2]);
 
 DATA.rewind();
-ERB.new(DATA.read(), 0, '%').run();
+ERB.new(DATA.read(), 0, "%-").run();
 #endif
 __END__
 
 /* Ruby to C (and then,  to machine executable) compiler, originally written by
  * Urabe Shyouhei  <shyouhei@ruby-lang.org> during  2010.  See the  COPYING for
  * legal info. */
-#define VMDEBUG INT_MAX
 #include <ruby/ruby.h>
 #include "eval_intern.h"
 #include "iseq.h"
@@ -67,15 +66,19 @@ static VALUE gen_insns_info(void);
 rb_control_frame_t*
 yarvaot_insn_<%= insn.name %>(
     rb_thread_t* th,
-    rb_control_frame_t* reg_cfp<%=
-if(/^#define CABI_OPERANDS 1$/.match(extconfh))
-    insn.opes.map {|(typ, nam)|
-        (typ == "...") ? ",\n     ..." : ",\n    #{typ} #{nam}"
-    }.join();
-else
-    '';
-end
-%>)
+    rb_control_frame_t* reg_cfp<% -%>
+%if(/^#define CABI_OPERANDS 1$/.match(extconfh))
+%   insn.opes.map {|(typ, nam)|
+%       if (typ == "...")
+,
+     ...<% -%>
+%       else
+,
+    <%= typ %> <%= nam -%>
+%       end;
+%   }
+%end
+)
 {
     /* make_header_prepare_stack omitted */
     /* make_header_stack_val */

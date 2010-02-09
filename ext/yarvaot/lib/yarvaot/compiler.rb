@@ -5,6 +5,7 @@
 # Urabe  Shyouhei <shyouhei@ruby-lang.org>  during 2010.   See the  COPYING for
 # legal info.
 require 'uuid'
+require 'erb'
 
 # This is the compiler proper, ruby -> C transformation engine.
 class YARVAOT::Compiler < YARVAOT::Subcommand
@@ -15,8 +16,10 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	# Instantiate.  Does nothing yet.
 	def initialize
 		super
-		@toplevel            = ''
-		@preambles           = ''
+		@optlv               = 0
+		@toplevel            = String.new
+		@preambles           = String.new
+		@Trailers            = String.new
 		@namespace           = Hash.new
 		@namedb              = Hash.new do |h, k| h.store k, Array.new end
 		@sourcecodes         = Array.new
@@ -77,6 +80,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 			else
 				@iseq_compile_option.merge! allopts
 			end
+			@optlv = level
 		end
 
 		allopts.keys.each do |flag|
@@ -111,27 +115,30 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 
 	# toplevel to trigger compilation
 	def compile str, n, iseq
-		genpreambles
+		@preambles = PreamblesTemplate.result binding
 		embed_sourcecode str, n
 		embed_debug_disasm iseq
 		@toplevel = recursive_transform iseq
+		ndb = @namedb.values.flatten 1
+		ndb = ndb.group_by do |(t, e)|
+			t
+		end.sort.map do |(tt, a)|
+			a.sort_by do |(t, e)|
+				e
+			end
+		end.flatten 1
+		ndb.map! do |(t, e)|
+			[t, 'y_' + e]
+		end
+		@namedb = ndb
+		values = @namedb.select do |(t, e)| t == 'VALUE' end.transpose.last
+		@trailers = TrailersTemplate.result binding
 	end
 
 	# feeds compiled C source code little by little to the given block.
 	def stringize name # :yields: string
 		yield @preambles
-		n2t = @namedb.values.flatten 1
-		n2t = n2t.group_by do |(t, n)|
-			t
-		end.sort.map do |(t, a)|
-			a.sort_by do |(t, n)|
-				n
-			end
-		end.flatten 1
-		n2t.map! do |(t, n)|
-			[t, 'y_' + n]
-		end
-		n2t.each do |(t, n)|
+		@namedb.each do |(t, n)|
 			case t
 			when 'VALUE'
 				yield "static #{t} #{n} = Qundef;\n"
@@ -142,43 +149,17 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 			end
 		end
 		yield "\n"
-		yield @sourcecodes.flatten.join
+		@sourcecodes.flatten.each do |i|
+			yield i
+		end
 		@functions.each do |f|
 			yield "\n"
 			yield f
 		end
-		yield "\n"
 		yield @trailers
-		c = canonname name
-		yield <<-end
-
-VALUE
-Init_#{c}(VALUE ign)
-{
-    /* register global variables */
-		end
-		n2t.each do |(t, n)|
-			yield "    rb_gc_register_mark_object(#{n});\n" if t == 'VALUE'
-		end
-		yield "\n    /* initializations */\n"
-		# generator entries have mutual dependencies so order matters
-		@generators.each_pair do |k, v|
-			yield "    #{k} = #{v};\n"
-		end
-		yield "\n    /* hide them from the ObjectSpace, see [ruby-dev:37959] */\n"
-		n2t.each do |(t, n)|
-			yield "    hide_obj(#{n});\n" if t == 'VALUE'
-		end
-		yield <<-end
-
-    /* kick */
-    return rb_iseq_eval(#@toplevel);
-}
-		end
 	end
 
-	def genpreambles
-		@preambles <<<<-'end'
+	PreamblesTemplate = ERB.new <<-'end', 0, '%'
 #include <ruby/ruby.h>
 #include <ruby/encoding.h>
 #include <ruby/yarvaot.h>
@@ -194,7 +175,63 @@ Init_#{c}(VALUE ign)
 /* control frame is opaque */
 #define cfp_pc(reg) (reg[0])
 #define cfp_sp(reg) (reg[1])
-		end
+
+#define yarvaot_insn_jump_intr(t, r, n, l)      \
+    RUBY_VM_CHECK_INTS_TH(t);                   \
+    cfp_pc(r) = pc + n;                         \
+    goto l;
+#define yarvaot_insn_jump_nointr(t, r, n, l)    \
+    cfp_pc(r) = pc + n;                         \
+    goto l;
+#define yarvaot_insn_branchif_intr(t, r, n, l)  \
+    if(RTEST(*--cfp_sp(r))) {                   \
+        RUBY_VM_CHECK_INTS_TH(t);               \
+        cfp_pc(r) = pc + n;                     \
+        goto l;                                 \
+    }
+#define yarvaot_insn_branchif_nointr(t, r, n, l)\
+    if(RTEST(*--cfp_sp(r))) {                   \
+        cfp_pc(r) = pc + n;                     \
+        goto l;                                 \
+    }
+#define yarvaot_insn_branchunless_intr(t, r, n, l)  \
+    if(!RTEST(*--cfp_sp(r))) {                      \
+        RUBY_VM_CHECK_INTS_TH(t);                   \
+        cfp_pc(r) = pc + n;                         \
+        goto l;                                     \
+    }
+#define yarvaot_insn_branchunless_nointr(t, r, n, l)\
+    if(!RTEST(*--cfp_sp(r))) {                      \
+        cfp_pc(r) = pc + n;                         \
+        goto l;                                     \
+    }
+
+	end
+
+	TrailersTemplate = ERB.new <<-'end', 0, '%'
+
+VALUE
+Init_<%= canonname n %>(VALUE unused)
+{
+    /* initializations */
+%# generator entries have mutual dependencies so order matters
+%@generators.each_pair do |k, v|
+    <%= k %> = <%= v %>;
+%end
+
+    /* register global variables */
+%values.each do |i|
+    rb_gc_register_mark_object(<%= i %>);
+%end
+
+    /* hide them from the ObjectSpace, see [ruby-dev:37959] */
+%values.each do |i|
+    hide_obj(<%= i %>);
+%end
+
+    /* kick */
+    return rb_iseq_eval(<%= @toplevel %>);
+}
 	end
 
 	# Note, that a sourcecode starts from line one.
@@ -284,105 +321,97 @@ Init_#{c}(VALUE ign)
 	# This is almost a Ruby-version iseq_build_body().
 	def genfunc func, iseq, orignam, body, file, line, type
 		labels_seen = Hash.new
-		hdr = sprintf <<-end, type, orignam, file, line, func
-/* %s %s */
-/* from %s line %d */
+		ic_idx = [0]
+		func = FunctionTemplate.result binding
+		@functions.push func
+	end
+
+	FunctionTemplate = ERB.new <<-'end', 0, '%-'
+
+/* <%= type %>: <%= orignam %> */
+/* from <%= file %> line <%= line %> */
 rb_control_frame_t*
-%s(rb_thread_t* t, rb_control_frame_t* r)
+<%= func %>(rb_thread_t* t, rb_control_frame_t* r)
 {
     VALUE* pc = r[0];
-		end
-		ftr = <<-end
 
+%body.each do |i|
+%	case i
+%	when Symbol
+%		labels_seen.store i, true
+
+    <%= i %>:
+%	when Numeric
+%		# ignore
+%	when Array
+    <%= genfunc_geninsn i, iseq, labels_seen, ic_idx%>;
+%	end
+%end
     return r;
 }
-		end
-		ic_idx = 0
-		stmts = body.map do |i|
-			case i
-			when Symbol
-				labels_seen.store i, true
-				"\n%s:" % i.to_s
-			when Numeric
-#				sprintf %'#line %d "%s"\n', i, file
-			when Array
-				op = i.shift
-				ta = YARVAOT::INSNS[op].first.zip i
-				case op
-				when :branchunless, :branchif, :jump
-					m = /\d+/.match i.to_s
-					s = if labels_seen.has_key? i[0]
-							 "RUBY_VM_CHECK_INTS_TH(t);\n        "
-						 else
-							 ''
-						 end
-					b = sprintf <<-end, s, m[0], i[0]
-						%scfp_pc(r) = pc + %d;
-						goto %s;
-					end
-					case op
-					when :branchunless
-						b.gsub! %r/^\t+/, '        '
-						"    if(!RTEST(*--cfp_sp(r))){\n%s    }" % b
-					when :branchif
-						b.gsub! %r/^\t+/, '        '
-						"    if(RTEST(*--cfp_sp(r))){\n%s    }" % b
-					when :jump
-						b.gsub! %r/^\t+/, '    '
-						b
-					end
-				# when :leave
-				# 	'    /* yarvaot_insn_leave(t, r) */'
-				else
-					args = %w[t r]
-					ta.each do |(t, a)|
-						str = case t
-								when 'ISEQ'
-									if a.nil?
-										'0' # null pointer
-									else
-										iseqval = recursive_transform a, iseq
-										'DATA_PTR(%s)' % iseqval
-									end
-								when 'lindex_t', 'dindex_t', 'rb_num_t'
-									a.to_s
-								when 'IC'
-									ic_idx += 1
-									'yarvaot_get_ic(r, %d)' % ic_idx
-								when 'OFFSET'
-									robject2csource a # ??
-								when 'CDHASH', 'VALUE'
-									robject2csource a
-								when 'GENTRY'
-									# struct rb_global_entry*
-									s = rstring2cstr a.to_s
-									case s.size
-									when 0
-										raise ArgumentError, "must be a bug"
-									when 1
-										'(VALUE)rb_global_entry(rb_intern(%s))' % s[0][0]
-									else
-										raise ArgumentError, "Symbol #{a} too long"
-									end
-								when 'ID'
-									# not the object, but its interned integer
-									sym = robject2csource a
-									sym.sub %/ID2SYM/, '' # ugly
-								else
-									raise TypeError, [op, ta].inspect
-								end
-						args << str
-					end
-					str = args.join ', '
-					sprintf '    r = yarvaot_insn_%s(%s);', op, str
-				end
+	end
+
+	def genfunc_geninsn insn, parent, labels_seen, ic_idx #:nodoc
+		op, *argv = *insn
+		case op
+		when :nop
+			# nop is NOT actually a no-op... it should update the pc.
+			'cfp_pc(r)++;'
+		when :branchunless, :branchif, :jump
+			m = /\d+/.match argv.first.to_s
+			s = if labels_seen.has_key? argv[0]
+					 'intr'
+				 else
+					 'nointr'
+				 end
+			"yarvaot_insn_#{op}_#{s}(t, r, #{m[0]}, #{argv[0]})"
+		else
+			s = genfunc_genargv op, argv, parent, ic_idx
+			if s.empty?
+				"yarvaot_insn_#{op}(t, r)"
 			else
-				raise TypeError, "unknown %p", i
+				"yarvaot_insn_#{op}(t, r, #{s})"
 			end
 		end
-		body = stmts.compact.join "\n"
-		func = hdr + body + ftr
-		@functions.push func
+	end
+
+	def genfunc_genargv op, argv, parent, ic_idx# :nodoc:
+		ta = YARVAOT::INSNS[op].first.zip argv
+		ta.map! do |(t, a)|
+			case t
+			when 'ISEQ'
+				if a.nil? # null pointer
+					0
+				else
+					"DATA_PTR(#{recursive_transform a, parent})"
+				end
+			when 'lindex_t', 'dindex_t', 'rb_num_t'
+				a
+			when 'IC'
+				ic_idx[0] += 1
+				"yarvaot_get_ic(r, #{ic_idx[0]})"
+			when 'OFFSET' # ??
+				robject2csource a
+			when 'CDHASH', 'VALUE'
+				robject2csource a
+			when 'GENTRY' # struct rb_global_entry*
+				s = rstring2cstr a.to_s
+				case s.size
+				when 0
+					raise ArgumentError, "must be a bug"
+				when 1
+					"(VALUE)rb_global_entry(rb_intern(#{s[0][0]}))"
+				else
+					raise ArgumentError, "Symbol #{a} too long"
+				end
+			when 'ID' # not the object, but its interned integer
+				sym = robject2csource a
+				sym.sub %/ID2SYM/, ''
+			else
+				raise TypeError, [op, ta].inspect
+			end
+		end
+		ta.join ', '
 	end
 
 	# ISeq#to_ary format validation
