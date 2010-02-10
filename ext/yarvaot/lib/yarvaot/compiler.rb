@@ -175,7 +175,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
  * This  file includes  some materials  from  the Ruby  distribution. They  are
  * copyrighted by their authors, and  are provided here either under the Ruby's
  * license, or under the GNU Public License version 2.  If you are not familiar
- * to them, please consult:
+ * with them, please consult:
  *
  *   - http://www.ruby-lang.org/en/about/license.txt
  *   - http://www.gnu.org/licenses/gpl-2.0.txt

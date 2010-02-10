@@ -46,7 +46,7 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
                                    on.  Those names are visible via system pro-
                                    vided debuggers.   This option prevents that
                                    behaviour  by  smashing  those  names  using
-                                   Digest::SHA512.
+                                   UUIDs.
 		begin
 			@obfuscate = optarg
 		end
@@ -141,8 +141,8 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 			when :comment
 				x.token.replace "# " << z << "\n"
 			end
-			if z != x.token
-				verbose_out "preprocessor obfuscation mapping %s => %s", z, x.token
+			if w.to_s != x.token
+				verbose_out "preprocessor obfuscation mapping %s => %s", w, x.token
 			end
 		end
 	end
@@ -150,8 +150,8 @@ end
 
 # You know, Ripper is  a kind of event-driven AST visitor like  SAX in XML.  So
 # when you  do a program  transformation you need  to catch every  single event
-# that it emits.  EVERYTHING.  Or you  would lose data.  How to achieve that is
-# not documented  even in Japanese, but  when you read  the implementation, you
+# that it emits.  EVERYTHING.  Or you  end up losing data.  How to achieve that
+# is not documented even in Japanese, but when you read the implementation, you
 # can conclude that
 # - those event emitted from lexer are listed in SCANNER_EVENT_TABLE
 # - those event emitted from parser are listed in PARSER_EVENT_TABLE
@@ -185,6 +185,7 @@ class YARVAOT::Ripper < Ripper
 		@terminals = Array.new
 		nonterminals = super
 		terminals, @terminals = @terminals, nil
+		return terminals, nonterminals
 	end
 
 	Ripper::SCANNER_EVENT_TABLE.each do |(e, f)|
