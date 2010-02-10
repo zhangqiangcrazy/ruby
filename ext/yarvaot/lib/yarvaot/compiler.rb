@@ -366,8 +366,16 @@ Init_<%= canonname n %>(VALUE unused)
 rb_control_frame_t*
 <%= func %>(rb_thread_t* t, rb_control_frame_t* r)
 {
-    VALUE* pc = r[0];
+    static VALUE* pc = 0;
+    static char* ic = 0; /* char* to suppress pointer-arith warnings */
+    static size_t sic = 0;
 
+    if (pc == 0)
+        pc = yarvaot_get_pc(r);
+    if (ic == 0)
+        ic = yarvaot_get_ic(r);
+    if (sic == 0)
+        sic = yarvaot_sizeof_ic();
 %body.each do |i|
 %	case i
 %	when Symbol
@@ -409,7 +417,8 @@ rb_control_frame_t*
 	end
 
 	def genfunc_genargv op, argv, parent, ic_idx# :nodoc:
-		ta = YARVAOT::INSNS[op].first.zip argv
+		type = YARVAOT::INSNS[op][:opes].map do |i| i.first end
+		ta = type.zip argv
 		ta.map! do |(t, a)|
 			case t
 			when 'ISEQ'
@@ -422,7 +431,7 @@ rb_control_frame_t*
 				a
 			when 'IC'
 				ic_idx[0] += 1
-				"yarvaot_get_ic(r, #{ic_idx[0]})"
+				"(struct iseq_inline_cache_entry*)(ic + #{ic_idx[0]} * sic)"
 			when 'OFFSET' # ??
 				robject2csource a
 			when 'CDHASH', 'VALUE'

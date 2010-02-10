@@ -140,11 +140,32 @@ extern void RUBY_VM_CHECK_INTS_TH(rb_thread_t* th);
  * nth IC entry of the given reg_cfp.
  *
  * @param[in] reg_cfp     the target control frame
- * @param[in] nth         index of the inline cache in question
  * @retval    NULL        no such IC
  * @retval    otherwise   a valid pointer to a inline cache entry.
  */
-extern IC yarvaot_get_ic(rb_control_frame_t const* reg_cfp, int nth);
+extern void* yarvaot_get_ic(rb_control_frame_t const* reg_cfp);
+
+/**
+ * The size of a inline cache is also opaque.
+ * @returns the size.
+ *
+ * GCC note: the return value of this function can be cached among invokations.
+ * It is completely static.
+ */
+#ifdef GCC
+__attribute__((__const__))
+#endif
+extern size_t yarvaot_sizeof_ic(void);
+
+/**
+ * An instruction pointer that points to  the head of this ISeq, is not visible
+ * from outside of Ruby's core.
+ *
+ * @param[in] reg_cfp the target control frame
+ * @retval    NULL        no such ISeq
+ * @retval    otherwise   a valid pointer to a inline cache entry.
+ */
+extern VALUE* yarvaot_get_pc(rb_control_frame_t const* reg_cfp);
 
 /*
  * Local Variables:

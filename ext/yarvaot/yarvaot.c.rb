@@ -20,6 +20,7 @@ __END__
  * Urabe Shyouhei  <shyouhei@ruby-lang.org> during  2010.  See the  COPYING for
  * legal info. */
 #include <ruby/ruby.h>
+#include <ruby/encoding.h>
 #include "eval_intern.h"
 #include "iseq.h"
 #include "vm_opts.h"
@@ -67,17 +68,17 @@ rb_control_frame_t*
 yarvaot_insn_<%= insn.name %>(
     rb_thread_t* th,
     rb_control_frame_t* reg_cfp<% -%>
-%if(/^#define CABI_OPERANDS 1$/.match(extconfh))
-%   insn.opes.map {|(typ, nam)|
-%       if (typ == "...")
+%   if(/^#define CABI_OPERANDS 1$/.match(extconfh))
+%       insn.opes.map {|(typ, nam)|
+%           if (typ == "...")
 ,
      ...<% -%>
-%       else
+%           else
 ,
     <%= typ %> <%= nam -%>
-%       end;
-%   }
-%end
+%           end;
+%       }
+%   end
 )
 {
     /* make_header_prepare_stack omitted */
@@ -175,53 +176,54 @@ yarvaot_insn_<%= insn.name %>(
 static VALUE
 gen_insns_info(void)
 {
-    struct {
-        char const* const name;
-        char const* const operands;
-        int const instruction_size;
-        int const icoperands_num;
-        int const stack_push_num;
-    } const insns_info[] = {
-%   insns.each() {|insn|
-%       n = insn.name;
-%       o = insn.opes.map() {|(typ, nam)| typ }.join(", ");
-%       i = insn.opes.size + 1;
-%       c = insn.opes.select {|typ, nam| typ == "IC"}.count();
-%       s = insn.rets.size;
-        { "<%= n %>", "<%= o %>", <%= i %>, <%= c %>, <%= s %>, },
+%data = Marshal.dump insns.inject({}) {|r, i|
+%   r[i.name.intern] = {
+%       opes: i.opes,
+%       pops: i.pops,
+%       rets: i.rets,
+%       body: i.body,
+%       comm: i.comm,
 %   }
-        { 0, 0, 0, 0, }, /* end mark */
+%   r
+%}
+    unsigned char data[] = {
+%data.each_byte.each_slice(12).each {|bytes|
+        <%= bytes.map {|i| "%#04x" % i }.join(", ") %>,
+%}
     };
-
-    VALUE ret = rb_hash_new();
-    int i;
-    for (i = 0; insns_info[i].name; i++) {
-        VALUE key = ID2SYM(rb_intern(insns_info[i].name));
-        VALUE val = rb_ary_new();
-        VALUE op1 = rb_str_new_cstr(insns_info[i].operands);
-        VALUE op2 = rb_str_split(op1, ", ");
-        rb_ary_push(val, op2);
-        rb_ary_push(val, INT2FIX(insns_info[i].instruction_size));
-        rb_ary_push(val, INT2FIX(insns_info[i].icoperands_num));
-        rb_ary_push(val, INT2FIX(insns_info[i].stack_push_num));
-        rb_hash_aset(ret, key, val);
-    }
+    size_t size = <%= data.bytesize %>;
+    rb_encoding* binary = rb_ascii8bit_encoding();
+    VALUE str = rb_enc_str_new((char*)data, size, binary);
+    VALUE ret = rb_marshal_load(str);
     return ret;
 }
 
-struct iseq_inline_cache_entry*
-yarvaot_get_ic(
-    rb_control_frame_t const* reg_cfp,
-    int nth)
+void*
+yarvaot_get_ic(rb_control_frame_t const* reg_cfp)
 {
     rb_iseq_t* iseq = 0;
     struct iseq_inline_cache_entry* ic_entries = 0;
 
-    if(nth < 0) return NULL;
     if((iseq = reg_cfp->iseq) == NULL) return NULL;
     if((ic_entries = iseq->ic_entries) == NULL) return NULL;
-    if(iseq->ic_size < nth) return NULL;
-    return &ic_entries[nth];
+    return ic_entries;
+}
+
+size_t
+yarvaot_sizeof_ic(void)
+{
+    return sizeof (struct iseq_inline_cache_entry);
+}
+
+VALUE*
+yarvaot_get_pc(rb_control_frame_t const* reg_cfp)
+{
+    rb_iseq_t* iseq = 0;
+
+    if((iseq = reg_cfp->iseq) == NULL)
+        return NULL;
+    else
+        return iseq->iseq_encoded;
 }
 
 #undef RUBY_VM_CHECK_INTS_TH
