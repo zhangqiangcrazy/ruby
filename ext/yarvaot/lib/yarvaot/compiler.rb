@@ -164,7 +164,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		yield @trailers
 	end
 
-	# This  is a n  ERB template  to generate  a C  file preamble.   It normally
+	# This  is an  ERB template  to  generate a  C file  preamble.  It  normally
 	# generates a series of #include's  needed, a series of #define's needed and
 	# (if  any) a  series of  external  function declarations  missing from  the
 	# included header files.
@@ -300,7 +300,7 @@ Init_<%= canonname n %>(VALUE unused)
 	# This is where  the conversion happens.  ISeq array is  nested, so this can
 	# be called recursively.
 	#
-	# returns a name to refer to the converted ISeq (not the function body).
+	# Returns a name to refer to the converted ISeq (not the function body).
 	def recursive_transform iseq, maybe_parent = 'Qnil'
 		info, name, file, line, type, locals, args, excs, body = format_check iseq
 		fnam = namegen name, 'rb_insn_func_t', :uniq
@@ -320,9 +320,9 @@ Init_<%= canonname n %>(VALUE unused)
 
 	class Quote # :nodoc:
 		def initialize val
-			@val = val
+			@unquote = val
 		end
-		attr_reader :val
+		attr_reader :unquote
 	end
 
 	# Several ways are  there when you create  an ISeq, but I found  it the most
@@ -470,7 +470,7 @@ rb_control_frame_t*
 
 	# Some kinds of literals are there:
 	#
-	# - Fixnums,  as  well  as  true,  false,  nil:  they  are  100%  statically
+	# - Fixnums,  as well  as true,  false, and  nil: they  are  100% statically
 	#   computable while the compilation.  No cache needed.
 	# - Bignums, Floats, Ranges and Symbols:  they are almost static, except for
 	#   the first time.  Suited for a caching.
@@ -491,7 +491,7 @@ rb_control_frame_t*
 		type = 'VALUE'
 		case obj
 		when Quote # hack
-			get  = obj.val.to_s
+			get  = obj.unquote.to_s
 		when Fixnum
 			get  = 'LONG2FIX(%d)' % obj
 		when TrueClass, FalseClass, NilClass

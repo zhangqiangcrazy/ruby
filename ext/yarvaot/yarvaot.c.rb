@@ -241,6 +241,26 @@ Init_yarvaot(void)
     rb_define_const(rb_mYARVAOT, "INSNS", gen_insns_info());
 }
 
+VALUE
+vrb_enc_str_new(char const* enc, ...)
+{
+    va_list ap;
+    rb_encoding* e = rb_enc_find(enc);
+    VALUE ret = rb_str_buf_new(0);
+    void const* p = 0;
+    size_t s = 0;
+    va_start(ap, enc);
+    for(;;) {
+        p = va_arg(ap, void const*);
+        if (!p) return ret;
+        s = va_arg(ap, size_t);
+        if (!s) return ret;
+        ret = rb_enc_str_buf_cat(ret, p, (long)s, e);
+    }
+    /* NOTREACHED */
+    va_end(ap);
+}
+
 /*
  * Local Variables:
  * mode: C

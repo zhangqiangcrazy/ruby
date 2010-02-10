@@ -56,14 +56,14 @@ typedef rb_control_frame_t* rb_insn_func_t(rb_thread_t* th, rb_control_frame_t* 
  * @param[in] id  the id of globable variable in question
  * @returns       a valid pointer to a global variable entry.  creates one if not.
  */
-extern struct rb_global_entry* rb_global_entry(ID id);
+RUBY_EXTERN struct rb_global_entry* rb_global_entry(ID id);
 
 /**
  * Neither.
  *
  * @param[in] th thread
  */
-extern void rb_vmdebug_debug_print_register(rb_thread_t *th);
+RUBY_EXTERN void rb_vmdebug_debug_print_register(rb_thread_t *th);
 
 /**
  * Neither.
@@ -73,7 +73,7 @@ extern void rb_vmdebug_debug_print_register(rb_thread_t *th);
  * @param[opt] compile optoins
  * @returns a new ISeq instance
  */
-extern VALUE rb_iseq_load(VALUE array, VALUE parent, VALUE opt);
+RUBY_EXTERN VALUE rb_iseq_load(VALUE array, VALUE parent, VALUE opt);
 
 /**
  * Neither.
@@ -81,8 +81,9 @@ extern VALUE rb_iseq_load(VALUE array, VALUE parent, VALUE opt);
  * @param[in] iseqval  An ISeq object that wraps a rb_iseq_t
  * @returns  an evaluated value for iseqval's internal iseq
  */
-extern VALUE rb_iseq_eval(VALUE iseqval);
-#endif
+RUBY_EXTERN VALUE rb_iseq_eval(VALUE iseqval);
+
+#endif  /* RUBY_INSNHELPER_H */
 
 % insns.each {|insn|
 
@@ -95,7 +96,7 @@ extern VALUE rb_iseq_eval(VALUE iseqval);
  * @param[in, out] reg_cfp  current control frame
  * @returns                 an updated reg_cfp (maybe created in it)
  */
-extern rb_control_frame_t* yarvaot_insn_<%=
+RUBY_EXTERN rb_control_frame_t* yarvaot_insn_<%=
 
 insn.name
 
@@ -117,7 +118,7 @@ insn.name
  * binary codes a bunch of runtime functionalities.  So, it's actually intended
  * to be linked using system-provided linker.
  */
-extern void Init_yarvaot(void);
+RUBY_EXTERN void Init_yarvaot(void);
 
 #ifndef RUBY_VM_CHECK_INTS_TH
 /**
@@ -129,7 +130,7 @@ extern void Init_yarvaot(void);
  *                     interrupts  are   on  a  queue  in   the  thread,  those
  *                     interrupts are consumed herein.
  */
-extern void RUBY_VM_CHECK_INTS_TH(rb_thread_t* th);
+RUBY_EXTERN void RUBY_VM_CHECK_INTS_TH(rb_thread_t* th);
 #endif
 
 /**
@@ -137,13 +138,13 @@ extern void RUBY_VM_CHECK_INTS_TH(rb_thread_t* th);
  * nor  a  way to  get  one  from a  control  frame  (before  that, there's  no
  * definition of rb_control_frame_struct...) And we  need one when we deal with
  * those opt_* instructions.  So there it  is, just return an opaque pointer to
- * nth IC entry of the given reg_cfp.
+ * IC entry of the given reg_cfp.
  *
  * @param[in] reg_cfp     the target control frame
  * @retval    NULL        no such IC
  * @retval    otherwise   a valid pointer to a inline cache entry.
  */
-extern void* yarvaot_get_ic(rb_control_frame_t const* reg_cfp);
+RUBY_EXTERN void* yarvaot_get_ic(rb_control_frame_t const* reg_cfp);
 
 /**
  * The size of a inline cache is also opaque.
@@ -155,17 +156,30 @@ extern void* yarvaot_get_ic(rb_control_frame_t const* reg_cfp);
 #ifdef GCC
 __attribute__((__const__))
 #endif
-extern size_t yarvaot_sizeof_ic(void);
+RUBY_EXTERN size_t yarvaot_sizeof_ic(void);
 
 /**
  * An instruction pointer that points to  the head of this ISeq, is not visible
  * from outside of Ruby's core.
  *
- * @param[in] reg_cfp the target control frame
+ * @param[in] reg_cfp     the target control frame
  * @retval    NULL        no such ISeq
  * @retval    otherwise   a valid pointer to a inline cache entry.
  */
-extern VALUE* yarvaot_get_pc(rb_control_frame_t const* reg_cfp);
+RUBY_EXTERN VALUE* yarvaot_get_pc(rb_control_frame_t const* reg_cfp);
+
+/**
+ * This  is a  helper function,  to  ease a  creation of  relatively long  m17n
+ * string.  According to the ISO C, a  string literal can be at most 509 chars,
+ * and a function  can have at most 31  arguments.  So this way you  can make a
+ * string of  max 7,635 chars length.   Note however, that the  term `chars' is
+ * used here in the sense of C.  Your milage will vary with your encoding.
+ *
+ * @param[in] enc  encoding string.
+ * @param[in] ...  a series of void*, size_t, void*, size_t, ..., terminates 0.
+ * @returns        a Ruby string of encoding enc.
+ */
+RUBY_EXTERN VALUE vrb_enc_str_new(char const* enc, ...);
 
 /*
  * Local Variables:
