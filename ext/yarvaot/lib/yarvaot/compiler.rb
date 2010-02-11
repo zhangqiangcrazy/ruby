@@ -109,8 +109,8 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 			verbose_out 'compiler generated iseq.'
 			compile str, n, iseq
 			verbose_out 'compiler generated C code.'
-			stringize n do |str|
-				g.write str
+			stringize n do |s|
+				g.write s
 			end
 			verbose_out 'compiler finished.'
 		end
@@ -124,6 +124,8 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		embed_sourcecode str, n
 		embed_debug_disasm iseq
 		@toplevel = recursive_transform iseq
+
+		# sort @namedb
 		ndb = @namedb.values.flatten 1
 		ndb = ndb.group_by do |(t, e)|
 			t
@@ -137,6 +139,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		end
 		@namedb = ndb
 		values = @namedb.select do |(t, e)| t == 'VALUE' end.transpose.last
+
 		@trailers = TrailersTemplate.result binding
 	end
 
@@ -195,6 +198,8 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 /* control frame is opaque */
 #define cfp_pc(reg) (reg[0])
 #define cfp_sp(reg) (reg[1])
+#define ic(n) (struct iseq_inline_cache_entry*)(ic + (n) * sic)
+#define gentry(n) (VALUE)rb_global_entry(n)
 
 #define yarvaot_insn_jump_intr(t, r, n, l)      \
     RUBY_VM_CHECK_INTS_TH(t);                   \
@@ -249,14 +254,13 @@ Init_<%= canonname n %>(VALUE unused)
 %end
 
     /* register global variables */
+#define reg(n) \
+    rb_gc_register_mark_object(n);\
+    hide_obj(n)
 %values.each do |i|
-    rb_gc_register_mark_object(<%= i %>);
+    reg(<%= i %>);
 %end
-
-    /* hide them from the ObjectSpace, see [ruby-dev:37959] */
-%values.each do |i|
-    hide_obj(<%= i %>);
-%end
+#undef reg
 
     /* kick */
     return rb_iseq_eval(<%= @toplevel %>);
@@ -266,8 +270,7 @@ Init_<%= canonname n %>(VALUE unused)
 	# Note, that a sourcecode starts from line one.
 	def embed_sourcecode str, n
 		verbose_out 'compiler embedding %s into c source...', n
-		e = rstring2cstr str.encoding.name
-		tmp = sprintf "sourcecode_t src_enc[] = %s;\n", e.first.first
+		tmp = sprintf %'sourcecode_t src_enc[] = "%s";\n', str.encoding.name
 		@sourcecodes << tmp
 		tmp = str.each_line.map do |i|
 			j = rstring2cstr i
@@ -366,22 +369,19 @@ Init_<%= canonname n %>(VALUE unused)
 rb_control_frame_t*
 <%= func %>(rb_thread_t* t, rb_control_frame_t* r)
 {
-    static VALUE* pc = 0;
-    static char* ic = 0; /* char* to suppress pointer-arith warnings */
+    static VALUE* pc  = 0;
+    static char*  ic  = 0; /* char* to suppress pointer-arith warnings */
     static size_t sic = 0;
 
-    if (pc == 0)
-        pc = yarvaot_get_pc(r);
-    if (ic == 0)
-        ic = yarvaot_get_ic(r);
-    if (sic == 0)
-        sic = yarvaot_sizeof_ic();
+    if (pc  == 0) pc  = yarvaot_get_pc(r);
+    if (ic  == 0) ic  = yarvaot_get_ic(r);
+    if (sic == 0) sic = yarvaot_sizeof_ic();
 %body.each do |i|
 %	case i
 %	when Symbol
 %		labels_seen.store i, true
 
-    <%= i %>:
+<%= i %>:
 %	when Numeric
 %		# ignore
 %	when Array
@@ -431,24 +431,17 @@ rb_control_frame_t*
 				a
 			when 'IC'
 				ic_idx[0] += 1
-				"(struct iseq_inline_cache_entry*)(ic + #{ic_idx[0]} * sic)"
+				"ic(#{ic_idx[0]})"
 			when 'OFFSET' # ??
 				robject2csource a
 			when 'CDHASH', 'VALUE'
 				robject2csource a
 			when 'GENTRY' # struct rb_global_entry*
-				s = rstring2cstr a.to_s
-				case s.size
-				when 0
-					raise ArgumentError, "must be a bug"
-				when 1
-					"(VALUE)rb_global_entry(rb_intern(#{s[0][0]}))"
-				else
-					raise ArgumentError, "Symbol #{a} too long"
-				end
+				sym = robject2csource a
+				"gentry#{sym.sub 'ID2SYM', ''}"
 			when 'ID' # not the object, but its interned integer
 				sym = robject2csource a
-				sym.sub %/ID2SYM/, ''
+				sym.sub 'ID2SYM', ''
 			else
 				raise TypeError, [op, ta].inspect
 			end
@@ -527,46 +520,26 @@ rb_control_frame_t*
 			type = 'ID'
 			qnam = namegen obj.to_s, type
 			get  = 'ID2SYM(%s)' % qnam
-			put  = 'rb_intern(%s)' % str.first.first
-		when Encoding
-			# Same as above; no GC please.
-			str  = rstring2cstr obj.name
-			type = 'rb_encoding*'
-			qnam = namegen obj.name, type
-			put  = 'rb_enc_find(%s)' % str.first.first
+			put  = 'rb_intern(%s)' % str.first.first.strip
 		when String
 			if obj.empty?
 				# empty strings do not even need encodings
 				get = 'rb_str_new(0, 0)'
 			else
-				e   = robject2csource obj.encoding
-				a   = rstring2cstr obj
-				s   = a.shift
-				if s[1] < 0.size * 3
-					# Strings of small sizes are relatively cheap to create, because
-					# they are embedded into the string struct.
-					get = sprintf 'rb_enc_str_new(%s, %d, %s)', *s, e
-				else
+				if obj.ascii_only?
 					qnam = namegen obj, type
-					put  = sprintf 'rb_enc_str_new(%s, %d, %s)', *s, e
-					put  = a.inject put do |r, (i, j)|
-						sprintf 'rb_enc_str_buf_cat(%s, %s, %d, %s)', r, i, j, e
-					end
+					encn = "US_ASCII"
+				else
+					encn = obj.encoding.name
 				end
+				argv = rstring2cstr obj
+				tmp  = argv.flatten.join ', '
+				put  = sprintf 'vrb_enc_str_new("%s", %s, 0)', encn, tmp
 			end
 		when Regexp
 			opts = obj.options
-			e    = robject2csource obj.encoding
-			srcs = rstring2cstr obj.source
-			if srcs.size > 1
-				# FIXME
-				raise ArgumentError, 'sorry, regexp too long (max 509 chars)'
-			elsif obj.source.empty?
-				# an empty regexp is not that chap I think...
-				put = sprintf 'rb_enc_reg_new(0, 0, %s, %d)', e, opts
-			else
-				put = sprintf 'rb_enc_reg_new(%s, %d, %s, %d)', *srcs[0], e, opts
-			end
+			srcs = robject2csource obj.source
+			put = sprintf 'rb_reg_new_str(%s, %d)', srcs, opts
 		when Array
 			case n = obj.length
 			when 0
@@ -587,12 +560,12 @@ rb_control_frame_t*
 					put << ",\n\t" << y.to_s
 				end
 				put << ')'
-				s = put.sub /\Arb_ary_new3\(\d+,\s+/, 'a'
+				s = put.sub %r/\Arb_ary_new3\(\d+,\s+/, 'a'
 				qnam = namegen s, type
 			end
 		when Hash
 			# Hashes are not computable in a single expression...
-			qnam = namegen 'hash_literal', type, :unique
+			qnam = namegen nil, type
 			put  = "rb_hash_new();"
 			obj.each_pair do |k, v|
 				knam = robject2csource k
@@ -636,30 +609,36 @@ rb_control_frame_t*
 	end
 
 	def namegen_internal desired, type, realuniq, limit
-		ary = @namedb[desired] # this creates new one if not.
-		if not ary.empty? and not realuniq
-			ary.each do |rt, rn|
-				return rn if type == rt
+		unless desired.nil?
+			ary = @namedb[desired] # this creates new one if not.
+			if not ary.empty? and not realuniq
+				ary.each do |rt, rn|
+					return rn if type == rt
+				end
+			end
+			n = nil
+			cand0 = as_tr_cpp desired, ''
+			cand1 = cand0
+			while @namespace.has_key? cand1
+				if n.nil?
+					n = 1
+				else
+					n += 1
+				end
+				cand1 = cand0 + n.to_s
+			end
+			if cand1.length <= limit 
+				# OK, take this
+				ary << [type, cand1]
+				@namespace[cand1] = desired
+				return cand1
 			end
 		end
-		n = nil
-		cand0 = as_tr_cpp desired, ''
-		cand1 = cand0
-		while @namespace.has_key? cand1
-			if n.nil?
-				n = 1
-			else
-				n += 1
-			end
-			cand1 = cand0 + n.to_s
+		if desired
+			u = Namespace.new_sha1 desired
+		else
+			u = UUID.new_random
 		end
-		if cand1.length <= limit 
-			# OK, take this
-			ary << [type, cand1]
-			@namespace[cand1] = desired
-			return cand1
-		end
-		u = Namespace.new_sha1 desired
 		# An UUID is 128 bits length, while the infimum of maximal local variable
 		# name length  in the  ANSI C is  31 characters.  The  canonical RFC4122-
 		# style UUID stringization do not work here.
@@ -677,9 +656,10 @@ rb_control_frame_t*
 		# conforming C compiler is required to understand.
 		a = str.each_byte.each_slice 509
 		a.map do |bytes|
-			[
-				'"' << bytes.map do |ord|
-					case ord # this case statement is optimized
+			b = bytes.each_slice 60
+			c = b.map do |d|
+				d.map do |e|
+					case e # this case statement is optimized
 					when 0x00 then '\\0'
 					when 0x07 then '\\a'
 					when 0x08 then '\\b'
@@ -692,14 +672,20 @@ rb_control_frame_t*
 					when 0x27 then '\\\''
 					when 0x5C then '\\\\' # not \\
 					else
-						case ord
-						when 0x20 ... 0x7F then '%c' % ord
-						else '\\x%x' % ord
+						case e
+						when 0x20 ... 0x7F then '%c' % e
+						else '\\x%x' % e
 						end
 					end
-				end.join << '"',
-				bytes.size,
-			]
+				end
+			end
+			c.map! do |d|
+				"\n        " '"' + d.join + '"'
+			end
+			if c.size == 1
+				c.first.strip!
+			end
+			[ c.join, bytes.size, ]
 		end
 	end
 end
