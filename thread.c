@@ -4370,6 +4370,194 @@ ruby_getcwd(void)
     return ruby_thread_getcwd(GET_THREAD());
 }
 
+/* bytestream */
+enum {bytestream_max_pages = 16};
+
+void
+rb_bytestream_destroy(rb_bytestream_t *bs)
+{
+    rb_bytestream_buffer_t *buf, *tmp;
+
+    native_mutex_lock(&bs->lock);
+    if (bs->locker) {
+	rb_bug("bytestream still locked by %p", bs->locker);
+    }
+    for (buf = bs->head; buf; buf = tmp) {
+	tmp = buf->header.next;
+	free(buf);
+    }
+    bs->head = 0;
+    bs->tail = 0;
+    native_mutex_unlock(&bs->lock);
+    native_mutex_destroy(&bs->lock);
+    native_cond_destroy(&bs->cond);
+}
+
+void
+rb_bytestream_free(rb_bytestream_t *bs)
+{
+    rb_bytestream_destroy(bs);
+    free(bs);
+}
+
+void
+rb_bytestream_init(rb_bytestream_t *bs, rb_vm_t *vm)
+{
+    memset(bs, 0, sizeof(*bs));
+    native_mutex_initialize(&bs->lock);
+    native_cond_initialize(&bs->cond);
+    bs->owner = vm;
+    bs->tail = &bs->head;
+}
+
+rb_bytestream_t *
+rb_bytestream_new(void)
+{
+    rb_bytestream_t *bs = malloc(sizeof(*bs));
+    rb_bytestream_init(bs, GET_VM());
+    return bs;
+}
+
+static void
+bytestream_interrupt(void *p)
+{
+    native_cond_broadcast((rb_thread_cond_t *)p);
+}
+
+static int
+rb_bytestream_lock(rb_bytestream_t *bs)
+{
+    struct rb_unblock_callback oldubf;
+    rb_thread_t *th = GET_THREAD();
+    int ret = 0;
+
+    native_cond_signal(&bs->cond);
+    native_mutex_lock(&bs->lock);
+    set_unblock_function(th, bytestream_interrupt, &bs->cond, &oldubf);
+    BLOCKING_REGION_CORE(
+	while (bs->locker) {
+	    native_cond_wait(&bs->cond, &bs->lock);
+	    if (RUBY_VM_INTERRUPTED(GET_THREAD())) {
+		ret = -1;
+		break;
+	    }
+	});
+    reset_unblock_function(th, &oldubf);
+    if (!ret) bs->locker = GET_THREAD();
+    native_mutex_unlock(&bs->lock);
+    return ret;
+}
+
+static int
+rb_bytestream_wait(rb_bytestream_t *bs)
+{
+    rb_bytestream_buffer_t *bp;
+    struct rb_unblock_callback oldubf;
+    rb_thread_t *th = GET_THREAD();
+    int ret = 0;
+
+    native_cond_signal(&bs->cond);
+    native_mutex_lock(&bs->lock);
+    set_unblock_function(th, bytestream_interrupt, &bs->cond, &oldubf);
+    BLOCKING_REGION_CORE(
+	while (bs->locker || !(bp = bs->head) || (bp->header.w <= bp->header.r)) {
+	    native_cond_wait(&bs->cond, &bs->lock);
+	    if (RUBY_VM_INTERRUPTED(GET_THREAD())) {
+		ret = -1;
+		break;
+	    }
+	});
+    reset_unblock_function(th, &oldubf);
+    if (!ret) bs->locker = GET_THREAD();
+    native_mutex_unlock(&bs->lock);
+    return ret;
+}
+
+static void
+rb_bytestream_unlock(rb_bytestream_t *bs)
+{
+    native_mutex_lock(&bs->lock);
+    bs->locker = 0;
+    native_cond_signal(&bs->cond);
+    native_mutex_unlock(&bs->lock);
+}
+
+static ssize_t
+bytestream_read_copy(void *ptr, size_t size, rb_bytestream_t *bs)
+{
+    rb_bytestream_buffer_t *bp;
+    size_t n, osize = size;
+
+    while (size > 0) {
+	if (!(bp = bs->head)) break;
+	if (!(n = bp->header.w - bp->header.r)) break;
+	if (n > size) n = size;
+	memcpy(ptr, bp->body + bp->header.r, n);
+	if ((bp->header.r += n) == sizeof(bp->body)) {
+	    if (bs->pages > bytestream_max_pages) {
+		bs->head = bp->header.next;
+		free(bp);
+		--bs->pages;
+	    }
+	    else {
+		bp->header.r = bp->header.w = 0;
+		bp->header.next = 0;
+		*bs->tail = bp;
+	    }
+	}
+	ptr = (char *)ptr + n;
+	size -= n;
+    }
+    return osize - size;
+}
+
+ssize_t
+rb_bytestream_read_nonblock(void *ptr, size_t size, rb_bytestream_t *bs)
+{
+    if (!size) return 0;
+    if (rb_bytestream_lock(bs)) return -1;
+    size = bytestream_read_copy(ptr, size, bs);
+    rb_bytestream_unlock(bs);
+    return size;
+}
+
+ssize_t
+rb_bytestream_read(void *ptr, size_t size, rb_bytestream_t *bs)
+{
+    if (!size) return 0;
+    if (rb_bytestream_wait(bs)) return -1;
+    size = bytestream_read_copy(ptr, size, bs);
+    rb_bytestream_unlock(bs);
+    return size;
+}
+
+ssize_t
+rb_bytestream_write(const void *ptr, size_t size, rb_bytestream_t *bs)
+{
+    rb_bytestream_buffer_t *bp;
+    size_t n, osize = size;
+
+    if (rb_bytestream_lock(bs)) return -1;
+    while (size > 0) {
+	if (!(bp = *bs->tail)) {
+	    if (!(bp = malloc(sizeof(*bp)))) break;
+	    *bs->tail = bp;
+	    memset(&bp->header, 0, sizeof(bp->header));
+	    bs->tail = &bp->header.next;
+	}
+	n = sizeof(bp->body) - bp->header.w;
+	if (n > size) n = size;
+	memcpy(bp->body + bp->header.w, ptr, n);
+	bp->header.w += n;
+	ptr = (const char *)ptr + n;
+	size -= n;
+    }
+    rb_bytestream_unlock(bs);
+    return osize - size;
+}
+
+
+
 /*
  *  Document-class: ThreadError
  *

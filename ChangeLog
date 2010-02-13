@@ -1,3 +1,7 @@
+Sat Feb 13 12:36:36 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (rb_bytestream_t): IO-like inter VM interface.
+
 Sat Feb 13 07:11:57 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* (ruby_vm_send_signal): deal with signals properly.

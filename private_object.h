@@ -67,6 +67,10 @@ enum ruby_private_object_vmkey {
     rb_vmkey_orig_stdout,
     rb_vmkey_orig_stderr,
 
+    rb_vmkey_cBytestream,
+#define rb_cBytestream (*rb_vm_specific_ptr(rb_vmkey_cBytestream))
+    rb_vmkey_default_bytestream,
+
     ruby_builtin_object_count,
     ruby_private_object_count = ruby_builtin_object_count - ruby_private_object_vmkey_begin + 1
 };
