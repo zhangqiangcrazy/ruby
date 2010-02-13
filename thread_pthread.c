@@ -813,11 +813,11 @@ thread_timer(void *dummy)
 static void
 rb_thread_create_timer_thread(void)
 {
-    rb_enable_interrupt();
-
     if (!timer_thread_id) {
 	pthread_attr_t attr;
 	int err;
+
+	rb_enable_interrupt();
 
 	pthread_attr_init(&attr);
 #ifdef PTHREAD_STACK_MIN
@@ -833,8 +833,8 @@ rb_thread_create_timer_thread(void)
 	}
 	native_cond_wait(&timer_thread_cond, &timer_thread_lock);
 	native_mutex_unlock(&timer_thread_lock);
+	rb_disable_interrupt(); /* only timer thread recieve signal */
     }
-    rb_disable_interrupt(); /* only timer thread recieve signal */
 }
 
 static int

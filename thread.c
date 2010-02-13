@@ -86,7 +86,7 @@ void rb_thread_stop_timer_thread(void);
 
 static const VALUE eKillSignal = INT2FIX(0);
 static const VALUE eTerminateSignal = INT2FIX(1);
-static volatile int system_working = 1;
+static volatile int system_working = 0;
 
 inline static void
 st_delete_wrap(st_table *table, st_data_t key)
@@ -382,7 +382,6 @@ rb_vm_thread_terminate_all(rb_vm_t *vm)
 	}
 	POP_TAG();
     }
-    rb_thread_stop_timer_thread();
 }
 
 static void
@@ -2918,7 +2917,7 @@ rb_thread_reset_timer_thread(void)
 void
 rb_thread_start_timer_thread(void)
 {
-    system_working++;
+    if (system_working++) return;
     rb_thread_create_timer_thread();
 }
 
@@ -4684,7 +4683,7 @@ InitVM_Thread(void)
 	}
     }
 
-    rb_thread_create_timer_thread();
+    rb_thread_start_timer_thread();
 
     (void)native_mutex_trylock;
     (void)ruby_thread_set_native;

@@ -1,3 +1,8 @@
+Sat Feb 13 13:09:01 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (rb_thread_start_timer_thread): create timer thread the
+	  first time only.
+
 Sat Feb 13 12:36:36 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* vm_core.h (rb_bytestream_t): IO-like inter VM interface.
