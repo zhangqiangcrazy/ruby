@@ -1007,7 +1007,7 @@ rb_thread_check_ints(void)
 int
 rb_thread_check_trap_pending(void)
 {
-    return !rb_queue_empty_p(&GET_THREAD()->queue.signal);
+    return !rb_queue_empty_p(&GET_VM()->queue.signal);
 }
 
 /* This function can be called in blocking region. */
@@ -1404,7 +1404,7 @@ thread_s_pass(VALUE klass)
 static void
 rb_threadptr_execute_interrupts_rec(rb_thread_t *th, int sched_depth)
 {
-    rb_vm_t *vm = GET_VM();
+    rb_vm_t *vm = th->vm;
 
     if (vm->main_thread == th) {
 	while (rb_signal_buff_size() && !(th->interrupt_flag & ruby_vm_signal_bit)) {
@@ -1424,8 +1424,8 @@ rb_threadptr_execute_interrupts_rec(rb_thread_t *th, int sched_depth)
 	th->interrupt_flag = 0;
 
 	/* signal handling */
-	while (rb_queue_shift(&th->queue.signal, &exec_signal)) {
-	    int sig = (int)(VALUE)exec_signal;
+	while (rb_queue_shift(&vm->queue.signal, &exec_signal)) {
+	    int sig = FIX2INT((VALUE)exec_signal);
 	    rb_signal_exec(th, sig);
 	}
 
@@ -2852,7 +2852,7 @@ ruby_vm_send_signal(rb_vm_t *vm, int sig)
     thread_debug("main_thread: %s, sig: %d\n",
 		 thread_status_name(prev_status), sig);
     mth->interrupt_flag |= ruby_vm_signal_bit;
-    rb_queue_push(&mth->queue.signal, (void *)INT2FIX(sig));
+    rb_queue_push(&vm->queue.signal, (void *)INT2FIX(sig));
     if (mth->status != THREAD_KILLED) mth->status = THREAD_RUNNABLE;
     rb_threadptr_interrupt(mth);
     mth->status = prev_status;

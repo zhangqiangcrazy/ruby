@@ -1546,6 +1546,7 @@ ruby_vm_free(rb_vm_t *vm)
 	ruby_native_thread_lock_destroy(&vm->global_vm_lock);
 	ruby_native_cond_destroy(&vm->global_vm_waiting);
 	rb_queue_destroy(&vm->queue.message);
+	rb_queue_destroy(&vm->queue.signal);
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
 	if (objspace) {
 	    rb_objspace_free(objspace);
@@ -1596,6 +1597,7 @@ vm_init2(rb_vm_t *vm)
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
     ruby_native_cond_initialize(&vm->global_vm_waiting);
     rb_queue_initialize(&vm->queue.message);
+    rb_queue_initialize(&vm->queue.signal);
     rb_bytestream_init(&vm->bs.in, vm);
     rb_bytestream_init(&vm->bs.out, vm);
     vm->objspace = rb_objspace_alloc();
@@ -1688,8 +1690,6 @@ thread_free(void *ptr)
 	    }
 	}
 #endif
-
-	rb_queue_destroy(&th->queue.signal);
 
 	if (th->vm && th->vm->main_thread == th) {
 	    RUBY_GC_INFO("main thread\n");
@@ -1815,8 +1815,6 @@ static void
 th_init(rb_thread_t *th, VALUE self)
 {
     th->self = self;
-
-    rb_queue_initialize(&th->queue.signal);
 
     /* allocate thread stack */
     th->stack_size = RUBY_VM_THREAD_STACK_SIZE;

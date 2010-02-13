@@ -1,4 +1,6 @@
-Sat Feb 13 13:09:01 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+Sat Feb 13 13:16:35 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (rb_vm_t): moved signal queue back from rb_thread_t.
 
 	* thread.c (rb_thread_start_timer_thread): create timer thread the
 	  first time only.

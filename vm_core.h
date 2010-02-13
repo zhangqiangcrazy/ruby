@@ -362,6 +362,7 @@ typedef struct rb_vm_struct {
 
     struct {
 	rb_queue_t message;
+	rb_queue_t signal;
     } queue;
 
     struct {
@@ -521,10 +522,6 @@ struct rb_thread_struct
 
     VALUE errinfo;
     VALUE thrown_errinfo;
-
-    struct {
-	rb_queue_t signal;
-    } queue;
 
     int interrupt_flag;
     rb_thread_lock_t interrupt_lock;
