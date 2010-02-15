@@ -272,7 +272,7 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 		end
 
 		@opt.on_tail '-h', '--help', 'This is it.' do
-			puts <<'HDR1', <<"HDR2", *@subcommands.values
+			pager_out <<'HDR1', <<"HDR2", *@subcommands.values
                   __  _____    ____ _    _____   ____  ______
                   \ \/ /   |  / __ \ |  / /   | / __ \/_  __/
                    \  / /| | / /_/ / | / / /| |/ / / / / /
@@ -430,6 +430,23 @@ HDR2
 		end
 		verbose_out 'driver opens output file %s', sink
 		return open sink, 'wb'
+	end
+
+	# This is a helper function.
+	def pager_out str, *rest
+		if STDOUT.isatty
+			pager = if ENV['PAGER'] then ENV['PAGER']
+					  elsif File.exist? '/usr/bin/pager' then '/usr/bin/pager'
+					  else 'more' # search $PATH
+					  end
+			r, w = IO.pipe
+			pid = Process.spawn pager, in: r
+			w.puts str, *rest
+			w.close
+			Process.waitpid pid
+		else
+			STDOUT.puts str, *rest
+		end
 	end
 end
 
