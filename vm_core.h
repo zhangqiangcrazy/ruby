@@ -279,6 +279,34 @@ struct rb_objspace;
 void rb_objspace_free(struct rb_objspace *);
 #endif
 
+struct rb_options_arg_list {
+    struct rb_options_arg_element *head, **tail;
+};
+
+struct rb_vm_options {
+    struct rb_vm_initializer *initializer;
+    int stdfds[3];
+    int verbose, debug;
+    int sflag, xflag;
+    int do_loop, do_print;
+    int do_line, do_split;
+    int do_search;
+    unsigned int disable;
+    int safe_level;
+    unsigned int setids;
+    unsigned int dump;
+    const char *script;
+    VALUE script_name;
+    VALUE e_script;
+    struct {
+	struct {
+	    VALUE name;
+	    int index;
+	} enc;
+    } src, ext, intern;
+    struct rb_options_arg_list req_list, load_path;
+};
+
 typedef struct rb_queue_element {
     struct rb_queue_element *next;
     void *value;
@@ -385,15 +413,12 @@ typedef struct rb_vm_struct {
 
     struct cache_entry *cache;
 
-#ifdef RUBY_DEBUG_ENV
-    int enable_coredump;
-#endif
-
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
     struct rb_objspace *objspace;
 #endif
 
     VALUE const_missing_count;
+    struct rb_vm_options *init_options;
 } rb_vm_t;
 
 typedef struct {

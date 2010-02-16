@@ -1,3 +1,17 @@
+Tue Feb 16 09:35:18 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* mvm.c (ruby_vm_init_add_{library,library_path,initializer}):
+	  implemented.
+
+	* mvm.c (ruby_vm_init_{verbose,debug,stdin,stdout,stderr}): ditto.
+
+	* io.c (InitVM_IO), ruby.c (ruby_vm_process_options): initialize with
+	  init_options if set.
+
+	* vm_core.h (struct rb_vm_options): moved cmdline_options from ruby.c.
+
+	* vm_core.h (rb_vm_t): added init_options.
+
 Sat Feb 13 13:16:35 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* vm_core.h (rb_vm_t): moved signal queue back from rb_thread_t.

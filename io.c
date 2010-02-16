@@ -9969,6 +9969,10 @@ InitVM_IO(void)
 #undef rb_intern
 #define rb_intern(str) rb_intern_const(str)
 
+    rb_vm_t *vm = GET_VM();
+    FILE *f;
+    int fd;
+    const int *stdfds;
     VALUE rb_cARGF;
     VALUE *argfp = &ruby_vm_argf(GET_VM());
 #ifdef __CYGWIN__
@@ -10139,12 +10143,16 @@ InitVM_IO(void)
     rb_define_method(rb_cIO, "autoclose?", rb_io_autoclose_p, 0);
     rb_define_method(rb_cIO, "autoclose=", rb_io_set_autoclose, 1);
 
+    stdfds = vm->init_options ? vm->init_options->stdfds : 0;
     rb_define_variable("$stdin", &rb_stdin);
-    rb_stdin = prep_stdio(stdin, FMODE_READABLE, rb_cIO, "<STDIN>");
+    if (!stdfds || (fd = stdfds[0]) == -1 || !(f = fdopen(fd, "r"))) f = stdin;
+    rb_stdin = prep_stdio(f, FMODE_READABLE, rb_cIO, "<STDIN>");
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
-    rb_stdout = prep_stdio(stdout, FMODE_WRITABLE, rb_cIO, "<STDOUT>");
+    if (!stdfds || (fd = stdfds[1]) == -1 || !(f = fdopen(fd, "w"))) f = stdin;
+    rb_stdout = prep_stdio(f, FMODE_WRITABLE, rb_cIO, "<STDOUT>");
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
-    rb_stderr = prep_stdio(stderr, FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "<STDERR>");
+    if (!stdfds || (fd = stdfds[2]) == -1 || !(f = fdopen(fd, "w"))) f = stdin;
+    rb_stderr = prep_stdio(f, FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "<STDERR>");
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     orig_stdout = rb_stdout;
     orig_stderr = rb_stderr;

@@ -15,6 +15,9 @@
 #include "vm_core.h"
 #include "eval_intern.h"
 
+#define RUBY_VM_OBJECT(vm, name) \
+  (*((VALUE *)ruby_vm_specific_ptr(vm, rb_vmkey_##name)))
+
 static void vmmgr_add(rb_vm_t *vm);
 static void vmmgr_del(rb_vm_t *vm);
 
@@ -82,6 +85,15 @@ ruby_vm_destruct(rb_vm_t *vm)
 
 
 /* initialize API */
+static struct rb_vm_options *
+vm_init_options(rb_vm_t *vm)
+{
+    if (!vm->init_options) {
+	vm->init_options = malloc(sizeof(vm->init_options));
+	memset(vm->init_options, 0, sizeof(vm->init_options));
+    }
+    return vm->init_options;
+}
 
 int
 ruby_vm_init_add_argv(rb_vm_t *vm, const char *arg)
@@ -93,14 +105,16 @@ ruby_vm_init_add_argv(rb_vm_t *vm, const char *arg)
 int
 ruby_vm_init_add_library(rb_vm_t *vm, const char *lib)
 {
-    rb_bug("not supported");
+    void ruby_options_add_library(struct rb_vm_options *, const char *);
+    ruby_options_add_library(vm_init_options(vm), lib);
     return 1;
 }
 
 int
 ruby_vm_init_add_library_path(rb_vm_t *vm, const char *path)
 {
-    rb_bug("not supported");
+    void ruby_options_add_library_path(struct rb_vm_options *, const char *);
+    ruby_options_add_library_path(vm_init_options(vm), path);
     return 1;
 }
 
@@ -121,42 +135,63 @@ ruby_vm_init_script(rb_vm_t *vm, const char *script)
 int
 ruby_vm_init_verbose(rb_vm_t *vm, int verbose_p)
 {
-    rb_bug("not supported");
+    vm_init_options(vm)->verbose = verbose_p;
     return 1;
 }
 
 int
 ruby_vm_init_debug(rb_vm_t *vm, int debug)
 {
-    rb_bug("not supported");
+    vm_init_options(vm)->debug = debug;
     return 1;
 }
+
+struct rb_vm_initializer_func {
+    void (*func)(rb_vm_t *);
+    struct rb_vm_initializer_func *next;
+};
+
+struct rb_vm_initializer {
+    struct rb_vm_initializer_func *head, **tail;
+};
 
 int
 ruby_vm_init_add_initializer(rb_vm_t *vm, void (*initializer)(rb_vm_t *))
 {
-    rb_bug("not supported");
+    struct rb_vm_initializer_func *f;
+    struct rb_vm_initializer **init = &vm_init_options(vm)->initializer, *i;
+
+    if (!(i = *init)) {
+	(*init) = i = malloc(sizeof(*i));
+	i->head = 0;
+	i->tail = &i->head;
+    }
+    f = malloc(sizeof(*f));
+    f->func = initializer;
+    f->next = 0;
+    *i->tail = f;
+    i->tail = &f->next;
     return 1;
 }
 
 int
 ruby_vm_init_stdin(rb_vm_t *vm, int fd)
 {
-    rb_bug("not supported");
+    vm_init_options(vm)->stdfds[0] = fd;
     return 1;
 }
 
 int
 ruby_vm_init_stdout(rb_vm_t *vm, int fd)
 {
-    rb_bug("not supported");
+    vm_init_options(vm)->stdfds[1] = fd;
     return 1;
 }
 
 int
 ruby_vm_init_stderr(rb_vm_t *vm, int fd)
 {
-    rb_bug("not supported");
+    vm_init_options(vm)->stdfds[2] = fd;
     return 1;
 }
 
