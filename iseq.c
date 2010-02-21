@@ -517,6 +517,10 @@ iseq_s_load(int argc, VALUE *argv, VALUE self)
 VALUE
 rb_iseq_load(VALUE data, VALUE parent, VALUE opt)
 {
+    if(RTEST(rb_obj_is_kind_of(data, rb_cISeq))) {
+	set_relation(data, parent);
+	return data;
+    }
     return iseq_load(rb_cISeq, data, parent, opt);
 }
 
@@ -1209,6 +1213,7 @@ iseq_data_to_ary(rb_iseq_t *iseq)
 	      case TS_LINDEX:
 	      case TS_DINDEX:
 	      case TS_NUM:
+	      case TS_FUNCPTR:
 		rb_ary_push(ary, INT2FIX(*seq));
 		break;
 	      case TS_VALUE:

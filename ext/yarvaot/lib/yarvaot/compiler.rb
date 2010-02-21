@@ -17,6 +17,8 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	def initialize
 		super
 		@optlv               = 0
+		@namemax             = 31
+		@strmax              = 509
 		@toplevel            = String.new
 		@preambles           = String.new
 		@Trailers            = String.new
@@ -25,6 +27,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		@sourcecodes         = Array.new
 		@functions           = Array.new
 		@generators          = Hash.new
+		@static              = Hash.new
 		@iseq_compile_option = Hash.new
 
 		allopts = {
@@ -93,6 +96,27 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
                                    what it is.  No warranty please.
 			end
 		end
+
+		@opt.on '--namemax=N', <<-'begin'.strip, Integer do |n|
+                                   Length of  a longest static  identifier name
+                                   that  the underlying  C  compiler can  take.
+                                   Default is  31, which is the  infinum of the
+                                   maximal length  of the local  variable names
+                                   that  an  ANSI-conforming  C  compiler  must
+                                   understand.
+		begin
+			@namemax = n
+		end
+
+		@opt.on '--strmax=N', <<-'begin'.strip, Integer do |n|
+                                   Length  of a longest  C string  literal that
+                                   the underlying C compiler can take.  Default
+                                   is 509, which is  the infinum of the maximal
+                                   length  of  the   string  literals  that  an
+                                   ANSI-conforming C compiler must understand.
+		begin
+			@strmax = n
+		end
 	end
 
 	# Run.  Eat the file, do necessary conversions, then return a new file.
@@ -118,27 +142,27 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 
 	private
 
+	# This is a technique to enclose an object to a lambda's lexical scope.
+	def gencb flag
+		lambda do |optarg|
+			@iseq_compile_option[flag] = optarg
+		end
+	end
+
 	# Toplevel to trigger compilation
 	def compile str, n, iseq
 		@preambles = PreamblesTemplate.result binding
 		embed_sourcecode str, n
 		embed_debug_disasm iseq
-		@toplevel = recursive_transform iseq
+		@toplevel, * = recursive_transform iseq
 
-		# sort @namedb
 		ndb = @namedb.values.flatten 1
-		ndb = ndb.group_by do |(t, e)|
-			t
-		end.sort.map do |(tt, a)|
-			a.sort_by do |(t, e)|
-				e
-			end
-		end.flatten 1
 		ndb.map! do |(t, e)|
 			[t, 'y_' + e]
 		end
 		@namedb = ndb
 		values = @namedb.select do |(t, e)| t == 'VALUE' end.transpose.last
+		values ||= Array.new
 
 		@trailers = TrailersTemplate.result binding
 	end
@@ -147,13 +171,18 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	def stringize name # :yields: string
 		yield @preambles
 		@namedb.each do |(t, n)|
-			case t
-			when 'VALUE'
-				yield "static #{t} #{n} = Qundef;\n"
-			when 'ID', 'ISEQ', /\*\z/
-				yield "static #{t} #{n} = 0;\n"
+			if decl = @static[n]
+				yield "static #{t} #{n}#{decl};\n"
 			else
-				yield "static #{t} #{n};\n"
+				# default decls
+				case t
+				when 'VALUE'
+					yield "static #{t} #{n} = Qundef;\n"
+				when 'ID', 'ISEQ', /\*\z/
+					yield "static #{t} #{n} = 0;\n"
+				else
+					yield "static #{t} #{n};\n"
+				end
 			end
 		end
 		yield "\n"
@@ -190,47 +219,66 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 /* This cannot be a typedef */
 #if !defined(__GNUC__) || (__GNUC__ < 4) || \
       ((__GNUC__ == 4) && __GNUC_MINOR__ < 4)
-#define sourcecode_t static char const
+#define sourcecode_t struct yarvaot_lenptr_tag
 #else
-#define sourcecode_t __attribute__((__unused__)) static char const
+#define sourcecode_t struct yarvaot_lenptr_tag \
+    __attribute__((__unused__))
 #endif
 
 /* control frame is opaque */
 #define cfp_pc(reg) (reg[0])
 #define cfp_sp(reg) (reg[1])
-#define ic(n) (struct iseq_inline_cache_entry*)(ic + (n) * sic)
+#define th_cfp(th)  (th[4])
+#define ic(n) (struct iseq_inline_cache_entry*)(ic + (n) * sizeof_ic)
 #define gentry(n) (VALUE)rb_global_entry(n)
 
-#define yarvaot_insn_jump_intr(t, r, n, l)      \
+#define yarvaot_insn_jump_intr(t, n, l)         \
     RUBY_VM_CHECK_INTS_TH(t);                   \
     cfp_pc(r) = pc + n;                         \
     goto l;
-#define yarvaot_insn_jump_nointr(t, r, n, l)    \
+#define yarvaot_insn_jump_nointr(t, n, l)       \
     cfp_pc(r) = pc + n;                         \
     goto l;
-#define yarvaot_insn_branchif_intr(t, r, n, l)  \
+#define yarvaot_insn_branchif_intr(t, n, l)     \
     if(RTEST(*--cfp_sp(r))) {                   \
         RUBY_VM_CHECK_INTS_TH(t);               \
         cfp_pc(r) = pc + n;                     \
         goto l;                                 \
-    }
-#define yarvaot_insn_branchif_nointr(t, r, n, l)\
+    }                                           \
+    else {                                      \
+        /* need to consume pc */                \
+        cfp_pc(r) += 2;                         \
+    }                   
+#define yarvaot_insn_branchif_nointr(t, n, l)   \
     if(RTEST(*--cfp_sp(r))) {                   \
         cfp_pc(r) = pc + n;                     \
         goto l;                                 \
+    }                                           \
+    else {                                      \
+        /* need to consume pc */                \
+        cfp_pc(r) += 2;                         \
     }
-#define yarvaot_insn_branchunless_intr(t, r, n, l)  \
-    if(!RTEST(*--cfp_sp(r))) {                      \
-        RUBY_VM_CHECK_INTS_TH(t);                   \
-        cfp_pc(r) = pc + n;                         \
-        goto l;                                     \
+#define yarvaot_insn_branchunless_intr(t, n, l) \
+    if(!RTEST(*--cfp_sp(r))) {                  \
+        RUBY_VM_CHECK_INTS_TH(t);               \
+        cfp_pc(r) = pc + n;                     \
+        goto l;                                 \
+    }                                           \
+    else {                                      \
+        /* need to consume pc */                \
+        cfp_pc(r) += 2;                         \
     }
-#define yarvaot_insn_branchunless_nointr(t, r, n, l)\
-    if(!RTEST(*--cfp_sp(r))) {                      \
-        cfp_pc(r) = pc + n;                         \
-        goto l;                                     \
+#define yarvaot_insn_branchunless_nointr(t, n, l)\
+    if(!RTEST(*--cfp_sp(r))) {                   \
+        cfp_pc(r) = pc + n;                      \
+        goto l;                                  \
+    }                                            \
+    else {                                       \
+        /* need to consume pc */                 \
+        cfp_pc(r) += 2;                          \
     }
 
+static const size_t sizeof_ic = 0; /* initialized later */
 	end
 	#' <- needed to f*ck emacs
 
@@ -270,24 +318,13 @@ Init_<%= canonname n %>(VALUE unused)
 	# Note, that a sourcecode starts from line one.
 	def embed_sourcecode str, n
 		verbose_out 'compiler embedding %s into c source...', n
-		tmp = sprintf %'sourcecode_t src_enc[] = "%s";\n', str.encoding.name
-		@sourcecodes << tmp
-		tmp = str.each_line.map do |i|
-			j = rstring2cstr i
-			j.map do |k| k.first end
-		end
-		if tmp.any? do |i| i.size > 1 end then
-			tmp.each_with_index do |a, i|
-				a.each_with_index do |b, j|
-					c = sprintf "sourcecode_t src_%4x_%x[] = %s;\n", i + 1, j, b
-					@sourcecodes << c
-				end
-			end
-		else
-			tmp.each_with_index do |a, i|
-				b = sprintf "sourcecode_t src_%04x[] = %s;\n", i + 1, a.first
-				@sourcecodes << b
-			end
+		enc = namegen 'src', 'char const*'
+		register_declaration_for enc, %' = "#{str.encoding.name}"'
+		a = rstring2cstr str, $/
+		a.each do |(expr, len)|
+			nam = namegen 'src', 'sourcecode_t', :realuniq
+			str = sprintf " = { %#05x, %s }", len, expr
+			register_declaration_for nam, str
 		end
 	end
 
@@ -303,22 +340,42 @@ Init_<%= canonname n %>(VALUE unused)
 	# This is where  the conversion happens.  ISeq array is  nested, so this can
 	# be called recursively.
 	#
-	# Returns a name to refer to the converted ISeq (not the function body).
-	def recursive_transform iseq, maybe_parent = 'Qnil'
-		info, name, file, line, type, locals, args, excs, body = format_check iseq
-		fnam = namegen name, 'rb_insn_func_t', :uniq
-		inam = namegen 'i' + name, 'VALUE', :uniq
-		verbose_out "compiler Ruby -> C: %s -> %s()", name, fnam
-		geniseq iseq, inam, fnam, maybe_parent
-		genfunc fnam, inam, name, body, file, line, type
-		inam # used in putiseq
+	# Returns a set of names to refer to 
+	# * the converted ISeq,
+	# * the converted function body, 
+	# * and the quasi-iseq.
+	def recursive_transform iseq
+		return '0' if iseq.nil?
+		ary = format_check iseq
+		info, name, file, line, type, locals, args, excs, body = ary
+		verbose_out "compiler is now compiling: %s", name
+		b2   = prepare body
+		inam = namegen 'i' + ary[1], 'VALUE', :uniq
+		fnam = genfunc iseq, name, b2, file, line, type
+		qnam = geniseq fnam, inam, ary, b2		
+		return inam, fnam, qnam
 	end
 
-	# This is a technique to enclose an object to a lambda's lexical scope.
-	def gencb flag
-		lambda do |optarg|
-			@iseq_compile_option[flag] = optarg
+	def prepare a # :nodoc:
+		phony = [:phony, nil]
+		emu_pc = 2 # phony[0].size
+		ret = [phony]
+		a.each do |i|
+			case i
+			when Integer, Symbol then ret << i
+			when Array   then
+				emu_pc += i.size
+				ret << i
+				if i.first == :send
+					# send -> send, label, nop, nop
+					ret << "label_#{emu_pc}".intern
+					ret << phony
+					emu_pc += 2
+				end
+			else raise i.inspect
+			end
 		end
+		ret
 	end
 
 	class Quote # :nodoc:
@@ -328,95 +385,192 @@ Init_<%= canonname n %>(VALUE unused)
 		attr_reader :unquote
 	end
 
-	# Several ways are  there when you create  an ISeq, but I found  it the most
-	# convenient to once generate an array, and then kick rb_iseq_load.
-	def geniseq iseq, inam, fnam, maybe_parent
-		# Watch out! ISeq#to_a is shared among invocations...
-		ary = iseq.to_a.dup
-		qfunc = Quote.new "ULONG2NUM((unsigned long)(#{fnam}))"
-		body = ary.last.dup
-		body.map! do |i|
-			# should retain size
-			case i
-			when Symbol, Numeric
-				i
-			when Array
-				[[:nop]] * i.size
-			else
-				raise TypeError, "unknown %p", i
-			end
+	def geniseq fnam, inam, ary, body
+		decl = " = {\n"
+		decl << "    ISEQ_TYPE_#{ary[4].upcase},\n"
+		decl << "    #{rstring2quasi ary[1]},\n"
+		decl << "    #{rstring2quasi ary[2]},\n"
+		decl << "    #{ary[3]},\n"
+		decl << "    #{geniseq_genary ary[5]},\n"
+		case i = ary[6]
+		when Array
+			a = i.dup
+			a[1] = geniseq_genary a[1]
+			decl << "    {#{a.join ', '}},\n"
+		else
+			decl << "    { #{i}, 0, 0, 0, 0, 0, 1, },\n"
 		end
-		body.flatten! 1
-		body[0] = [:opt_call_c_function, qfunc]
-		body[-1] = [:leave]
-		ary[-1] = body
-		rnam = robject2csource ary;
-		register_generator_for inam, "rb_iseq_load(#{rnam}, #{maybe_parent}, Qnil)"
+		decl << "    #{geniseq_gentable ary[7]},\n"
+		decl << "    #{geniseq_gentemplate body},\n"
+		decl << "    #{fnam}, }"
+		qnam = namegen fnam, 'struct yarvaot_quasi_iseq_tag', :uniq
+		register_declaration_for qnam, decl
+		register_generator_for inam, "yarvaot_geniseq(&#{qnam})"
+		return qnam
 	end
 
-	def genfunc func, iseq, orignam, body, file, line, type # :nodoc:
+	def inject_internal ary, desired, type, term  #:nodoc:
+		decl = ary.inject "[] = {\n" do |r, str|
+			yield r, str
+		end
+		decl << "    #{term},\n}"
+		name = namegen desired, type
+		register_declaration_for name, decl
+		name
+	end
+
+	# generates arrays of quasi strings
+	def geniseq_genary ary
+		return 0 if ary.nil?
+		return 0 if ary.empty?
+		inject_internal ary, nil,
+							 'struct yarvaot_quasi_string_tag',
+							 '{ 0, 0, }' do
+			|r, i| 
+			r << "    #{rstring2quasi i.to_s},\n"
+		end
+	end
+
+	def geniseq_gentable ary
+		return 0 if ary.nil?
+		return 0 if ary.empty?
+		inject_internal ary, nil,
+							 'struct yarvaot_quasi_catch_table_entry_tag',
+							 '{CATCH_TYPE_NEXT, 0, 0, 0, 0, 0, }' do
+			|r, (t, i, s, e, c, sp)|
+			*, q = recursive_transform i
+			r << "    { CATCH_TYPE_#{t.to_s.upcase},\n"
+			r << "      #{q == '0' ? q : '&'+q},\n"
+			r << %'      "#{s}",\n'
+			r << %'      "#{e}",\n'
+			r << %'      "#{c}",\n'
+			r << "      #{sp}, },\n"
+		end
+	end
+	
+	def geniseq_gentemplate ary
+		inject_internal ary, nil, 'char const*', '"end"' do |r, i|
+			case i
+			when Integer, Symbol then r << %'\n    "#{i}", '
+			when Array   then
+				if i.first == :phony
+					r << '"", '
+				else
+					i.each do |j|
+						r << '0, '
+					end
+				end
+				r
+			else raise i.inspect
+			end
+		end
+	end
+
+	def genfunc iseq, name, body, file, line, type # :nodoc:
+		fnam = namegen name, 'rb_insn_func_t', :uniq
 		labels_seen = Hash.new
 		ic_idx = [0]
 		func = FunctionTemplate.result binding
 		@functions.push func
+		fnam
 	end
 
 	# This is almost a Ruby-version iseq_build_body().
 	FunctionTemplate = ERB.new <<-'end', 0, '%-'
 
-/* <%= type %>: <%= orignam %> */
+/* <%= type %>: <%= name %> */
 /* from <%= file %> line <%= line %> */
 rb_control_frame_t*
-<%= func %>(rb_thread_t* t, rb_control_frame_t* r)
+<%= fnam %>(rb_thread_t* t, rb_control_frame_t* r)
 {
     static VALUE* pc  = 0;
     static char*  ic  = 0; /* char* to suppress pointer-arith warnings */
     static size_t sic = 0;
 
-    if (pc  == 0) pc  = yarvaot_get_pc(r);
-    if (ic  == 0) ic  = yarvaot_get_ic(r);
-    if (sic == 0) sic = yarvaot_sizeof_ic();
+    if(UNLIKELY(pc == 0))
+        pc = yarvaot_get_pc(r);
+    if(UNLIKELY(ic == 0))
+        ic = yarvaot_get_ic(r);
+
+%emu_pc = 0
+    /* Beware!  labels are  *not* equal to  the pc, because  some optimizations
+     * and transoformations are made. */
+    switch(cfp_pc(r) - pc) {
 %body.each do |i|
 %	case i
 %	when Symbol
 %		labels_seen.store i, true
-
-<%= i %>:
+    <%= i %>:
 %	when Numeric
 %		# ignore
 %	when Array
-    <%= genfunc_geninsn i, iseq, labels_seen, ic_idx%>;
+<%= genfunc_geninsn emu_pc, i, iseq, labels_seen, ic_idx, %>;
+%	   emu_pc += i.size
 %	end
 %end
-    return r;
+
+        /* FALLTHRU */
+    default:
+        rb_vmdebug_debug_print_register(t);
+        rb_bug("inconsistent pc %d", cfp_pc(r) - pc);
+    }
+    /* NOTREACHED */
 }
 	end
 
-	def genfunc_geninsn insn, parent, labels_seen, ic_idx #:nodoc
+	def genfunc_geninsn pc, insn, parent, labels_seen, ic_idx #:nodoc:
+		jumpers = [
+			:send, :leave,
+			:invokeblock, :invokesuper,
+			:getinlinecache, :onceinlinecache, 
+			:opt_case_dispatch
+		]
 		op, *argv = *insn
 		case op
 		when :nop
 			# nop is NOT actually a no-op... it should update the pc.
-			'cfp_pc(r)++;'
+			<<-end
+    case  #{pc}: cfp_pc(r)++
+			end
+		when :phony
+			# phony insn ... just behave as nops * size
+			<<-end
+    case  #{pc}: cfp_pc(r) += #{insn.size}
+			end
 		when :branchunless, :branchif, :jump
-			m = /\d+/.match argv.first.to_s
-			s = if labels_seen.has_key? argv[0]
+			l = argv[0]
+			m = /\d+/.match l.to_s
+			s = if labels_seen.has_key? l
 					 'intr'
 				 else
 					 'nointr'
 				 end
-			"yarvaot_insn_#{op}_#{s}(t, r, #{m[0]}, #{argv[0]})"
+			<<-end
+        yarvaot_insn_#{op}_#{s}(t, #{m[0]}, #{l})
+			end
 		else
 			s = genfunc_genargv op, argv, parent, ic_idx
-			if s.empty?
-				"yarvaot_insn_#{op}(t, r)"
+			body = if s.empty?
+				<<-end
+    case  #{pc}: r = yarvaot_insn_#{op}(t)
+				end
 			else
-				"yarvaot_insn_#{op}(t, r, #{s})"
+				<<-end
+    case  #{pc}: r = yarvaot_insn_#{op}(t, #{s})
+				end
 			end
-		end
+			if jumpers.include? op
+				body.chomp + ";\n" + <<-end
+        if(UNLIKELY(cfp_pc(r) - pc != #{pc + insn.size}))
+            return r
+				end
+			else
+				body
+			end
+		end.chomp
 	end
 
-	def genfunc_genargv op, argv, parent, ic_idx# :nodoc:
+	def genfunc_genargv op, argv, parent, ic_idx # :nodoc:
 		type = YARVAOT::INSNS[op][:opes].map do |i| i.first end
 		ta = type.zip argv
 		ta.map! do |(t, a)|
@@ -425,7 +579,8 @@ rb_control_frame_t*
 				if a.nil? # null pointer
 					0
 				else
-					"DATA_PTR(#{recursive_transform a, parent})"
+					i, * = recursive_transform a
+					"DATA_PTR(#{i})"
 				end
 			when 'lindex_t', 'dindex_t', 'rb_num_t'
 				a
@@ -433,7 +588,12 @@ rb_control_frame_t*
 				ic_idx[0] += 1
 				"ic(#{ic_idx[0]})"
 			when 'OFFSET' # ??
-				robject2csource a
+				m = /\d+/.match a.to_s
+				if m
+					"(OFFSET)#{m}"
+				else
+					raise a.inspect
+				end
 			when 'CDHASH', 'VALUE'
 				robject2csource a
 			when 'GENTRY' # struct rb_global_entry*
@@ -585,6 +745,34 @@ rb_control_frame_t*
 		return get
 	end
 
+	# From ruby string to quasi string.
+	#
+	# In contrast to rstring2cstr, this method registers names to the namespace
+	# pool, because it needs at least one variable.
+	def rstring2quasi str
+		ary = rstring2cstr str, "\n"
+		name = inject_internal ary, str,
+									  'struct yarvaot_lenptr_tag', '{ 0, 0, }' do
+			|r, (e, l)|
+			s = sprintf "    { %#05x, %s },\n", l, e
+			r << s
+		end
+		%'{ "#{str.encoding.name}", #{name} }'
+	end
+
+	def register_declaration_for name, decl
+		if old = @static[name]
+			if decl != old
+				raise RuntimeError,
+					"multiple, though not identical, static decls for #{name}:\n" \
+					"\t#{old}\n\t#{decl}"
+			end
+			old.replace decl
+		else
+			@static[name] = decl
+		end
+	end
+
 	def register_generator_for name, generator
 		if old = @generators[name]
 			if generator != old
@@ -603,14 +791,17 @@ rb_control_frame_t*
 	#
 	# Note however, that  an identical argument _desired_ generates  a same name
 	# on multiple invocations unless _realuniq_ is true.
-	def namegen desired, type, realuniq = false, limit = 31
-		str = namegen_internal desired, type, realuniq, limit - 2
-		'y_' + str
+	def namegen desired, type, realuniq = false
+		str = namegen_internal desired, type, realuniq
+		ret = 'y_' + str
+		raise "!! #{ret.length} > #@namemax !! : #{ret}" if ret.length > @namemax
+		ret
 	end
 
-	def namegen_internal desired, type, realuniq, limit
+	def namegen_internal desired, type, realuniq
+		limit = @namemax - 2 # 2 is 'y_'.length
 		unless desired.nil?
-			ary = @namedb[desired] # this creates new one if not.
+			ary = @namedb.fetch desired, Array.new
 			if not ary.empty? and not realuniq
 				ary.each do |rt, rn|
 					return rn if type == rt
@@ -627,9 +818,9 @@ rb_control_frame_t*
 				end
 				cand1 = cand0 + n.to_s
 			end
-			if cand1.length <= limit 
+			if cand1.length <= limit
 				# OK, take this
-				ary << [type, cand1]
+				@namedb[desired] << [type, cand1]
 				@namespace[cand1] = desired
 				return cand1
 			end
@@ -639,24 +830,32 @@ rb_control_frame_t*
 		else
 			u = UUID.new_random
 		end
-		# An UUID is 128 bits length, while the infimum of maximal local variable
-		# name length  in the  ANSI C is  31 characters.  The  canonical RFC4122-
-		# style UUID stringization do not work here.
-		bpc = 128.0 / limit
-		radix = 2 ** bpc
-		v = u.to_i.to_s radix.ceil
-		namegen_internal v, type, realuniq, limit # try again
+		if limit >= u.to_s.length
+			v = u.to_s
+		else
+			# An  UUID is  128 bits  length, while  the infinum  of  maximal local
+			# variable name length in the  ANSI C is 31 characters.  The canonical
+			# RFC4122- style UUID stringization do not work here.
+			bpc = 128.0 / limit
+			radix = 2 ** bpc
+			v = u.to_i.to_s radix.ceil
+		end
+		namegen_internal v, type, realuniq # try again
 	end
 
 	# Returns a 2-dimensional array [[str, len], [str, len], ... ]
 	#
 	# This is needed because Ruby's String#dump is different from C's.
-	def rstring2cstr str
-		# 509 is the  infimum of maximal length of string  literals that an ANSI-
-		# conforming C compiler is required to understand.
-		a = str.each_byte.each_slice 509
-		a.map do |bytes|
-			b = bytes.each_slice 60
+	def rstring2cstr str, rs = nil
+		a = str.each_line rs
+		a = a.to_a
+		a.map! do |b|
+			c = b.each_byte.each_slice @strmax
+			c.to_a
+		end
+		a.flatten! 1
+		a.map! do |bytes|
+			b = bytes.each_slice 80
 			c = b.map do |d|
 				d.map do |e|
 					case e # this case statement is optimized
@@ -687,6 +886,7 @@ rb_control_frame_t*
 			end
 			[ c.join, bytes.size, ]
 		end
+		a
 	end
 end
 

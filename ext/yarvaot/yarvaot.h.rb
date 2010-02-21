@@ -30,9 +30,14 @@ __END__
 /* vm_{opts,core,insnhelper,exec}.h, as  well as eval_intern.h  and iseq.h, are
  * needed to ``properly'' make a AOT source, but we cheat instead. */
 #ifndef RUBY_INSNHELPER_H
+#ifdef __GNUC__
+#define UNLIKELY(expr) __builtin_expect((expr), 0)
+#else
+#define UNLIKELY(expr) (expr)
+#endif
 typedef struct rb_iseq_struct rb_iseq_t;
-typedef struct rb_thread_struct rb_thread_t;
 typedef VALUE* rb_control_frame_t; /* fake */
+typedef rb_control_frame_t* rb_thread_t; /* fake */
 typedef long OFFSET;
 typedef unsigned long rb_num_t;
 typedef unsigned long lindex_t;
@@ -42,6 +47,29 @@ typedef rb_iseq_t* ISEQ;
 typedef VALUE CDHASH;
 typedef struct iseq_inline_cache_entry* IC;
 typedef rb_control_frame_t* rb_insn_func_t(rb_thread_t* th, rb_control_frame_t* reg_cfp);
+
+/** This should not be here... */
+enum yarvaot_catch_type_tag {
+    CATCH_TYPE_RESCUE = ((int)INT2FIX(1)),
+    CATCH_TYPE_ENSURE = ((int)INT2FIX(2)),
+    CATCH_TYPE_RETRY  = ((int)INT2FIX(3)),
+    CATCH_TYPE_BREAK  = ((int)INT2FIX(4)),
+    CATCH_TYPE_REDO   = ((int)INT2FIX(5)),
+    CATCH_TYPE_NEXT   = ((int)INT2FIX(6))
+};
+
+/** This should not be here... */
+enum yarvaot_iseq_type_tag {
+    ISEQ_TYPE_TOP           = INT2FIX(1),
+    ISEQ_TYPE_METHOD        = INT2FIX(2),
+    ISEQ_TYPE_BLOCK         = INT2FIX(3),
+    ISEQ_TYPE_CLASS         = INT2FIX(4),
+    ISEQ_TYPE_RESCUE        = INT2FIX(5),
+    ISEQ_TYPE_ENSURE        = INT2FIX(6),
+    ISEQ_TYPE_EVAL          = INT2FIX(7),
+    ISEQ_TYPE_MAIN          = INT2FIX(8),
+    ISEQ_TYPE_DEFINED_GUARD = INT2FIX(9)
+};
 
 /**
  * hide_obj() seems not available worldwide
@@ -85,6 +113,74 @@ RUBY_EXTERN VALUE rb_iseq_eval(VALUE iseqval);
 
 #endif  /* RUBY_INSNHELPER_H */
 
+/**
+ * There is a  bit long story around  here.  A C compiler is  _not_ required to
+ * understand a relatively  long string constant, but a  Ruby processor is.  So
+ * when converting a Ruby string constant into C's, one cannot simply convert.
+ *
+ * Another pitfall  is the  encoding.  A Ruby  script tend  to be written  in a
+ * multilingual encoding such as UTF-8, but that is totally out of control on a
+ * C processor.  So a converter have to explicitly deal with them.
+ */
+struct yarvaot_lenptr_tag {
+    size_t const nbytes;        /**< # of bytes vaild in ptr */
+    void const* const ptr;      /**< opaque entry */
+};
+
+/**
+ * This  is a  static  allocation  version of  a  ruby string,  to  be used  in
+ * combination with yarvaot_quasi_iseq_tag().
+ */
+struct yarvaot_quasi_string_tag {
+    char const* const encoding; /**< encoding string */
+    struct yarvaot_lenptr_tag const* const entries; /**< actual entity */
+};
+
+#define yqst struct yarvaot_quasi_string_tag /**< temporary rename */
+
+/**
+ * This is a ``quasi'' instruction  sequence, which can then be converted using
+ * yarvaot_geniseq().
+ *
+ * And beware  of those tactically  placed const qualifiers...  This  struct is
+ * designed to be  totally statically allocated, which makes  a compiled binary
+ * faster.
+ */
+struct yarvaot_quasi_iseq_tag {
+    enum yarvaot_iseq_type_tag const type; /**< type of this iseq */
+    yqst const name;            /**< iseq name */
+    yqst const filename;        /**< where was it from */
+    long const lineno;          /**< where was it from */
+    yqst const* const locals;   /**< local variables */
+    struct {                    /**< args */
+        long const argc;        /**< argc */
+        yqst const* const opts; /**< arg_opts */
+        long const post_len;    /**< arg_post_len */
+        long const post_start;  /**< arg_post_start */
+        long const rest;        /**< arg_rest */
+        long const block;       /**< arg_block */
+        long const simple;      /**< arg_simple */
+    } const args;               /**< args */
+    struct yarvaot_quasi_catch_table_entry_tag const* const catches;
+    char const* const* const template;
+    rb_insn_func_t* const impl;  /**< body */
+};
+
+/**
+ * This is a static allocation version  of iseq exception tables, to be used in
+ * combination with yarvaot_quasi_iseq_tag().
+ */
+struct yarvaot_quasi_catch_table_entry_tag {
+    enum yarvaot_catch_type_tag const type;          /**< type */
+    struct yarvaot_quasi_iseq_tag const* const iseq; /**< body */
+    char const* const start;                         /**< label start */
+    char const* const end;                           /**< label end */
+    char const* const count;                         /**< label count */
+    long const sp;                                   /**< sp */
+};
+
+#undef yqst
+
 % insns.each {|insn|
 
 /**
@@ -100,7 +196,7 @@ RUBY_EXTERN rb_control_frame_t* yarvaot_insn_<%=
 
 insn.name
 
-%>(rb_thread_t* th, rb_control_frame_t* reg_cfp<%=
+%>(rb_thread_t* th<%=
    if(/^#define CABI_OPERANDS 1$/.match(extconfh))
        insn.opes.map {|(typ, nam)|
           (typ == "...") ? ", ..." : ", #{typ} #{nam}"
@@ -175,11 +271,21 @@ RUBY_EXTERN VALUE* yarvaot_get_pc(rb_control_frame_t const* reg_cfp);
  * string of  max 7,635 chars length.   Note however, that the  term `chars' is
  * used here in the sense of C.  Your milage will vary with your encoding.
  *
+ * @sa struct yarvaot_quasi_string_tag
+ *
  * @param[in] enc  encoding string.
  * @param[in] ...  a series of void*, size_t, void*, size_t, ..., terminates 0.
  * @returns        a Ruby string of encoding enc.
  */
 RUBY_EXTERN VALUE vrb_enc_str_new(char const* enc, ...);
+
+/**
+ * Creates a ``real'' ISeq from a quasi-iseq.
+ *
+ * @param[in] quasi  a template.
+ * @returns          a generated ISeq's iseqval.
+ */
+RUBY_EXTERN VALUE yarvaot_geniseq(struct yarvaot_quasi_iseq_tag const* quasi);
 
 /*
  * Local Variables:
