@@ -25,21 +25,11 @@ __END__
 #include "iseq.h"
 #include "vm_opts.h"
 /* This AOT  compiler massively  uses Ruby's VM  feature called  "call threaded
- * code", so we have to enale that option here. */
+ * code", so we have to enable that option here. */
 #ifdef  OPT_CALL_THREADED_CODE
 #undef  OPT_CALL_THREADED_CODE
 #endif
 #define OPT_CALL_THREADED_CODE 1
-
-/* FIXME! inline chaches are to be implemented. */
-#ifdef  OPT_INLINE_CONST_CACHE
-#undef  OPT_INLINE_CONST_CACHE
-#endif
-#define OPT_INLINE_CONST_CACHE 0
-#ifdef  OPT_INLINE_METHOD_CACHE
-#undef  OPT_INLINE_METHOD_CACHE
-#endif
-#define OPT_INLINE_METHOD_CACHE 0
 
 #include "vm_core.h"
 #include "vm_insnhelper.h"
