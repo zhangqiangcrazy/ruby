@@ -72,8 +72,11 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 			recursive_require_resolution if @ahead_of_time_require
 			verbose_out 'preprocessor done conversion.'
 
-			# output
-			@terminals.each do |i| g.write i.token end
+			# output, but wait... @terminals is not sorted
+			t = @terminals.sort_by do |i|
+				[i.lineno, i.column]
+			end
+			t.each do |i| g.write i.token end
 			# Ripper do not  read towards __END__, and f  remains open to continue
 			# reading  from it on  those cases.   That should  be appended  to our
 			# output.
