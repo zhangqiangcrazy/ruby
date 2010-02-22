@@ -33,6 +33,7 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 		@stop_after   = nil
 		@exec         = Array.new
 		@sink         = nil
+		@save_temps   = false
 		@subcommands  = { # order maters here
 			nil =>        self,
 			preprocessor: YARVAOT::Preprocessor.new,
@@ -81,6 +82,17 @@ class YARVAOT::Driver < YARVAOT::Subcommand
                                    standard output.
 		begin
 			@sink = optarg
+		end
+
+		@opt.on '--[no-]save-temps', <<-'begin'.strip, TrueClass do |optarg|
+                                   Save  temporary files  between  each stages.
+                                   Withou this option stages are totally run in
+                                   pipes, so  if you  want to debug  your a.out
+                                   with  debuggers, you  would better  set this
+                                   option, otherwise  debugger breakpoints gets
+                                   totally out of use.
+		begin
+			@save_temps = optarg
 		end
 
 		@opt.on_tail '--metadebug', <<-'begin'.strip do
@@ -200,8 +212,10 @@ HDR2
 
 		# This is the part that actually does compilations.
 		fout, = who.run fin, target
-		sink = compute_sink who, target
-		redirect fout => sink
+		unless @save_temps # in that case already done.
+			sink = compute_sink who, target
+			redirect fout => sink 
+		end
 
 		# a.out should be executable.
 		if who == @subcommands[:linker] or (who == self and @stop_after.nil?)
@@ -218,6 +232,16 @@ HDR2
 			next unless k
 			verbose_out "driver runs #{k}"
 			f = v.run f, n
+			if @save_temps
+				sink = compute_sink v, n
+				if sink != STDOUT
+					redirect f => sink
+					sink.flush
+					sink.rewind
+					f.close
+					f = sink
+				end
+			end
 			return f if @stop_after == k
 		end
 		return f
@@ -276,7 +300,7 @@ HDR2
 			sink = sprintf "%s.%s", basename, extname
 		end
 		verbose_out 'driver opens output file %s', sink
-		return open sink, 'wb'
+		return open sink, 'w+b'
 	end
 
 	# This is a  helper function to spawn a pager  process when possible.  PAGER
