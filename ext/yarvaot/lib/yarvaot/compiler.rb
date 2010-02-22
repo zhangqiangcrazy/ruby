@@ -414,20 +414,48 @@ Init_<%= canonname n %>(VALUE unused)
 	#
 	# And the OCCF can happily squash those nops.
 	def prepare a
+		labels = Hash.new
 		phony = [:phony, nil]
-		idx = 0
 		ret = [phony]
-		a.each do |i|
+		emu_pc = 2
+		a.each_with_index do |i, j|
 			case i
-			when Integer, Symbol then ret << i
+			when Integer then ret << i
+			when Symbol  then
+				labels.store i, emu_pc
+				ret << i
+				ret << phony
+				emu_pc += 2
 			when Array   then
 				ret << i
-				if i.first == :send
-					ret << "label_phony_#{idx}".intern
+				emu_pc += i.size
+				if i.first == :send and not a[j+1].is_a? Symbol
+					l = "label_phony_#{emu_pc}".intern
+					labels.store l, emu_pc
+					ret << l
 					ret << phony
-					idx += 1
+					emu_pc += 2
 				end
 			else raise i.inspect
+			end
+		end
+		ret.map! do |i|
+			case i
+			when Integer then i
+			when Symbol  then "yarv_#{labels[i]}".intern
+			when Array   then
+				i.map! do |j|
+					case j
+					when Symbol
+						if /\Alabel_/.match j
+							"yarv_#{labels[j]}".intern
+						else
+							j
+						end
+					else
+						j
+					end
+				end
 			end
 		end
 		ret
@@ -555,6 +583,7 @@ rb_control_frame_t*
     static VALUE* pc  = 0;
     static char*  ic  = 0; /* char* to suppress pointer-arith warnings */
     static size_t sic = 0;
+    rb_control_frame_t* saved_r = r;
 
     if(UNLIKELY(pc == 0))
         pc = yarvaot_get_pc(r);
@@ -564,6 +593,7 @@ rb_control_frame_t*
 %emu_pc = 0
     /* Beware!  labels are  *not* equal to  the pc, because  some optimizations
      * and transoformations are made. */
+again:
     switch(cfp_pc(r) - pc) {
 %body.each do |i|
 %	case i
@@ -590,38 +620,44 @@ rb_control_frame_t*
 	# For a instruction _insn_, there is  an equivalent C expression to run that
 	# insn.
 	def genfunc_geninsn pc, insn, parent, labels_seen, ic_idx
-		jumpers = [
+		invokers = [
 			:send, :leave,
 			:invokeblock, :invokesuper,
+		]
+		branchers = [
+			:branchunless, :branchif, :jump,
 			:getinlinecache, :onceinlinecache, 
 			:opt_case_dispatch
 		]
-		ret = "    case  #{pc}: "
+		ret = "    case #{pc}: "
 		op, *argv = *insn
 		ret << case op
 				 when :nop, :phony
 					 # nop is NOT actually a no-op... it should update the pc.
 					 "cfp_pc(r) += #{insn.size}"
-				 when :branchunless, :branchif, :jump
-					 l = argv[0]
-					 m = /\d+/.match l.to_s
-					 s = if labels_seen.has_key? l
-							  'intr'
-						  else
-							  'nointr'
-						  end
-					 "yarvaot_insn_#{op}_#{s}(t, #{m[0]}, #{l})"
+				 # when :branchunless, :branchif, :jump
+				 # 	 l = argv[0]
+				 # 	 m = /\d+/.match l.to_s
+				 # 	 s = if labels_seen.has_key? l
+				 # 			  'intr'
+				 # 		  else
+				 # 			  'nointr'
+				 # 		  end
+				 # 	 "yarvaot_insn_#{op}_#{s}(t, #{m[0]}, #{l})"
 				 else
-					 s = genfunc_genargv op, argv, parent, ic_idx
+					 s = genfunc_genargv op, argv, parent, ic_idx, pc
 					 body = if s.empty?
 								  "r = yarvaot_insn_#{op}(t)"
 							  else
 								  "r = yarvaot_insn_#{op}(t, #{s})"
 							  end
-					 if jumpers.include? op
+					 case op
+					 when *branchers
+						 body + ";\n      goto again"
+					 when *invokers
 						 body + ";\n" + <<-end.chomp
-        if(UNLIKELY(cfp_pc(r) - pc != #{pc + insn.size}))
-            return r
+        if(UNLIKELY(r != saved_r))
+            return r;
 						 end
 					 else
 						 body
@@ -630,7 +666,7 @@ rb_control_frame_t*
 	end
 
 	# ISeq operands transformation.
-	def genfunc_genargv op, argv, parent, ic_idx
+	def genfunc_genargv op, argv, parent, ic_idx, pc
 		type = YARVAOT::INSNS[op][:opes].map do |i| i.first end
 		ta = type.zip argv
 		ta.map! do |(t, a)|
@@ -647,10 +683,10 @@ rb_control_frame_t*
 			when 'IC'
 				ic_idx[0] += 1
 				"ic(#{ic_idx[0]})"
-			when 'OFFSET' # ??
+			when 'OFFSET'
 				m = /\d+/.match a.to_s
 				if m
-					"(OFFSET)#{m}"
+					"(OFFSET)#{m.to_s.to_i - pc}"
 				else
 					raise a.inspect
 				end
