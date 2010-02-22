@@ -419,7 +419,7 @@ Init_<%= canonname n %>(VALUE unused)
 		attr_reader :unquote
 	end
 
-	# Generated a struct yarvaot_quasi_iseq_tag.
+	# Generates a struct yarvaot_quasi_iseq_tag.
 	def genquasi fnam, type, name, file, line, locals, args, excs, body
 		decl = QuasiTemplate.result binding
 		qnam = namegen fnam, 'struct yarvaot_quasi_iseq_tag', :uniq
@@ -457,7 +457,7 @@ Init_<%= canonname n %>(VALUE unused)
 		name
 	end
 
-	# generates arrays of quasi strings
+	# Generates arrays of quasi strings
 	def genquasi_genary ary
 		return 0 if ary.nil?
 		return 0 if ary.empty?
@@ -469,6 +469,7 @@ Init_<%= canonname n %>(VALUE unused)
 		end
 	end
 
+	# Generates struct yarvaot_quasi_catch_table_entry_tag
 	def genquasi_gentable ary
 		return 0 if ary.nil?
 		return 0 if ary.empty?
@@ -485,7 +486,14 @@ Init_<%= canonname n %>(VALUE unused)
 			r << "      #{sp}, },\n"
 		end
 	end
-	
+
+	# Generates iseq template. It reads as:
+	# * when an entry is a null pointer, that becomes a nop
+	# * when an entry is an empty string, that becomes a occf.
+	# * when an entry is a integer string, that becomes an integer.
+	# * otherwise, that becomes a label.
+	#
+	# Take a look at yarvaot_geniseq() in yarvaot.so.
 	def genquasi_gentemplate ary
 		inject_internal ary, nil, 'char const*', '"end"' do |r, i|
 			case i
@@ -504,7 +512,9 @@ Init_<%= canonname n %>(VALUE unused)
 		end
 	end
 
-	def genfunc iseq, name, body, file, line, type # :nodoc:
+	# Generates  a   ISeq  internal  function,  which  actually   runs  on  iseq
+	# evaluations.
+	def genfunc iseq, name, body, file, line, type
 		fnam = namegen name, 'rb_insn_func_t', :uniq
 		labels_seen = Hash.new
 		ic_idx = [0]
@@ -556,7 +566,9 @@ rb_control_frame_t*
 }
 	end
 
-	def genfunc_geninsn pc, insn, parent, labels_seen, ic_idx #:nodoc:
+	# For a instruction _insn_, there is  an equivalent C expression to run that
+	# insn.
+	def genfunc_geninsn pc, insn, parent, labels_seen, ic_idx
 		jumpers = [
 			:send, :leave,
 			:invokeblock, :invokesuper,
@@ -596,7 +608,8 @@ rb_control_frame_t*
 				 end
 	end
 
-	def genfunc_genargv op, argv, parent, ic_idx # :nodoc:
+	# ISeq operands transformation.
+	def genfunc_genargv op, argv, parent, ic_idx
 		type = YARVAOT::INSNS[op][:opes].map do |i| i.first end
 		ta = type.zip argv
 		ta.map! do |(t, a)|
