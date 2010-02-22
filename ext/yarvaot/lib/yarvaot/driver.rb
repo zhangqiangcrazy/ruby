@@ -86,7 +86,7 @@ class YARVAOT::Subcommand
 
 	# Generic IO  redirection.  This is  needed because a subprocess  itself can
 	# occasionally spawn a child process,  such as a C compiler.  IO redirection
-	# is  dome  as much  as  possible in  Process.spawn,  but  some cases  needs
+	# is  done  as much  as  possible in  Process.spawn,  but  some cases  needs
 	# explicit redirection business.
 	#
 	# h:: a set of IO -> IO mapping

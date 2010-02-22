@@ -358,19 +358,18 @@ Init_<%= canonname n %>(VALUE unused)
 
 	def prepare a # :nodoc:
 		phony = [:phony, nil]
-		emu_pc = 2 # phony[0].size
+		idx = 0
 		ret = [phony]
 		a.each do |i|
 			case i
 			when Integer, Symbol then ret << i
 			when Array   then
-				emu_pc += i.size
 				ret << i
 				if i.first == :send
 					# send -> send, label, nop, nop
-					ret << "label_#{emu_pc}".intern
+					ret << "label_phony_#{idx}".intern
 					ret << phony
-					emu_pc += 2
+					idx += 1
 				end
 			else raise i.inspect
 			end
@@ -525,49 +524,37 @@ rb_control_frame_t*
 			:getinlinecache, :onceinlinecache, 
 			:opt_case_dispatch
 		]
+		ret = "    case  #{pc}: "
 		op, *argv = *insn
-		case op
-		when :nop
-			# nop is NOT actually a no-op... it should update the pc.
-			<<-end
-    case  #{pc}: cfp_pc(r)++
-			end
-		when :phony
-			# phony insn ... just behave as nops * size
-			<<-end
-    case  #{pc}: cfp_pc(r) += #{insn.size}
-			end
-		when :branchunless, :branchif, :jump
-			l = argv[0]
-			m = /\d+/.match l.to_s
-			s = if labels_seen.has_key? l
-					 'intr'
+		ret << case op
+				 when :nop, :phony
+					 # nop is NOT actually a no-op... it should update the pc.
+					 "cfp_pc(r) += #{insn.size}"
+				 when :branchunless, :branchif, :jump
+					 l = argv[0]
+					 m = /\d+/.match l.to_s
+					 s = if labels_seen.has_key? l
+							  'intr'
+						  else
+							  'nointr'
+						  end
+					 "yarvaot_insn_#{op}_#{s}(t, #{m[0]}, #{l})"
 				 else
-					 'nointr'
-				 end
-			<<-end
-        yarvaot_insn_#{op}_#{s}(t, #{m[0]}, #{l})
-			end
-		else
-			s = genfunc_genargv op, argv, parent, ic_idx
-			body = if s.empty?
-				<<-end
-    case  #{pc}: r = yarvaot_insn_#{op}(t)
-				end
-			else
-				<<-end
-    case  #{pc}: r = yarvaot_insn_#{op}(t, #{s})
-				end
-			end
-			if jumpers.include? op
-				body.chomp + ";\n" + <<-end
+					 s = genfunc_genargv op, argv, parent, ic_idx
+					 body = if s.empty?
+								  "r = yarvaot_insn_#{op}(t)"
+							  else
+								  "r = yarvaot_insn_#{op}(t, #{s})"
+							  end
+					 if jumpers.include? op
+						 body + ";\n" + <<-end.chomp
         if(UNLIKELY(cfp_pc(r) - pc != #{pc + insn.size}))
             return r
-				end
-			else
-				body
-			end
-		end.chomp
+						 end
+					 else
+						 body
+					 end
+				 end
 	end
 
 	def genfunc_genargv op, argv, parent, ic_idx # :nodoc:
