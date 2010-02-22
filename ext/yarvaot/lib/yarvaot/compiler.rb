@@ -136,11 +136,11 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	def run f, n
 		run_in_pipe f do |g|
 			verbose_out 'compiler started.'
-			str = f.read # wait preprocessor
+			h, t = intercept f
 			RubyVM::InstructionSequence.compile_option = @iseq_compile_option
-			iseq = RubyVM::InstructionSequence.new str, n
+			iseq = RubyVM::InstructionSequence.new h, n
 			verbose_out 'compiler generated iseq.'
-			compile str, n, iseq
+			compile t.value, n, iseq
 			verbose_out 'compiler generated C code.'
 			stringize n do |s|
 				g.write s
@@ -156,6 +156,27 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		lambda do |optarg|
 			@iseq_compile_option[flag] = optarg
 		end
+	end
+
+	# Helper function, to split an IO into two
+	def intercept f
+		r, w = IO.pipe
+		t = Thread.start do
+			a = String.new
+			b = String.new
+			begin
+				while f.readpartial 32768, b
+					w.write b
+					a.concat b
+				end
+			rescue EOFError
+			ensure
+				f.close rescue nil
+				w.close rescue nil
+			end
+			a
+		end
+		return r, t
 	end
 
 	# Toplevel to trigger compilation
