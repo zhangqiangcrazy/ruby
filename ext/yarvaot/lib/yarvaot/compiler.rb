@@ -29,6 +29,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		@generators          = Hash.new
 		@static              = Hash.new
 		@iseq_compile_option = Hash.new
+		@emit_disasm         = false
 
 		allopts = {
 			inline_const_cache:       true,
@@ -117,6 +118,14 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		begin
 			@strmax = n
 		end
+
+		@opt.on '--[no-]emit-disasm', <<-'begin'.strip, TrueClass do |n|
+                                   Emits VM-included disassembler output to the
+                                   generating C  source file as  comments. This
+                                   is mainly for debugging.
+		begin
+			@emit_disasm = n
+		end
 	end
 
 	# Run.  Eat the file, do necessary conversions, then return a new file.
@@ -153,7 +162,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	def compile str, n, iseq
 		@preambles = PreamblesTemplate.result binding
 		embed_sourcecode str, n
-		embed_debug_disasm iseq
+		embed_debug_disasm iseq if @emit_disasm
 		@toplevel, * = recursive_transform iseq
 
 		ndb = @namedb.values.flatten 1
@@ -328,6 +337,7 @@ Init_<%= canonname n %>(VALUE unused)
 		end
 	end
 
+	# For debug, apply within.
 	def embed_debug_disasm iseq
 		verbose_out 'compiler embedding iseq disasm..'
 		@sourcecodes << "/*\n"
@@ -343,9 +353,9 @@ Init_<%= canonname n %>(VALUE unused)
 	# Returns a set of names to refer to 
 	# * the converted ISeq,
 	# * the converted function body, 
-	# * and the quasi-iseq.
+	# * and the converted quasi-iseq.
 	def recursive_transform iseq
-		return '0' if iseq.nil?
+		return '0', '0', '0' if iseq.nil?
 		ary = format_check iseq
 		info, name, file, line, type, locals, args, excs, body = ary
 		verbose_out "compiler is now compiling: %s", name
@@ -356,7 +366,32 @@ Init_<%= canonname n %>(VALUE unused)
 		return inam, fnam, qnam
 	end
 
-	def prepare a # :nodoc:
+	# This does  a tiny  transofrmation over  the ISeq body.   When an  ISeq was
+	# compiled  into  a  C  function,  that function  was  invoked  from  ISeq's
+	# opt-call-c-function  instruction.  The problem  is, that  insn is  2 words
+	# length.  So  inserting an  OCCF insn into  a ISeq  might not work  on some
+	# cases, one of which is illustrated like this:
+	#
+	#     putobject   obj
+	#     send        method 0, nil, 0, <ic>
+	#     pop                                 # <- we need OCCF here
+	#   label:
+	#     putnil
+	#
+	# So we  have to deal with  those situation by  searching "send" instruction
+	# and replace it by a series of send, label, nop, nop.
+	#
+	#     putobject   obj
+	#     send        method 0, nil, 0, <ic>
+	#   label:                                # new!
+	#     nop                                 # new!
+	#     nop                                 # new!
+	#     pop
+	#   label:
+	#     putnil
+	#
+	# And the OCCF can happily squash those nops.
+	def prepare a
 		phony = [:phony, nil]
 		idx = 0
 		ret = [phony]
@@ -366,7 +401,6 @@ Init_<%= canonname n %>(VALUE unused)
 			when Array   then
 				ret << i
 				if i.first == :send
-					# send -> send, label, nop, nop
 					ret << "label_phony_#{idx}".intern
 					ret << phony
 					idx += 1
