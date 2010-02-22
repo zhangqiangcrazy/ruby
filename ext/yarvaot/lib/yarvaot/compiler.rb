@@ -359,15 +359,16 @@ Init_<%= canonname n %>(VALUE unused)
 		ary = format_check iseq
 		info, name, file, line, type, locals, args, excs, body = ary
 		verbose_out "compiler is now compiling: %s", name
-		b2   = prepare body
-		inam = namegen 'i' + ary[1], 'VALUE', :uniq
-		fnam = genfunc iseq, name, b2, file, line, type
-		qnam = geniseq fnam, inam, ary, b2		
+		b    = prepare body
+		fnam = genfunc iseq, name, b, file, line, type
+		qnam = genquasi fnam, type, name, file, line, locals, args, excs, b
+		inam = namegen 'i' + name, 'VALUE', :uniq
+		register_generator_for inam, "yarvaot_geniseq(&#{qnam})"
 		return inam, fnam, qnam
 	end
 
 	# This does  a tiny  transofrmation over  the ISeq body.   When an  ISeq was
-	# compiled  into  a  C  function,  that function  was  invoked  from  ISeq's
+	# compiled into  a C  function, that function  would be invoked  from ISeq's
 	# opt-call-c-function  instruction.  The problem  is, that  insn is  2 words
 	# length.  So  inserting an  OCCF insn into  a ISeq  might not work  on some
 	# cases, one of which is illustrated like this:
@@ -418,28 +419,32 @@ Init_<%= canonname n %>(VALUE unused)
 		attr_reader :unquote
 	end
 
-	def geniseq fnam, inam, ary, body
-		decl = " = {\n"
-		decl << "    ISEQ_TYPE_#{ary[4].upcase},\n"
-		decl << "    #{rstring2quasi ary[1]},\n"
-		decl << "    #{rstring2quasi ary[2]},\n"
-		decl << "    #{ary[3]},\n"
-		decl << "    #{geniseq_genary ary[5]},\n"
-		case i = ary[6]
-		when Array
-			a = i.dup
-			a[1] = geniseq_genary a[1]
-			decl << "    {#{a.join ', '}},\n"
-		else
-			decl << "    { #{i}, 0, 0, 0, 0, 0, 1, },\n"
-		end
-		decl << "    #{geniseq_gentable ary[7]},\n"
-		decl << "    #{geniseq_gentemplate body},\n"
-		decl << "    #{fnam}, }"
+	# Generated a struct yarvaot_quasi_iseq_tag.
+	def genquasi fnam, type, name, file, line, locals, args, excs, body
+		decl = QuasiTemplate.result binding
 		qnam = namegen fnam, 'struct yarvaot_quasi_iseq_tag', :uniq
 		register_declaration_for qnam, decl
-		register_generator_for inam, "yarvaot_geniseq(&#{qnam})"
-		return qnam
+		qnam
+	end
+
+	QuasiTemplate = ERB.new <<-'end', 0, '%-'
+ = {
+    ISEQ_TYPE_<%= type.upcase %>,
+    <%= rstring2quasi name %>,
+    <%= rstring2quasi file %>,
+    <%= line %>,
+    <%= geniseq_genary locals %>,
+%case args
+%when Array
+%	a = args.dup
+%	a[1] = geniseq_genary a[1]
+    {<%= a.join ', ' %>},
+%else
+    { <%= args %>, 0, 0, 0, 0, 0, 1, },
+%end
+    <%= geniseq_gentable excs %>,
+    <%= geniseq_gentemplate body %>,
+    <%= fnam %>, }
 	end
 
 	def inject_internal ary, desired, type, term  #:nodoc:
