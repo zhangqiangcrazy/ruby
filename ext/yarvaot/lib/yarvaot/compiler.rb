@@ -433,17 +433,17 @@ Init_<%= canonname n %>(VALUE unused)
     <%= rstring2quasi name %>,
     <%= rstring2quasi file %>,
     <%= line %>,
-    <%= geniseq_genary locals %>,
+    <%= genquasi_genary locals %>,
 %case args
 %when Array
 %	a = args.dup
-%	a[1] = geniseq_genary a[1]
+%	a[1] = genquasi_genary a[1]
     {<%= a.join ', ' %>},
 %else
     { <%= args %>, 0, 0, 0, 0, 0, 1, },
 %end
-    <%= geniseq_gentable excs %>,
-    <%= geniseq_gentemplate body %>,
+    <%= genquasi_gentable excs %>,
+    <%= genquasi_gentemplate body %>,
     <%= fnam %>, }
 	end
 
@@ -458,7 +458,7 @@ Init_<%= canonname n %>(VALUE unused)
 	end
 
 	# generates arrays of quasi strings
-	def geniseq_genary ary
+	def genquasi_genary ary
 		return 0 if ary.nil?
 		return 0 if ary.empty?
 		inject_internal ary, nil,
@@ -469,7 +469,7 @@ Init_<%= canonname n %>(VALUE unused)
 		end
 	end
 
-	def geniseq_gentable ary
+	def genquasi_gentable ary
 		return 0 if ary.nil?
 		return 0 if ary.empty?
 		inject_internal ary, nil,
@@ -486,7 +486,7 @@ Init_<%= canonname n %>(VALUE unused)
 		end
 	end
 	
-	def geniseq_gentemplate ary
+	def genquasi_gentemplate ary
 		inject_internal ary, nil, 'char const*', '"end"' do |r, i|
 			case i
 			when Integer, Symbol then r << %'\n    "#{i}", '
