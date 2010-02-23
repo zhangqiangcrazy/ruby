@@ -699,7 +699,7 @@ again:
 			when 'OFFSET'
 				m = /\d+/.match a.to_s
 				if m
-					"(OFFSET)#{m.to_s.to_i - pc}"
+					"(OFFSET)#{m.to_s.to_i - pc - argv.size - 1}" # 1 for op
 				else
 					raise a.inspect
 				end
@@ -759,7 +759,7 @@ again:
 		when TrueClass, FalseClass, NilClass
 			get  = 'Q%p' % obj
 		when Bignum
-			put  = 'rb_cstr2inum("%s", 10)', obj.to_s
+			put = 'rb_cstr2inum("%s", 10)' % obj.to_s
 			qnam = namegen obj.to_s, type
 		when Float
 			put  = 'rb_float_new(%g)' % obj
