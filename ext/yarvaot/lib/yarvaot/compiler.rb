@@ -23,7 +23,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		@preambles           = String.new
 		@Trailers            = String.new
 		@namespace           = Hash.new
-		@namedb              = Hash.new do |h, k| h.store k, Array.new end
+		@namedb              = Hash.new
 		@sourcecodes         = Array.new
 		@functions           = Array.new
 		@generators          = Hash.new
@@ -184,14 +184,16 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		@preambles = PreamblesTemplate.result binding
 		embed_sourcecode str, n
 		embed_debug_disasm iseq if @emit_disasm
-		@toplevel, * = recursive_transform iseq
+		@toplevel = recursive_transform iseq
 
-		ndb = @namedb.values.flatten 1
+		sp = @namespace.keys
+		n1 = @namedb.values.flatten 1
+		ndb = n1.sort_by do |(t, e)| sp.index e end
 		ndb.map! do |(t, e)|
 			[t, 'y_' + e]
 		end
-		@namedb = ndb
-		values = @namedb.select do |(t, e)| t == 'VALUE' end.transpose.last
+		@decls = ndb
+		values = ndb.select do |(t, e)| t == 'VALUE' end.transpose.last
 		values ||= Array.new
 
 		@trailers = TrailersTemplate.result binding
@@ -200,7 +202,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	# Feeds compiled C source code little by little to the given block.
 	def stringize name # :yields: string
 		yield @preambles
-		@namedb.each do |(t, n)|
+		@decls.each do |(t, n)|
 			if decl = @static[n]
 				yield "static #{t} #{n}#{decl};\n"
 			else
@@ -371,21 +373,23 @@ Init_<%= canonname n %>(VALUE unused)
 	# This is where  the conversion happens.  ISeq array is  nested, so this can
 	# be called recursively.
 	#
-	# Returns a set of names to refer to 
-	# * the converted ISeq,
-	# * the converted function body, 
-	# * and the converted quasi-iseq.
-	def recursive_transform iseq
-		return '0', '0', '0' if iseq.nil?
+	# Returns the name of iseq when second argument evaluates to true. Otherwise
+	# returns the name of quasi-iseq.
+	def recursive_transform iseq, iseqname = true
+		return '0' if iseq.nil?
 		ary = format_check iseq
 		info, name, file, line, type, locals, args, excs, body = ary
 		verbose_out "compiler is now compiling: %s", name
-		b    = prepare body
+		b, e = prepare body, excs
 		fnam = genfunc iseq, name, b, file, line, type
-		qnam = genquasi fnam, type, name, file, line, locals, args, excs, b
-		inam = namegen 'i' + name, 'VALUE', :uniq
-		register_generator_for inam, "yarvaot_geniseq(&#{qnam})"
-		return inam, fnam, qnam
+		qnam = genquasi fnam, type, name, file, line, locals, args, e, b
+		if iseqname
+			inam = namegen 'i' + name, 'VALUE', :uniq
+			register_generator_for inam, "yarvaot_geniseq(&#{qnam})"
+			return inam
+		else
+			return qnam
+		end
 	end
 
 	# This does  a tiny  transofrmation over  the ISeq body.   When an  ISeq was
@@ -413,33 +417,34 @@ Init_<%= canonname n %>(VALUE unused)
 	#     putnil
 	#
 	# And the OCCF can happily squash those nops.
-	def prepare a
+	def prepare a, b
 		labels = Hash.new
 		phony = [:phony, nil]
-		ret = [phony]
+		x = [phony]
+		y = b.dup
 		emu_pc = 2
 		a.each_with_index do |i, j|
 			case i
-			when Integer then ret << i
+			when Integer then x << i
 			when Symbol  then
 				labels.store i, emu_pc
-				ret << i
-				ret << phony
+				x << i
+				x << phony
 				emu_pc += 2
 			when Array   then
-				ret << i
+				x << i
 				emu_pc += i.size
 				if i.first == :send and not a[j+1].is_a? Symbol
 					l = "label_phony_#{emu_pc}".intern
 					labels.store l, emu_pc
-					ret << l
-					ret << phony
+					x << l
+					x << phony
 					emu_pc += 2
 				end
 			else raise i.inspect
 			end
 		end
-		ret.map! do |i|
+		x.map! do |i|
 			case i
 			when Integer then i
 			when Symbol  then "yarv_#{labels[i]}".intern
@@ -458,7 +463,14 @@ Init_<%= canonname n %>(VALUE unused)
 				end
 			end
 		end
-		ret
+		y.map! do |(t, i, s, e, c, sp)|
+			[t, i, 
+			 "yarv_#{labels[s]}".intern,
+			 "yarv_#{labels[e]}".intern,
+			 "yarv_#{labels[c]}".intern,
+			 sp]
+		end
+		return x, y
 	end
 
 	class Quote # :nodoc:
@@ -471,12 +483,12 @@ Init_<%= canonname n %>(VALUE unused)
 	# Generates a struct yarvaot_quasi_iseq_tag.
 	def genquasi fnam, type, name, file, line, locals, args, excs, body
 		decl = QuasiTemplate.result binding
-		qnam = namegen fnam, 'struct yarvaot_quasi_iseq_tag', :uniq
+		qnam = namegen name, 'struct yarvaot_quasi_iseq_tag', :uniq
 		register_declaration_for qnam, decl
 		qnam
 	end
 
-	QuasiTemplate = ERB.new <<-'end', 0, '%-'
+	QuasiTemplate = ERB.new <<-'end'.chomp, 0, '%-'
  = {
     ISEQ_TYPE_<%= type.upcase %>,
     <%= rstring2quasi name %>,
@@ -493,7 +505,8 @@ Init_<%= canonname n %>(VALUE unused)
 %end
     <%= genquasi_gentable excs %>,
     <%= genquasi_gentemplate body %>,
-    <%= fnam %>, }
+    <%= fnam %>,
+}
 	end
 
 	def inject_internal ary, desired, type, term  #:nodoc:
@@ -526,7 +539,7 @@ Init_<%= canonname n %>(VALUE unused)
 							 'struct yarvaot_quasi_catch_table_entry_tag',
 							 '{CATCH_TYPE_NEXT, 0, 0, 0, 0, 0, }' do
 			|r, (t, i, s, e, c, sp)|
-			*, q = recursive_transform i
+			q = recursive_transform i, false
 			r << "    { CATCH_TYPE_#{t.to_s.upcase},\n"
 			r << "      #{q == '0' ? q : '&'+q},\n"
 			r << %'      "#{s}",\n'
@@ -653,12 +666,12 @@ again:
 							  end
 					 case op
 					 when *branchers
-						 body + ";\n      goto again"
+						 body + ";\n"\
+						 "        goto again"
 					 when *invokers
-						 body + ";\n" + <<-end.chomp
-        if(UNLIKELY(r != saved_r))
-            return r;
-						 end
+						 body + ";\n" \
+						 "        if(UNLIKELY(r != saved_r))\n" \
+						 "            return r"
 					 else
 						 body
 					 end
@@ -675,7 +688,7 @@ again:
 				if a.nil? # null pointer
 					0
 				else
-					i, * = recursive_transform a
+					i = recursive_transform a
 					"DATA_PTR(#{i})"
 				end
 			when 'lindex_t', 'dindex_t', 'rb_num_t'
@@ -916,7 +929,8 @@ again:
 			end
 			if cand1.length <= limit
 				# OK, take this
-				@namedb[desired] << [type, cand1]
+				ary << [type, cand1]
+				@namedb[desired] = ary
 				@namespace[cand1] = desired
 				return cand1
 			end
