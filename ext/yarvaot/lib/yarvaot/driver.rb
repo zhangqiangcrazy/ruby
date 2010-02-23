@@ -31,7 +31,8 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 
 		@arg0         = $0
 		@stop_after   = nil
-		@exec         = Array.new
+		@evalary      = Array.new
+		@exec         = false
 		@sink         = nil
 		@save_temps   = false
 		@subcommands  = { # order maters here
@@ -72,6 +73,22 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 
 		# no --stop-after-linker, because that's the default.
 
+		@opt.on '-x', '--execute', <<-'begin'.strip do
+                                   Instead of creating an executable file, just
+                                   execute the compiled output.  This is mainly
+                                   for debugging  (through replacing RUBY envi-
+                                   ronment  variable).   This  option not  only
+                                   overrides all the --stop-after-* series com-
+                                   mand  line   options,  but  also   make  the
+                                   compiler  pass  every  unknown command  line
+                                   options to the execution.  This option alone
+                                   does  not  leave  any  single  file  on  the
+                                   filesystem  so   if  you  need  intermediate
+                                   products, specify --save-temps with it.
+		begin
+			@exec = true
+		end
+
 		@opt.on '-o', '--output=FILE', <<-"begin".strip do |optarg|
                                    Output to  a file  named FILE, instead  of a
                                    default sink.  Without this option a default
@@ -86,8 +103,8 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 
 		@opt.on '--[no-]save-temps', <<-'begin'.strip, TrueClass do |optarg|
                                    Save  temporary files  between  each stages.
-                                   Withou this option stages are totally run in
-                                   pipes, so  if you  want to debug  your a.out
+                                   Without this  option stages are  totally run
+                                   in pipes, so if you want to debug your a.out
                                    with  debuggers, you  would better  set this
                                    option, otherwise  debugger breakpoints gets
                                    totally out of use.
@@ -113,7 +130,7 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 			STDERR.puts RUBY_DESCRIPTION
 		end
 
-		@opt.on_tail '-r', '--require=FEATURE', <<-"begin".strip do |optarg|
+		@opt.on_tail '-r', '--require=FEATURE', <<-'begin'.strip do |optarg|
                                    Requires a  feature FEATURE, just  like ruby
                                    itself.  This is  mainly for debugging (-rpp
                                    or something).
@@ -122,12 +139,12 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 			require optarg
 		end
 
-		@opt.on_tail '-e', '--execute=STRING', <<-"begin".strip do |optarg|
+		@opt.on_tail '-e', '--eval=STRING', <<-'begin'.strip do |optarg|
                                    Instead of reading from  a file or a pipe or
                                    a  socket  or  something, just  compile  the
                                    given STRING.  Can be handy.
 		begin
-			@exec.push optarg
+			@evalary.push optarg
 		end
 
 		@opt.on_tail '-h', '--help', 'This is it.' do
@@ -178,21 +195,26 @@ HDR2
 		@subcommands.each_value do |i|
 			i.consume argv
 		end
-		@opt.parse! argv			  # force optoinparser to raise error
-		verbose_out 'driver started.'
+		if @exec
+			who = self
+			target = argv.shift
+		else
+			@opt.parse! argv		  # force optoinparser to raise error
 
-		# determine who and what to deal with.
-		who = case target = argv.shift
-				when /^preprocess(or)?$/ then @subcommands[:preprocessor]
-				when /^compiler?$/       then @subcommands[:compiler]
-				when /^assembler?$/      then @subcommands[:assembler]
-				when /^link(er)?$/       then @subcommands[:linker]
-				else                          self
-				end
-		target = argv.shift if who != self
+			# determine who and what to deal with.
+			who = case target = argv.shift
+					when /^preprocess(or)?$/ then @subcommands[:preprocessor]
+					when /^compiler?$/       then @subcommands[:compiler]
+					when /^assembler?$/      then @subcommands[:assembler]
+					when /^link(er)?$/       then @subcommands[:linker]
+					else                          self
+					end
+			target = argv.shift if who != self
+		end
+		verbose_out 'driver started.'
 		# opening input  file here,  preventing outer-process attackers  to choke
 		# our filesystem.
-		if @exec.empty?
+		if @evalary.empty?
 			target ||= '-'
 			fin = case target
 					when '-'
@@ -204,7 +226,7 @@ HDR2
 					end
 		else
 			require 'stringio'
-			str = @exec.join "\n"
+			str = @evalary.join "\n"
 			fin = StringIO.new str
 			target = '-e'
 		end
@@ -212,7 +234,9 @@ HDR2
 
 		# This is the part that actually does compilations.
 		fout, = who.run fin, target
-		unless @save_temps # in that case already done.
+		if @save_temps # in that case already done.
+			sink = fout
+		else
 			sink = compute_sink who, target
 			redirect fout => sink 
 		end
@@ -220,6 +244,27 @@ HDR2
 		# a.out should be executable.
 		if who == @subcommands[:linker] or (who == self and @stop_after.nil?)
 			File.chmod 0755, sink if sink.kind_of? File
+		end
+
+		if @exec
+			raise <<-end unless sink.is_a? File
+
+Cannot  execute a  pipe.  If  you  are using  Linux that  is actually  possible
+through fexecve(3), but  that functionality is not implemented  to Ruby, so you
+have to specify a real filename rather  than "-", or do not specify anything --
+in that case a canonical filename e.g. a.out is used.
+			end
+			begin
+				path = File.realpath sink.path
+				sink.close
+				verbose_out 'driver spawns %s.', path
+				child = Process.spawn [path, sink.path], *argv
+			ensure
+				verbose_out 'driver is waiting for subprocess...'
+				Process.waitpid child
+				verbose_out 'driver unlinks %s.', path
+				File.unlink path
+			end
 		end
 	end
 
