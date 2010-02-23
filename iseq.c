@@ -434,7 +434,7 @@ iseq_load(VALUE self, VALUE data, VALUE parent, VALUE opt)
     VALUE type, body, locals, args, exception;
 
     VALUE iseq_type;
-    struct st_table *type_map = 0;
+    static struct st_table *type_map = 0;
     rb_iseq_t *iseq;
     rb_compile_option_t option;
     int i = 0;
