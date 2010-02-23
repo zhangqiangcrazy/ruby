@@ -1614,6 +1614,9 @@ iseq_set_exception_table(rb_iseq_t *iseq)
 	else {
 	    entry->cont = 0;
 	}
+	if (RARRAY_LEN(tptr[i]) >= 6) {
+	    entry->sp = NUM2ULONG(ptr[5]);
+	}
     }
 
     iseq->compile_data->catch_table_ary = 0;	/* free */
@@ -5164,6 +5167,7 @@ iseq_build_exception(rb_iseq_t *iseq, struct st_table *labels_table,
 
     for (i=0; i<RARRAY_LEN(exception); i++) {
 	VALUE v, type, *ptr, eiseqval;
+	VALUE tmp1, tmp2;
 	LABEL *lstart, *lend, *lcont;
 	int sp;
 
@@ -5186,7 +5190,11 @@ iseq_build_exception(rb_iseq_t *iseq, struct st_table *labels_table,
 	lcont  = register_label(iseq, labels_table, ptr[4]);
 	sp     = NUM2INT(ptr[5]);
 
+	tmp1 =
 	ADD_CATCH_ENTRY(type, lstart, lend, eiseqval, lcont);
+	tmp2 = rb_ary_pop(tmp1);
+	rb_ary_push(tmp2, ptr[5]);
+	rb_ary_push(tmp1, tmp2);
     }
     return COMPILE_OK;
 }
