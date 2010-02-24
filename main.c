@@ -36,7 +36,8 @@ main(int argc, char **argv)
 
 	RUBY_INIT_STACK;
 	vm = ruby_vm_new(argc, argv);
-	ret = ruby_vm_run(vm, &signo);
+	ret = ruby_vm_run(vm);
+	signo = ruby_vm_exit_signal(vm);
 	ruby_vm_destruct(vm);
 	if (signo) ruby_default_signal(signo);
 	return ret;

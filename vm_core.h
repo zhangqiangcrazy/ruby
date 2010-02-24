@@ -398,6 +398,10 @@ typedef struct rb_vm_struct {
 	rb_bytestream_t out;
     } bs;
 
+    struct {
+	int signal, code;
+    } exit_status;
+
     /* hook */
     rb_event_hook_t *event_hooks;
 

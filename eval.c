@@ -162,7 +162,7 @@ ruby_finalize(void)
 void rb_thread_stop_timer_thread(void);
 
 int
-ruby_vm_cleanup(rb_vm_t *vm, volatile int ex, int *signo)
+ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
 {
     int state;
     volatile VALUE errs[2];
@@ -218,7 +218,6 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex, int *signo)
 	else if (rb_obj_is_kind_of(err, rb_eSignal)) {
 	    VALUE sig = rb_iv_get(err, "signo");
 	    state = NUM2INT(sig);
-	    if (signo) *signo = state;
 	    break;
 	}
 	else if (ex == 0) {
@@ -237,6 +236,9 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex, int *signo)
     }
 #endif
 
+    vm->exit_status.signal = state;
+    vm->exit_status.code = ex;
+
     return ex;
 }
 
@@ -244,7 +246,8 @@ int
 ruby_cleanup(int ex)
 {
     rb_vm_t *vm = GET_VM();
-    int signo = 0, status = ruby_vm_cleanup(vm, ex, &signo);
+    int status = ruby_vm_cleanup(vm, ex);
+    int signo = ruby_vm_exit_signal(vm);
     ruby_vm_destruct(vm);
     if (signo) ruby_default_signal(signo);
     return status;
@@ -276,6 +279,18 @@ ruby_executable_node(void *n, int *status)
 #define ruby_vm_exec_internal(vm, n) ruby_exec_internal((vm)->main_thread, n)
 
 int
+ruby_vm_exit_status(rb_vm_t *vm)
+{
+    return vm->exit_status.code;
+}
+
+int
+ruby_vm_exit_signal(rb_vm_t *vm)
+{
+    return vm->exit_status.signal;
+}
+
+int
 ruby_vm_exec_node(rb_vm_t *vm, void *n)
 {
     ruby_init_stack((void *)&n);
@@ -283,28 +298,28 @@ ruby_vm_exec_node(rb_vm_t *vm, void *n)
 }
 
 int
-ruby_vm_run(rb_vm_t *vm, int *signo)
+ruby_vm_run(rb_vm_t *vm)
 {
-    return ruby_vm_start(vm, ruby_vm_init(vm), signo);
+    return ruby_vm_start(vm, ruby_vm_init(vm));
 }
 
 int
-ruby_vm_start(rb_vm_t *vm, int status, int *signo)
+ruby_vm_start(rb_vm_t *vm, int status)
 {
     void *n;
 
     rb_thread_set_current_raw(vm->main_thread);
     Init_stack((void *)&vm);
     if (status != 0) {
-	return ruby_vm_cleanup(vm, status, signo);
+	return ruby_vm_cleanup(vm, status);
     }
     n = ruby_vm_parse_options(vm);
     if (!ruby_executable_node(n, &status)) {
-	ruby_vm_cleanup(vm, 0, signo);
+	ruby_vm_cleanup(vm, 0);
 	return status;
     }
     status = ruby_vm_exec_internal(vm, n);
-    return ruby_vm_cleanup(vm, status, signo);
+    return ruby_vm_cleanup(vm, status);
 }
 
 /*

@@ -2130,7 +2130,7 @@ vm_create(void *arg)
     ruby_native_cond_signal(&args->waiting);
     ruby_native_thread_unlock(args->lock);
 
-    return (VALUE)ruby_vm_start(vm, status, 0);
+    return (VALUE)ruby_vm_start(vm, status);
 }
 
 static VALUE
