@@ -506,6 +506,7 @@ Init_<%= canonname n %>(VALUE unused)
     <%= genquasi_gentable excs %>,
     <%= genquasi_gentemplate body %>,
     <%= fnam %>,
+    <%= genquasi_genicsize body %>,
 }
 	end
 
@@ -572,6 +573,24 @@ Init_<%= canonname n %>(VALUE unused)
 			else raise i.inspect
 			end
 		end
+	end
+
+	# Counts how many inline caches are used
+	def genquasi_genicsize ary
+		ret = 0
+		ary.each do |i|
+			case i
+			when Array
+				op, *argv = *i
+				t = YARVAOT::INSNS[op]
+				if t
+					t[:opes].each do |(k, v)|
+						ret += 1 if k == 'IC'
+					end
+				end
+			end
+		end
+		return ret
 	end
 
 	# Generates  a   ISeq  internal  function,  which  actually   runs  on  iseq

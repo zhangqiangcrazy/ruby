@@ -7,7 +7,6 @@
 
 require 'optparse'
 require 'rbconfig'
-require 'tempfile'
 
 # This is the compiler driver.
 #
@@ -128,6 +127,12 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 		begin
 			$VERBOSE = true
 			STDERR.puts RUBY_DESCRIPTION
+		end
+
+		@opt.on_tail '-W[n]', <<-'begin'.strip, Integer do |optarg|
+                                   Not yet.
+		begin
+			# Not yet.
 		end
 
 		@opt.on_tail '-r', '--require=FEATURE', <<-'begin'.strip do |optarg|

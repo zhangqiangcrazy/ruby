@@ -163,7 +163,8 @@ struct yarvaot_quasi_iseq_tag {
     } const args;               /**< args */
     struct yarvaot_quasi_catch_table_entry_tag const* const catches;
     char const* const* const template;
-    rb_insn_func_t* const impl;  /**< body */
+    rb_insn_func_t* const impl; /**< body */
+    long const ic_size;         /**< # of used IC */
 };
 
 /**

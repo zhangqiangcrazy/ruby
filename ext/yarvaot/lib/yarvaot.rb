@@ -7,6 +7,7 @@
 # legal info.
 
 require 'yarvaot.so'
+require 'tempfile'
 
 # An  abstract class  that  represents a  compiler  subprocess.  Some  instance
 # methods _must_ be  overridden because this class does  not define real useful

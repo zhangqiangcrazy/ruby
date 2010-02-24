@@ -21,6 +21,7 @@ __END__
  * legal info. */
 #include <ruby/ruby.h>
 #include <ruby/encoding.h>
+#include "gc.h"
 #include "eval_intern.h"
 #include "iseq.h"
 #include "vm_opts.h"
@@ -64,6 +65,7 @@ static VALUE yarvaot_new_array_of_symbols(struct yarvaot_quasi_string_tag const*
 static VALUE yarvaot_geniseq_genargs(struct yarvaot_quasi_iseq_tag const* q);
 static VALUE yarvaot_geniseq_gencatch(struct yarvaot_quasi_catch_table_entry_tag const* q);
 static VALUE yarvaot_geniseq_genbody(struct yarvaot_quasi_iseq_tag const* q);
+static void yarvaot_set_ic_size(VALUE iseqval, long size);
 
 % insns.each {|insn|
 #line <%= _erbout.lines.to_a.size + 1 %> "yarvaot.c"
@@ -398,6 +400,24 @@ yarvaot_geniseq_genbody(struct yarvaot_quasi_iseq_tag const* q)
             rb_raise(rb_eTypeError, "unknown: %s", *p);
 }
 
+void
+yarvaot_set_ic_size(VALUE iseqval, long n)
+{
+    rb_iseq_t* iseq;
+    GetISeqPtr(iseqval, iseq);
+    if(n > 0) {
+        void* p = xcalloc(n, sizeof(struct iseq_inline_cache_entry));
+        if(p) {
+            RUBY_FREE_UNLESS_NULL(iseq->ic_entries);
+            iseq->ic_size = n;
+            iseq->ic_entries = p;
+            return;
+        }
+    }
+    /* reaching here indicates an error situation */
+    iseq->ic_size = 0;
+}
+
 VALUE
 yarvaot_geniseq(struct yarvaot_quasi_iseq_tag const* q)
 {
@@ -424,7 +444,9 @@ yarvaot_geniseq(struct yarvaot_quasi_iseq_tag const* q)
                                    magic, major, minor, teeny,
                                    intro, name, file, lineno, type,
                                    locals, args, excs, body);
-        return rb_iseq_load(to_a, Qnil, Qnil);
+        VALUE iseq   = rb_iseq_load(to_a, Qnil, Qnil);
+        yarvaot_set_ic_size(iseq, q->ic_size);
+        return iseq;
     }
 }
 
