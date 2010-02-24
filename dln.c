@@ -108,6 +108,7 @@ dln_loaderror(const char *format, ...)
 #ifndef FUNCNAME_PATTERN
 # if defined(__hp9000s300) || ((defined(__NetBSD__) || defined(__FreeBSD__) || defined(__OpenBSD__)) && !defined(__ELF__)) || defined(__BORLANDC__) || defined(NeXT) || defined(__WATCOMC__) || defined(MACOSX_DYLD)
 #  define FUNCNAME_PATTERN "_Init_%s"
+#  define EXTERN_SYMBOL_PREFIX "_"
 # else
 #  define FUNCNAME_PATTERN "Init_%s"
 # endif
@@ -146,6 +147,20 @@ init_funcname_len(char **buf, const char *file)
     free(*buf);\
     *buf = tmp;\
 } while (0)
+
+#ifdef EXTERN_SYMBOL_PREFIX
+static const char extern_symbol_prefix[] = EXTERN_SYMBOL_PREFIX;
+static inline char *make_extern_symbol(char *buf, const char *name)
+{
+    memcpy(buf, extern_symbol_prefix, sizeof(extern_symbol_prefix) - 1);
+    strcpy(buf + sizeof(extern_symbol_prefix) - 1, name);
+    return buf;
+}
+#define extern_symbol(name) \
+    make_extern_symbol(ALLOCA_N(char, sizeof(extern_symbol_prefix) + strlen(name)), name)
+#else
+#define extern_symbol(name) (name)
+#endif
 
 #ifdef USE_DLN_A_OUT
 
@@ -1476,4 +1491,39 @@ dln_load(const char *file)
 #endif
 
     return 0;			/* dummy return */
+}
+
+void (*dln_symbol(void *handle, const char *sym))()
+{
+#ifdef NO_DLN_LOAD
+    return 0;
+#else
+    const char *buf = extern_symbol(sym);
+    void (*init_fct)() = 0;
+
+#if defined _WIN32 && !defined __CYGWIN__
+    init_fct = (void(*)())GetProcAddress((HANDLE)handle, buf);
+#elif defined USE_DLN_A_OUT
+    init_fct = (void(*)())dln_sym(buf);
+#elif defined USE_DLN_DLOPEN
+    init_fct = (void(*)())dlsym(handle, buf);
+#elif defined __hpux
+    {
+	shl_t lib = (shl_t)handle;
+
+	shl_findsym(&lib, buf, TYPE_PROCEDURE, (void*)&init_fct);
+	if (init_fct == NULL) {
+	    shl_findsym(&lib, buf, TYPE_UNDEFINED, (void*)&init_fct);
+	}
+    }
+#elif defined(_AIX) && ! defined(_IA64)
+    if (loadbind(0, (void*)dln_load, (void*)init_fct) == -1) {
+	init_fct = 0;
+    }
+#else
+    /* NeXT, MacOSX dyld, OPENSTEP dyld are not supported */
+#   error not supported
+#endif
+    return init_fct;
+#endif /* NO_DLN_LOAD */
 }

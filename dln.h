@@ -38,4 +38,5 @@ extern char *dln_argv0;
 #endif
 
 void *dln_load(const char*);
+void (*dln_symbol(void *, const char*))();
 #endif
