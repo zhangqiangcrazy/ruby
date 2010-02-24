@@ -119,14 +119,15 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 			$DEBUG = 1
 		end
 
-		@opt.on_tail '--metaverbose', <<-'begin'.strip do
+		@opt.on_tail '-v', '--metaverbose', <<-'begin'.strip do
                                    Compiler  gets  annoying.  Sets $VERBOSE  of
                                    this compiler suite, not for the ruby script
                                    to compile.   This is useful  when you debug
                                    the suite.
 		begin
 			$VERBOSE = true
-			STDERR.puts RUBY_DESCRIPTION
+			ver = "yarvaot running under: " + RUBY_DESCRIPTION
+			puts ver
 		end
 
 		@opt.on_tail '-W[n]', <<-'begin'.strip, Integer do |optarg|
@@ -216,6 +217,10 @@ HDR2
 					end
 			target = argv.shift if who != self
 		end
+		# -v  without filename,  just print  version string  (done  above) and
+		# quit with successful exit code.
+		Process.exit if target.nil? and $VERBOSE
+
 		verbose_out 'driver started.'
 		# opening input  file here,  preventing outer-process attackers  to choke
 		# our filesystem.

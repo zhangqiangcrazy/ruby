@@ -115,7 +115,7 @@ main(int argc, char** argv)
     ruby_init();
     ruby_init_loadpath_safe(0);
     rb_protect(Init_#{c}, Qnil, &state);
-    return state;
+    return ruby_cleanup(state);
 }
 		end
 	end

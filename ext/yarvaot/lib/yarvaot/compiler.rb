@@ -310,7 +310,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
         cfp_pc(r) += 2;                          \
     }
 
-static const size_t sizeof_ic = 0; /* initialized later */
+static size_t sizeof_ic = 0; /* initialized later */
 	end
 	#' <- needed to f*ck emacs
 
@@ -328,6 +328,7 @@ VALUE
 Init_<%= canonname n %>(VALUE unused)
 {
     /* initializations */
+    sizeof_ic = yarvaot_sizeof_ic();
 %# generator entries have mutual dependencies so order matters
 %@generators.each_pair do |k, v|
     <%= k %> = <%= v %>;
@@ -713,8 +714,9 @@ again:
 			when 'lindex_t', 'dindex_t', 'rb_num_t'
 				a
 			when 'IC'
+				tmp = "ic(#{ic_idx[0]})"
 				ic_idx[0] += 1
-				"ic(#{ic_idx[0]})"
+				tmp
 			when 'OFFSET'
 				m = /\d+/.match a.to_s
 				if m
