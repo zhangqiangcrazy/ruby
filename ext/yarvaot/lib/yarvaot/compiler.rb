@@ -15,7 +15,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 
 	# Instructions that touch CFPs
 	Invokers = [
-		:send, :leave, :finish,
+		:send, :leave, :finish, :throw,
 		:invokeblock, :invokesuper,
 		:defineclass,
 		:opt_call_c_function,
