@@ -18,6 +18,9 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		:send, :leave, :finish, :throw,
 		:invokeblock, :invokesuper,
 		:defineclass,
+		:opt_plus, :opt_minus, :opt_mult, :opt_div, :opt_mod,
+		:opt_not, :opt_eq, :opt_neq, :opt_lt, :opt_le, :opt_gt, :opt_ge,
+		:opt_ltlt, :opt_aref, :opt_aset, :opt_length, :opt_size, :opt_succ,
 		:opt_call_c_function,
 	]
 
@@ -726,7 +729,9 @@ again:
 					 when *Invokers
 						 body + ";\n" \
 						 "        if(UNLIKELY(r != saved_r))\n" \
-						 "            return r"
+						 "            return r;\n" \
+						 "        else\n" \
+						 "            goto again"
 					 else
 						 body
 					 end
