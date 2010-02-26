@@ -335,9 +335,14 @@ Init_<%= canonname n %>(VALUE unused)
 %end
 
     /* register global variables */
-#define reg(n) \
-    rb_gc_register_mark_object(n);\
-    hide_obj(n)
+#define reg(n)                     \
+    rb_gc_register_mark_object(n); \
+    switch(BUILTIN_TYPE(n)) {      \
+    case T_STRING:                 \
+    case T_ARRAY:                  \
+        hide_obj(n);               \
+        break;                     \
+    }
 %values.each do |i|
     reg(<%= i %>);
 %end
@@ -458,6 +463,20 @@ Init_<%= canonname n %>(VALUE unused)
 						else
 							j
 						end
+					when Array # CDHASH
+						j.map! do |k|
+							case k
+							when Symbol
+								if /\Alabel_/.match k
+									"yarv_#{labels[k]}".intern
+								else
+									k
+								end
+							else
+								k
+							end
+						end
+						j
 					else
 						j
 					end
@@ -599,7 +618,6 @@ Init_<%= canonname n %>(VALUE unused)
 	def genfunc iseq, name, body, file, line, type
 		fnam = namegen name, 'rb_insn_func_t', :uniq
 		labels_seen = Hash.new
-		ic_idx = [0]
 		func = FunctionTemplate.result binding
 		@functions.push func
 		fnam
@@ -632,11 +650,10 @@ again:
 %	case i
 %	when Symbol
 %		labels_seen.store i, true
-    <%= i %>:
 %	when Numeric
 %		# ignore
 %	when Array
-<%= genfunc_geninsn emu_pc, i, iseq, labels_seen, ic_idx, %>;
+<%= genfunc_geninsn emu_pc, i, iseq, labels_seen %>;
 %	   emu_pc += i.size
 %	end
 %end
@@ -652,7 +669,7 @@ again:
 
 	# For a instruction _insn_, there is  an equivalent C expression to run that
 	# insn.
-	def genfunc_geninsn pc, insn, parent, labels_seen, ic_idx
+	def genfunc_geninsn pc, insn, parent, labels_seen
 		invokers = [
 			:send, :leave,
 			:invokeblock, :invokesuper,
@@ -665,9 +682,10 @@ again:
 		ret = "    case #{pc}: "
 		op, *argv = *insn
 		ret << case op
-				 when :nop, :phony
-					 # nop is NOT actually a no-op... it should update the pc.
-					 "cfp_pc(r) += #{insn.size}"
+				 # when :nop, :phony
+				 # 	 # nop is NOT actually a no-op... it should update the pc.
+				 # 	 i = insn.size
+				 # 	 "cfp_pc(r) += #{i}"
 				 # when :branchunless, :branchif, :jump
 				 # 	 l = argv[0]
 				 # 	 m = /\d+/.match l.to_s
@@ -676,13 +694,16 @@ again:
 				 # 		  else
 				 # 			  'nointr'
 				 # 		  end
-				 # 	 "yarvaot_insn_#{op}_#{s}(t, #{m[0]}, #{l})"
+				 # 	 "yarvaot_insn_#{op}_#{s}(t, r, #{m[0]}, #{l})"
+				 when :phony
+					 # phony insns are placeholders to opt_call_c_function.
+					 'r = yarvaot_insn_nop(t, yarvaot_insn_nop(t, r));'
 				 else
-					 s = genfunc_genargv op, argv, parent, ic_idx, pc
+					 s = genfunc_genargv op, argv, parent, pc
 					 body = if s.empty?
-								  "r = yarvaot_insn_#{op}(t)"
+								  "r = yarvaot_insn_#{op}(t, r)"
 							  else
-								  "r = yarvaot_insn_#{op}(t, #{s})"
+								  "r = yarvaot_insn_#{op}(t, r, #{s})"
 							  end
 					 case op
 					 when *branchers
@@ -699,7 +720,7 @@ again:
 	end
 
 	# ISeq operands transformation.
-	def genfunc_genargv op, argv, parent, ic_idx, pc
+	def genfunc_genargv op, argv, parent, pc
 		type = YARVAOT::INSNS[op][:opes].map do |i| i.first end
 		ta = type.zip argv
 		ta.map! do |(t, a)|
@@ -714,8 +735,7 @@ again:
 			when 'lindex_t', 'dindex_t', 'rb_num_t'
 				a
 			when 'IC'
-				tmp = "ic(#{ic_idx[0]})"
-				ic_idx[0] += 1
+				tmp = "ic(#{a})"
 				tmp
 			when 'OFFSET'
 				m = /\d+/.match a.to_s
@@ -724,7 +744,21 @@ again:
 				else
 					raise a.inspect
 				end
-			when 'CDHASH', 'VALUE'
+			when 'CDHASH'
+				# CDHASH  is actually  a mapping  of VALUE  => Fixnum,  where those
+				# fixnums are fixnum-converted OFFSET value.
+				tmp = Hash.new
+				a.each_slice 2 do |k, v|
+					m = /\d+/.match v.to_s
+					if m
+						n = m.to_s.to_i - pc - argv.size - 1
+					else
+						raise a.inspect
+					end
+					tmp.store k, n
+				end
+				robject2csource tmp
+			when 'VALUE'
 				robject2csource a
 			when 'GENTRY' # struct rb_global_entry*
 				sym = robject2csource a

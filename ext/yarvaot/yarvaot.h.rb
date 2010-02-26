@@ -197,7 +197,7 @@ RUBY_EXTERN rb_control_frame_t* yarvaot_insn_<%=
 
 insn.name
 
-%>(rb_thread_t* th<%=
+%>(rb_thread_t* th, rb_control_frame_t* reg_cfp<%=
    if(/^#define CABI_OPERANDS 1$/.match(extconfh))
        insn.opes.map {|(typ, nam)|
           (typ == "...") ? ", ..." : ", #{typ} #{nam}"

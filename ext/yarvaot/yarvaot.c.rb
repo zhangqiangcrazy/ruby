@@ -72,7 +72,8 @@ static void yarvaot_set_ic_size(VALUE iseqval, long size);
 
 rb_control_frame_t*
 yarvaot_insn_<%= insn.name %>(
-    rb_thread_t* th<% -%>
+    rb_thread_t* th,
+    rb_control_frame_t* reg_cfp<% -%>
 %   if(/^#define CABI_OPERANDS 1$/.match(extconfh))
 %       insn.opes.map {|(typ, nam)|
 %           if(typ == "...")
@@ -86,7 +87,6 @@ yarvaot_insn_<%= insn.name %>(
 %   end
 )
 {
-    rb_control_frame_t* reg_cfp = th->cfp;
     /* make_header_prepare_stack omitted */
     /* make_header_stack_val */
 %   vars = insn.opes + insn.pops + insn.defopes.map() {|ent| ent[0]; };
@@ -392,7 +392,7 @@ yarvaot_geniseq_genbody(struct yarvaot_quasi_iseq_tag const* q)
             ret = rb_ary_push(ret, occf);
         else if(MEMCMP(*p, "end", char, 3) == 0) /* end mark */
             return ret;
-        else if(MEMCMP(*p, "label_", char, 6) == 0)
+        else if(MEMCMP(*p, "yarv_", char, 5) == 0)
             ret = rb_ary_push(ret, ID2SYM(rb_intern(*p)));
         else if(RTEST(i = rb_cstr_to_inum(*p, 0, 0))) /* lineno */
             ret = rb_ary_push(ret, i);
@@ -431,7 +431,7 @@ yarvaot_geniseq(struct yarvaot_quasi_iseq_tag const* q)
         VALUE major  = INT2FIX(1);
         VALUE minor  = INT2FIX(2);
         VALUE teeny  = INT2FIX(1);
-        VALUE intro  = Qnil;        /* seems not used at all */
+        VALUE intro  = rb_hash_new(); /* seems not used at all */
         VALUE name   = rb_str_new_from_quasi_string(&q->name);
         VALUE file   = rb_str_new_from_quasi_string(&q->filename);
         VALUE lineno = LONG2FIX(q->lineno);
