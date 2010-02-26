@@ -13,6 +13,21 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	# This is used to limit the UUID namespace
 	Namespace = UUID.parse 'urn:uuid:71614e1a-0cb4-11df-bc41-5769366ff630'
 
+	# Instructions that touch CFPs
+	Invokers = [
+		:send, :leave, :finish,
+		:invokeblock, :invokesuper,
+		:defineclass,
+		:opt_call_c_function,
+	]
+
+	# Instructions that touch PCs
+	Branchers = [
+		:branchunless, :branchif, :jump,
+		:getinlinecache, :onceinlinecache, 
+		:opt_case_dispatch
+	]
+
 	# Instantiate.  Does nothing yet.
 	def initialize
 		super
@@ -426,9 +441,15 @@ Init_<%= canonname n %>(VALUE unused)
 	def prepare a, b
 		labels = Hash.new
 		phony = [:phony, nil]
-		x = [phony]
+		case a[0]
+		when Symbol
+			x = []
+			emu_pc = 0
+		else
+			x = [phony]
+			emu_pc = 2
+		end
 		y = b.dup
-		emu_pc = 2
 		a.each_with_index do |i, j|
 			case i
 			when Integer then x << i
@@ -440,12 +461,14 @@ Init_<%= canonname n %>(VALUE unused)
 			when Array   then
 				x << i
 				emu_pc += i.size
-				if i.first == :send and not a[j+1].is_a? Symbol
-					l = "label_phony_#{emu_pc}".intern
-					labels.store l, emu_pc
-					x << l
-					x << phony
-					emu_pc += 2
+				case i.first when *Invokers
+					unless a[j+1].is_a? Symbol # that case does not need it
+						l = "label_phony_#{emu_pc}".intern
+						labels.store l, emu_pc
+						x << l
+						x << phony
+						emu_pc += 2
+					end
 				end
 			else raise i.inspect
 			end
@@ -670,15 +693,6 @@ again:
 	# For a instruction _insn_, there is  an equivalent C expression to run that
 	# insn.
 	def genfunc_geninsn pc, insn, parent, labels_seen
-		invokers = [
-			:send, :leave,
-			:invokeblock, :invokesuper,
-		]
-		branchers = [
-			:branchunless, :branchif, :jump,
-			:getinlinecache, :onceinlinecache, 
-			:opt_case_dispatch
-		]
 		ret = "    case #{pc}: "
 		op, *argv = *insn
 		ret << case op
@@ -706,10 +720,10 @@ again:
 								  "r = yarvaot_insn_#{op}(t, r, #{s})"
 							  end
 					 case op
-					 when *branchers
+					 when *Branchers
 						 body + ";\n"\
 						 "        goto again"
-					 when *invokers
+					 when *Invokers
 						 body + ";\n" \
 						 "        if(UNLIKELY(r != saved_r))\n" \
 						 "            return r"
