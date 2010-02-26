@@ -840,7 +840,7 @@ again:
 		when Range
 			from = robject2csource obj.begin
 			to   = robject2csource obj.end
-			xclp = obj.exclude_end? ? 0 : 1
+			xclp = obj.exclude_end? ? 1 : 0
 			put  = sprintf 'rb_range_new(%s, %s, %d)', from, to, xclp
 		when Class
 			if obj == Object
