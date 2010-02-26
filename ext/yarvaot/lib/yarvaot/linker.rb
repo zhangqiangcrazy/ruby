@@ -103,6 +103,7 @@ class YARVAOT::Linker < YARVAOT::Subcommand
 		io.write <<-end
 #include <string.h>
 #include <ruby/ruby.h>
+#include <ruby/encoding.h>
 extern VALUE Init_#{c}(VALUE);
 extern void ruby_init_loadpath_safe(int);
 RUBY_GLOBAL_SETUP
@@ -114,6 +115,7 @@ main(int argc, char** argv)
     ruby_sysinit(&argc, &argv);
     ruby_init();
     ruby_init_loadpath_safe(0);
+    rb_enc_find_index("encdb");
     rb_protect(Init_#{c}, Qnil, &state);
     return ruby_cleanup(state);
 }
