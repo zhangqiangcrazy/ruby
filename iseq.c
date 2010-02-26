@@ -518,7 +518,9 @@ VALUE
 rb_iseq_load(VALUE data, VALUE parent, VALUE opt)
 {
     if(RTEST(rb_obj_is_kind_of(data, rb_cISeq))) {
-	set_relation(data, parent);
+	rb_iseq_t* iseq;
+	GetISeqPtr(data, iseq);
+	set_relation(iseq, parent);
 	return data;
     }
     return iseq_load(rb_cISeq, data, parent, opt);
