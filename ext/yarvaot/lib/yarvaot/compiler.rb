@@ -246,7 +246,6 @@ Init_<%= canonname n %>(VALUE unused)
         break;                     \
     }
 #define bye(n)                     \
-    rb_gc_force_recycle(n);        \
     n = Qundef
 
 %@namespace.each do |i|
