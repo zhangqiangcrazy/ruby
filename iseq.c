@@ -439,6 +439,7 @@ iseq_load(VALUE self, VALUE data, VALUE parent, VALUE opt)
     rb_compile_option_t option;
     int i = 0;
     long stack_max;
+    long local_size;
 
     /* [magic, major_version, minor_version, format_type, misc,
      *  name, filename, line_no,
@@ -505,6 +506,16 @@ iseq_load(VALUE self, VALUE data, VALUE parent, VALUE opt)
      * insn can use much many stack spaces than you might think. */
     stack_max = NUM2LONG(rb_hash_aref(misc, ID2SYM(rb_intern("stack_max"))));
     if (iseq->stack_max < stack_max) iseq->stack_max = stack_max;
+    /* local_size should also honor the input because
+     * opt_call_c_function insn can use much many local variables than
+     * you might think. */
+    local_size = NUM2LONG(rb_hash_aref(misc, ID2SYM(rb_intern("local_size"))));
+    if (iseq->local_size < local_size) {
+        RUBY_FREE_UNLESS_NULL(iseq->local_table);
+        iseq->local_table_size = local_size - 1;
+        iseq->local_table = xcalloc(iseq->local_table_size, sizeof(ID*));
+        iseq->local_size = iseq->local_table_size + 1;
+    }
 
     cleanup_iseq_build(iseq);
     return iseqval;
