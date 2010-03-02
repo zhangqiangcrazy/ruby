@@ -172,7 +172,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	# Toplevel to trigger compilation
 	def compile str, n, iseq, io
 		toplevel = recursive_transform iseq
-#		embed_sourcecode str, n
+		embed_sourcecode str, n
 
 		Template.trigger binding
 	end
@@ -570,6 +570,15 @@ again:
 		enam.initialization = sprintf '%s = rb_iseq_load(%s, %s, 0);',
 												enam, anam, parent || 'Qnil'
 		enam.depends anam
+	end
+
+	# Embed  the  original  source  code.   This  is  expected  to  be  used  in
+	# combination with  __END__ handling, which is not  implemented yet, because
+	# we plan to use multi-VM APIs for that purpose.
+	def embed_sourcecode str, fn
+		gen_each_lenptr 'filename', fn
+		gen_each_lenptr 'filecoding', str.encoding.name
+		gen_each_lenptr 'src', str
 	end
 end
 

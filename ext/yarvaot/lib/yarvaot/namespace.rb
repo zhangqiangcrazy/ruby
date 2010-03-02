@@ -452,6 +452,31 @@ module YARVAOT::Converter
 		return name
 	end
 
+	# Yet more long string than gen_lenptr
+	def gen_each_lenptr var, str
+		str.each_line.with_index do |i, j|
+			a = rstring2cstr i
+			case a.size when 1
+				vnam  = sprintf '%s_%x', var, j
+				gen_lenptr vnam, *a[0]
+			else
+				a.each_with_index do |b, k|
+					vnam = sprintf '%s_%x_%x', var, j, k
+					gen_lenptr vnam, *b
+				end
+			end
+		end
+	end
+
+	# Static allocation of a loooooong string
+	def gen_lenptr var, ptr, len
+		name = @namespace.new var
+		name.declaration = "static sourcecode_t #{name}"
+		name.definition  = sprintf '%s = { %#05x, %s, };',
+											name.declaration, len, ptr
+		name
+	end
+
 	# Returns a 2-dimensional array [[str, len], [str, len], ... ]
 	#
 	# This is needed because Ruby's String#dump is different from C's.
