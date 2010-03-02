@@ -147,7 +147,9 @@ class UUID
 					str = sha1.digest
 					r = rand 34 # 40-6
 					node = str[r, 6] || str
+					node = node.bytes.to_a
 					node[0] |= 0x01 # multicast bit
+					node = node.pack "C*"
 					k = rand 0x40000
 					open STATE_FILE, 'w' do |fp|
 						fp.flock IO::LOCK_EX
