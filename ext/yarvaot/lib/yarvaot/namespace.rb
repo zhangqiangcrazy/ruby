@@ -94,6 +94,7 @@ class YARVAOT::Namespace
 		# AS_TR_CPP().
 		def as_tr_cpp name
 			q = name.dup
+			q.force_encoding 'ASCII-8BIT'
 			q.gsub! %r/[^a-zA-Z0-9_]/m, '_'
 			q.gsub! %r/_+/, '_'
 			q

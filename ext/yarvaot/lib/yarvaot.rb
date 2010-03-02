@@ -69,6 +69,7 @@ class YARVAOT::Subcommand
 	# AS_TR_CPP().
 	def as_tr_cpp name, prefix = 'q_'
 		q = name.dup
+		q.force_encoding 'ASCII-8BIT'
 		q.gsub! %r/\s/m, '_'
 		q.gsub! %r/[^a-zA-Z0-9_]/, '_'
 		q.gsub! %r/_+/, '_'
