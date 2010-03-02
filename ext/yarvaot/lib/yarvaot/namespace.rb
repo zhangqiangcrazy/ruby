@@ -221,6 +221,12 @@ class YARVAOT::Namespace
 		end
 	end
 
+	# dangerous. do not use this.
+	def force_set_decl! decl
+		@declaration = decl
+		@definition = nil
+	end
+
 	def to_s
 		@expression or @name
 	end
@@ -294,9 +300,9 @@ module YARVAOT::Converter
 			# method's usage a  bignum reaching this stage is  sourced from a Ruby
 			# source  code's bignum  literals, so  they might  not be  much larger
 			# though.
-			name ||= @namespace.new obj.to_s
+			name ||= @namespace.new 'num_' + obj.to_s
 			rstr = robject2csource obj.to_s, :volatile
-			init = sprintf "rb_str2inum(%s, 10);\n%s = Qundef", rstr, rstr
+			init = sprintf "rb_str2inum(%s, 10)", rstr
 			deps << rstr
 		when Float
 			name ||= @namespace.new obj.to_s
@@ -440,7 +446,15 @@ module YARVAOT::Converter
 
 		name ||= @namespace.new init
 		case name when @namespace
-			name.declaration    = volatilep ? decl : "static #{decl}"
+			static_decl = "static #{decl}"
+			if volatilep and name.declaration == static_decl
+				# OK? same object, different visibility
+			elsif not volatilep and name.declaration == decl
+				# OK? same object, different visibility
+				name.force_set_decl! static_decl
+			else
+				name.declaration = volatilep ? decl : static_decl
+			end
 			name.definition     = "#{name.declaration} #{name.name} = #{vdef};";
 			name.initialization = "#{name.name} = #{init};" if init
 			name.expression     = expr
