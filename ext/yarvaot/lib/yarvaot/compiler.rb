@@ -336,7 +336,8 @@ Init_<%= canonname n %>(VALUE unused)
 			when Array
 				emu_pc += i.size
 				case i.first when *Invokers
-					unless a[j+1].is_a? Symbol # that case does not need it
+					unless a[j+1].is_a? Symbol or # that case does not need it
+							a.size == j + 1 # last entry needs no care
 						l = "label_phony_#{emu_pc}".intern
 						labels.store l, emu_pc
 						x << l
