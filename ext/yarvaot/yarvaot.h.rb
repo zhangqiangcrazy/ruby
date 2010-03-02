@@ -48,29 +48,6 @@ typedef VALUE CDHASH;
 typedef struct iseq_inline_cache_entry* IC;
 typedef rb_control_frame_t* rb_insn_func_t(rb_thread_t* th, rb_control_frame_t* reg_cfp);
 
-/** This should not be here... */
-enum yarvaot_catch_type_tag {
-    CATCH_TYPE_RESCUE = ((int)INT2FIX(1)),
-    CATCH_TYPE_ENSURE = ((int)INT2FIX(2)),
-    CATCH_TYPE_RETRY  = ((int)INT2FIX(3)),
-    CATCH_TYPE_BREAK  = ((int)INT2FIX(4)),
-    CATCH_TYPE_REDO   = ((int)INT2FIX(5)),
-    CATCH_TYPE_NEXT   = ((int)INT2FIX(6))
-};
-
-/** This should not be here... */
-enum yarvaot_iseq_type_tag {
-    ISEQ_TYPE_TOP           = INT2FIX(1),
-    ISEQ_TYPE_METHOD        = INT2FIX(2),
-    ISEQ_TYPE_BLOCK         = INT2FIX(3),
-    ISEQ_TYPE_CLASS         = INT2FIX(4),
-    ISEQ_TYPE_RESCUE        = INT2FIX(5),
-    ISEQ_TYPE_ENSURE        = INT2FIX(6),
-    ISEQ_TYPE_EVAL          = INT2FIX(7),
-    ISEQ_TYPE_MAIN          = INT2FIX(8),
-    ISEQ_TYPE_DEFINED_GUARD = INT2FIX(9)
-};
-
 /**
  * hide_obj() seems not available worldwide
  *
@@ -136,52 +113,6 @@ struct yarvaot_quasi_string_tag {
     struct yarvaot_lenptr_tag const* const entries; /**< actual entity */
 };
 
-#define yqst struct yarvaot_quasi_string_tag /**< temporary rename */
-
-/**
- * This is a ``quasi'' instruction  sequence, which can then be converted using
- * yarvaot_geniseq().
- *
- * And beware  of those tactically  placed const qualifiers...  This  struct is
- * designed to be  totally statically allocated, which makes  a compiled binary
- * faster.
- */
-struct yarvaot_quasi_iseq_tag {
-    enum yarvaot_iseq_type_tag const type; /**< type of this iseq */
-    yqst const name;            /**< iseq name */
-    yqst const filename;        /**< where was it from */
-    long const lineno;          /**< where was it from */
-    yqst const* const locals;   /**< local variables */
-    struct {                    /**< args */
-        long const argc;        /**< argc */
-        yqst const* const opts; /**< arg_opts */
-        long const post_len;    /**< arg_post_len */
-        long const post_start;  /**< arg_post_start */
-        long const rest;        /**< arg_rest */
-        long const block;       /**< arg_block */
-        long const simple;      /**< arg_simple */
-    } const args;               /**< args */
-    struct yarvaot_quasi_catch_table_entry_tag const* const catches;
-    char const* const* const template;
-    rb_insn_func_t* const impl; /**< body */
-    long const ic_size;         /**< # of used IC */
-};
-
-/**
- * This is a static allocation version  of iseq exception tables, to be used in
- * combination with yarvaot_quasi_iseq_tag().
- */
-struct yarvaot_quasi_catch_table_entry_tag {
-    enum yarvaot_catch_type_tag const type;          /**< type */
-    struct yarvaot_quasi_iseq_tag const* const iseq; /**< body */
-    char const* const start;                         /**< label start */
-    char const* const end;                           /**< label end */
-    char const* const count;                         /**< label count */
-    long const sp;                                   /**< sp */
-};
-
-#undef yqst
-
 % insns.each {|insn|
 
 /**
@@ -244,6 +175,23 @@ RUBY_EXTERN void RUBY_VM_CHECK_INTS_TH(rb_thread_t* th);
 RUBY_EXTERN void* yarvaot_get_ic(rb_control_frame_t const* reg_cfp);
 
 /**
+ * An  ISeq's  IC  usage  is  normally  automatically  managed  by  the  Ruby's
+ * NODE->ISeq compiler, but when you do a ISeq->C compilation that is no longer
+ * possible, because no one can tell how  much ICs a C function will use.  This
+ * function allocates at least _size_ counts of IC entries for given _iseqval_,
+ * And to give it a proper _size_ argument is up to the C function.
+ *
+ * @param[out] reg_cfp  a control frame that points to a target iseq.
+ * @param[in]  size     how many ICs will that iseqval use
+ * @retval     TURE     allocation success
+ * @retval     FALSE    allocation failure
+ *
+ * Apart  from  those  return   values  some  exceptions  might  raise  inside,
+ * e.g. NoMemoryError.
+ */
+RUBY_EXTERN int yarvaot_set_ic_size(rb_control_frame_t* reg_cfp, size_t size);
+
+/**
  * The size of a inline cache is also opaque.
  * @returns the size.
  *
@@ -264,29 +212,6 @@ RUBY_EXTERN size_t yarvaot_sizeof_ic(void);
  * @retval    otherwise   a valid pointer to a inline cache entry.
  */
 RUBY_EXTERN VALUE* yarvaot_get_pc(rb_control_frame_t const* reg_cfp);
-
-/**
- * This  is a  helper function,  to  ease a  creation of  relatively long  m17n
- * string.  According to the ISO C, a  string literal can be at most 509 chars,
- * and a function  can have at most 31  arguments.  So this way you  can make a
- * string of  max 7,635 chars length.   Note however, that the  term `chars' is
- * used here in the sense of C.  Your milage will vary with your encoding.
- *
- * @sa struct yarvaot_quasi_string_tag
- *
- * @param[in] enc  encoding string.
- * @param[in] ...  a series of void*, size_t, void*, size_t, ..., terminates 0.
- * @returns        a Ruby string of encoding enc.
- */
-RUBY_EXTERN VALUE vrb_enc_str_new(char const* enc, ...);
-
-/**
- * Creates a ``real'' ISeq from a quasi-iseq.
- *
- * @param[in] quasi  a template.
- * @returns          a generated ISeq's iseqval.
- */
-RUBY_EXTERN VALUE yarvaot_geniseq(struct yarvaot_quasi_iseq_tag const* quasi);
 
 /*
  * Local Variables:

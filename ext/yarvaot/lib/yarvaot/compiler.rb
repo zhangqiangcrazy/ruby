@@ -4,50 +4,33 @@
 # Ruby to C  (and then, to machine executable)  compiler, originally written by
 # Urabe  Shyouhei <shyouhei@ruby-lang.org>  during 2010.   See the  COPYING for
 # legal info.
-require 'uuid'
-require 'erb'
+require_relative 'namespace'
 
 # This is the compiler proper, ruby -> C transformation engine.
 class YARVAOT::Compiler < YARVAOT::Subcommand
 
-	# This is used to limit the UUID namespace
-	Namespace = UUID.parse 'urn:uuid:71614e1a-0cb4-11df-bc41-5769366ff630'
+	include YARVAOT::Converter
 
 	# Instructions that touch CFPs
 	Invokers = [
-		:send, :leave, :finish, :throw,
-		:invokeblock, :invokesuper,
-		:defineclass,
-		:opt_plus, :opt_minus, :opt_mult, :opt_div, :opt_mod,
-		:opt_not, :opt_eq, :opt_neq, :opt_lt, :opt_le, :opt_gt, :opt_ge,
-		:opt_ltlt, :opt_aref, :opt_aset, :opt_length, :opt_size, :opt_succ,
-		:opt_call_c_function,
+		:send, :leave, :finish, :throw, :invokeblock, :invokesuper, :defineclass,
+		:opt_plus, :opt_minus, :opt_mult,  :opt_div, :opt_mod, :opt_not, :opt_eq,
+		:opt_neq,  :opt_lt,  :opt_le,  :opt_gt,  :opt_ge,  :opt_ltlt,  :opt_aref,
+		:opt_aset, :opt_length, :opt_size, :opt_succ, :opt_call_c_function,
 	]
 
 	# Instructions that touch PCs
 	Branchers = [
-		:branchunless, :branchif, :jump,
-		:getinlinecache, :onceinlinecache, 
+		:branchunless,   :branchif,  :jump,   :getinlinecache,  :onceinlinecache,
 		:opt_case_dispatch
 	]
 
 	# Instantiate.  Does nothing yet.
 	def initialize
 		super
-		@optlv               = 0
-		@namemax             = 31
-		@strmax              = 509
-		@toplevel            = String.new
-		@preambles           = String.new
-		@Trailers            = String.new
-		@namespace           = Hash.new
-		@namedb              = Hash.new
-		@sourcecodes         = Array.new
-		@functions           = Array.new
-		@generators          = Hash.new
-		@static              = Hash.new
-		@iseq_compile_option = Hash.new
-		@emit_disasm         = false
+		@strmax      = 509
+		@opts        = Hash.new
+		@namespace   = YARVAOT::Namespace.new
 
 		allopts = {
 			inline_const_cache:       true,
@@ -77,7 +60,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
                                    to 5  are supported, but  their meanings are
                                    not clear to me.
 		begin
-			@iseq_compile_option[:debug_level] = level || 1
+			@opts[:debug_level] = level || 1
 		end
 
 		@opt.on '-O [N]', <<-'begin'.strip, Integer do |level|
@@ -94,13 +77,13 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		begin
 			level ||= 0
 			if level <= 0
-				@iseq_compile_option.clear
+				@opts.clear
 			elsif level == 1
-				@iseq_compile_option.merge! level1opts
+				@opts.merge! level1opts
 			elsif level == 2
-				@iseq_compile_option.merge! level2opts
+				@opts.merge! level2opts
 			else
-				@iseq_compile_option.merge! allopts
+				@opts.merge! allopts
 			end
 			@optlv = level
 		end
@@ -124,7 +107,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
                                    that  an  ANSI-conforming  C  compiler  must
                                    understand.
 		begin
-			@namemax = n
+			@namespace   = YARVAOT::Namespace.new n
 		end
 
 		@opt.on '--strmax=N', <<-'begin'.strip, Integer do |n|
@@ -135,14 +118,6 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
                                    ANSI-conforming C compiler must understand.
 		begin
 			@strmax = n
-		end
-
-		@opt.on '--[no-]emit-disasm', <<-'begin'.strip, TrueClass do |n|
-                                   Emits VM-included disassembler output to the
-                                   generating C  source file as  comments. This
-                                   is mainly for debugging.
-		begin
-			@emit_disasm = n
 		end
 	end
 
@@ -155,15 +130,12 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 		run_in_pipe f do |g|
 			verbose_out 'compiler started.'
 			h, t = intercept f
-			RubyVM::InstructionSequence.compile_option = @iseq_compile_option
+			RubyVM::InstructionSequence.compile_option = @opts
 			iseq = RubyVM::InstructionSequence.new h, n
 			verbose_out 'compiler generated iseq.'
-			compile t.value, n, iseq
+			@namemax ||= YARVAOT::Namespace.new
+			compile t.value, n, iseq, g
 			verbose_out 'compiler generated C code.'
-			stringize n do |s|
-				g.write s
-			end
-			verbose_out 'compiler finished.'
 		end
 	end
 
@@ -198,59 +170,21 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	end
 
 	# Toplevel to trigger compilation
-	def compile str, n, iseq
-		@preambles = PreamblesTemplate.result binding
-		embed_sourcecode str, n
-		embed_debug_disasm iseq if @emit_disasm
-		@toplevel = recursive_transform iseq
+	def compile str, n, iseq, io
+		toplevel = recursive_transform iseq
+#		embed_sourcecode str, n
 
-		sp = @namespace.keys
-		n1 = @namedb.values.flatten 1
-		ndb = n1.sort_by do |(t, e)| sp.index e end
-		ndb.map! do |(t, e)|
-			[t, 'y_' + e]
-		end
-		@decls = ndb
-		values = ndb.select do |(t, e)| t == 'VALUE' end.transpose.last
-		values ||= Array.new
-
-		@trailers = TrailersTemplate.result binding
+		Template.trigger binding
 	end
 
-	# Feeds compiled C source code little by little to the given block.
-	def stringize name # :yields: string
-		yield @preambles
-		@decls.each do |(t, n)|
-			if decl = @static[n]
-				yield "static #{t} #{n}#{decl};\n"
-			else
-				# default decls
-				case t
-				when 'VALUE'
-					yield "static #{t} #{n} = Qundef;\n"
-				when 'ID', 'ISEQ', /\*\z/
-					yield "static #{t} #{n} = 0;\n"
-				else
-					yield "static #{t} #{n};\n"
-				end
-			end
-		end
-		yield "\n"
-		@sourcecodes.flatten.each do |i|
-			yield i
-		end
-		@functions.each do |f|
-			yield "\n"
-			yield f
-		end
-		yield @trailers
-	end
-
-	# This  is an  ERB template  to  generate a  C file  preamble.  It  normally
-	# generates a series of #include's  needed, a series of #define's needed and
-	# (if  any) a  series of  external  function declarations  missing from  the
-	# included header files.
-	PreamblesTemplate = ERB.new <<-'end', 0, '%'
+	# This is an ERB template to  generate a C sourcecode.
+	#
+	# Technical note: prior to its  invocation, an extension library entry point
+	# is casted as "void (*)(void)".   But a function which rb_protect() expects
+	# to have in its first argument is of type "VALUE (*)(VALUE)".  The function
+	# type of  a generated entry  point is subject  to change in future  when we
+	# abandon rb_protect().
+	Template = ERB.new <<-'end', 0, '%', 'io'
 /*
  * Auto-generated C sourcecode using YARVAOT, a Ruby to C compiler.
  *
@@ -282,77 +216,27 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 #define ic(n) (struct iseq_inline_cache_entry*)(ic + (n) * sizeof_ic)
 #define gentry(n) (VALUE)rb_global_entry(n)
 
-#define yarvaot_insn_jump_intr(t, n, l)         \
-    RUBY_VM_CHECK_INTS_TH(t);                   \
-    cfp_pc(r) = pc + n;                         \
-    goto l;
-#define yarvaot_insn_jump_nointr(t, n, l)       \
-    cfp_pc(r) = pc + n;                         \
-    goto l;
-#define yarvaot_insn_branchif_intr(t, n, l)     \
-    if(RTEST(*--cfp_sp(r))) {                   \
-        RUBY_VM_CHECK_INTS_TH(t);               \
-        cfp_pc(r) = pc + n;                     \
-        goto l;                                 \
-    }                                           \
-    else {                                      \
-        /* need to consume pc */                \
-        cfp_pc(r) += 2;                         \
-    }                   
-#define yarvaot_insn_branchif_nointr(t, n, l)   \
-    if(RTEST(*--cfp_sp(r))) {                   \
-        cfp_pc(r) = pc + n;                     \
-        goto l;                                 \
-    }                                           \
-    else {                                      \
-        /* need to consume pc */                \
-        cfp_pc(r) += 2;                         \
-    }
-#define yarvaot_insn_branchunless_intr(t, n, l) \
-    if(!RTEST(*--cfp_sp(r))) {                  \
-        RUBY_VM_CHECK_INTS_TH(t);               \
-        cfp_pc(r) = pc + n;                     \
-        goto l;                                 \
-    }                                           \
-    else {                                      \
-        /* need to consume pc */                \
-        cfp_pc(r) += 2;                         \
-    }
-#define yarvaot_insn_branchunless_nointr(t, n, l)\
-    if(!RTEST(*--cfp_sp(r))) {                   \
-        cfp_pc(r) = pc + n;                      \
-        goto l;                                  \
-    }                                            \
-    else {                                       \
-        /* need to consume pc */                 \
-        cfp_pc(r) += 2;                          \
-    }
+static size_t sizeof_ic = 0;
+%@namespace.each_static_decls do |decl|
+<%= decl %>
+%end
 
-static size_t sizeof_ic = 0; /* initialized later */
-	end
-	#' <- needed to f*ck emacs
-
-	# This is an ERB template to  generate a C sourcecode trailer, which is, the
-	# DLL entry point function.
-	#
-	# Technical note: prior to its  invocation, an extension library entry point
-	# is casted as "void (*)(void)".   But a function which rb_protect() expects
-	# to have in its first argument is of type "VALUE (*)(VALUE)".  The function
-	# type of  a generated entry  point is subject  to change in future  when we
-	# abandon rb_protect().
-	TrailersTemplate = ERB.new <<-'end', 0, '%'
+%@namespace.each_funcs do |decl|
+<%= decl %>
+%end
 
 VALUE
 Init_<%= canonname n %>(VALUE unused)
 {
-    /* initializations */
+%@namespace.each_nonstatic_decls do |decl|
+    <%= decl %>
+%end
     sizeof_ic = yarvaot_sizeof_ic();
-%# generator entries have mutual dependencies so order matters
-%@generators.each_pair do |k, v|
-    <%= k %> = <%= v %>;
+%@namespace.each_initializers do |init|
+    <%= init %>
 %end
 
-    /* register global variables */
+    /* finish up */
 #define reg(n)                     \
     rb_gc_register_mark_object(n); \
     switch(BUILTIN_TYPE(n)) {      \
@@ -361,62 +245,55 @@ Init_<%= canonname n %>(VALUE unused)
         hide_obj(n);               \
         break;                     \
     }
-%values.each do |i|
-    reg(<%= i %>);
+#define bye(n)                     \
+    rb_gc_force_recycle(n);        \
+    n = Qundef
+
+%@namespace.each do |i|
+%  if /\bVALUE\b/.match i.declaration
+%    if /\Astatic\b/.match i.declaration
+    reg(<%= i.name %>);
+%    else
+    bye(<%= i.name %>);
+%    end
+%  end
 %end
 #undef reg
 
     /* kick */
-    return rb_iseq_eval(<%= @toplevel %>);
+    return rb_iseq_eval(<%= toplevel %>);
 }
 	end
-
-	# Note, that a sourcecode starts from line one.
-	def embed_sourcecode str, n
-		verbose_out 'compiler embedding %s into c source...', n
-		enc = namegen 'src', 'char const*'
-		register_declaration_for enc, %' = "#{str.encoding.name}"'
-		a = rstring2cstr str, $/
-		a.each do |(expr, len)|
-			nam = namegen 'src', 'sourcecode_t', :realuniq
-			str = sprintf " = { %#05x, %s }", len, expr
-			register_declaration_for nam, str
-		end
-	end
-
-	# For debug, apply within.
-	def embed_debug_disasm iseq
-		verbose_out 'compiler embedding iseq disasm..'
-		@sourcecodes << "/*\n"
-		str = iseq.disasm
-		str.gsub! '/*', '/\\*'
-		str.gsub! '*/', '*\\/'
-		@sourcecodes << str << "\n*/\n"
-	end
+	#' <- needed to f*ck emacs
 
 	# This is where  the conversion happens.  ISeq array is  nested, so this can
 	# be called recursively.
-	#
-	# Returns the name of iseq when second argument evaluates to true. Otherwise
-	# returns the name of quasi-iseq.
-	def recursive_transform iseq, iseqname = true
-		return '0' if iseq.nil?
+	def recursive_transform iseq, parent = nil, needfunc = false
+		return needfunc ? '0' : 'Qnil' if iseq.nil?
 		ary = format_check iseq
 		info, name, file, line, type, locals, args, excs, body = ary
-		verbose_out "compiler is now compiling: %s", name
-		b, e = prepare body, excs
-		fnam = genfunc iseq, name, b, file, line, type
-		qnam = genquasi fnam, type, name, file, line, locals, args, e, b
-		if iseqname
-			inam = namegen 'i' + name, 'VALUE', :uniq
-			register_generator_for inam, "yarvaot_geniseq(&#{qnam})"
-			return inam
-		else
-			return qnam
-		end
+		fnam = @namespace.new 'func_' + name, :uniq
+		enam = @namespace.new 'iseq_' + name, :uniq
+		verbose_out "compiler is now compiling: %s -> %s", name, fnam
+		b, e = prepare body, excs, enam
+		genfunc fnam, enam, type, name, file, line, b
+		genexpr fnam, enam, name, iseq, e, b, parent
+		return needfunc ? fnam : enam
 	end
 
-	# This does  a tiny  transofrmation over  the ISeq body.   When an  ISeq was
+	# ISeq#to_ary format validation
+	#
+	# Only checks format, not for stack consistency.
+	def format_check iseq
+		x, y, z, w, *ary = *iseq.to_a
+		if x != 'YARVInstructionSequence/SimpleDataFormat' or
+			y != 1 or z != 2 or w != 1 then
+			raise ArgumentError, 'wrong format'
+		end
+		return *ary
+	end
+
+	# This does  a tiny  transformation over  the ISeq body.   When an  ISeq was
 	# compiled into  a C  function, that function  would be invoked  from ISeq's
 	# opt-call-c-function  instruction.  The problem  is, that  insn is  2 words
 	# length.  So  inserting an  OCCF insn into  a ISeq  might not work  on some
@@ -441,28 +318,23 @@ Init_<%= canonname n %>(VALUE unused)
 	#     putnil
 	#
 	# And the OCCF can happily squash those nops.
-	def prepare a, b
+	def prepare a, b, p
 		labels = Hash.new
 		phony = [:phony, nil]
-		case a[0]
-		when Symbol
-			x = []
-			emu_pc = 0
+		case a[0] when Symbol
+			x, emu_pc = [], 0
 		else
-			x = [phony]
-			emu_pc = 2
+			x, emu_pc = [phony], 2
 		end
 		y = b.dup
 		a.each_with_index do |i, j|
+			x << i
 			case i
-			when Integer then x << i
-			when Symbol  then
+			when Symbol
 				labels.store i, emu_pc
-				x << i
 				x << phony
 				emu_pc += 2
-			when Array   then
-				x << i
+			when Array
 				emu_pc += i.size
 				case i.first when *Invokers
 					unless a[j+1].is_a? Symbol # that case does not need it
@@ -473,44 +345,38 @@ Init_<%= canonname n %>(VALUE unused)
 						emu_pc += 2
 					end
 				end
-			else raise i.inspect
 			end
 		end
 		x.map! do |i|
 			case i
-			when Integer then i
-			when Symbol  then "yarv_#{labels[i]}".intern
-			when Array   then
+			when Integer
+				i
+			when Symbol
+				"yarv_#{labels[i]}".intern
+			when Array
 				i.map! do |j|
-					case j
-					when Symbol
-						if /\Alabel_/.match j
-							"yarv_#{labels[j]}".intern
-						else
-							j
-						end
-					when Array # CDHASH
+					if j.is_a? Symbol and /\Alabel_/.match j
+						"yarv_#{labels[j]}".intern
+					elsif j.is_a? Array # CDHASH
 						j.map! do |k|
-							case k
-							when Symbol
-								if /\Alabel_/.match k
-									"yarv_#{labels[k]}".intern
-								else
-									k
-								end
+							if k.is_a? Symbol and /\Alabel_/.match k
+								"yarv_#{labels[k]}".intern
 							else
 								k
 							end
 						end
-						j
 					else
 						j
 					end
 				end
+				i
 			end
 		end
 		y.map! do |(t, i, s, e, c, sp)|
-			[t, i, 
+			j = recursive_transform i, p
+			k = Quote.new j
+			p.depends j if j.is_a? @namespace
+			[t, k,
 			 "yarv_#{labels[s]}".intern,
 			 "yarv_#{labels[e]}".intern,
 			 "yarv_#{labels[c]}".intern,
@@ -519,134 +385,11 @@ Init_<%= canonname n %>(VALUE unused)
 		return x, y
 	end
 
-	class Quote # :nodoc:
-		def initialize val
-			@unquote = val
-		end
-		attr_reader :unquote
-	end
-
-	# Generates a struct yarvaot_quasi_iseq_tag.
-	def genquasi fnam, type, name, file, line, locals, args, excs, body
-		decl = QuasiTemplate.result binding
-		qnam = namegen name, 'struct yarvaot_quasi_iseq_tag', :uniq
-		register_declaration_for qnam, decl
-		qnam
-	end
-
-	QuasiTemplate = ERB.new <<-'end'.chomp, 0, '%-'
- = {
-    ISEQ_TYPE_<%= type.upcase %>,
-    <%= rstring2quasi name %>,
-    <%= rstring2quasi file %>,
-    <%= line %>,
-    <%= genquasi_genary locals %>,
-%case args
-%when Array
-%	a = args.dup
-%	a[1] = genquasi_genary a[1]
-    {<%= a.join ', ' %>},
-%else
-    { <%= args %>, 0, 0, 0, 0, 0, 1, },
-%end
-    <%= genquasi_gentable excs %>,
-    <%= genquasi_gentemplate body %>,
-    <%= fnam %>,
-    <%= genquasi_genicsize body %>,
-}
-	end
-
-	def inject_internal ary, desired, type, term  #:nodoc:
-		decl = ary.inject "[] = {\n" do |r, str|
-			yield r, str
-		end
-		decl << "    #{term},\n}"
-		name = namegen desired, type
-		register_declaration_for name, decl
-		name
-	end
-
-	# Generates arrays of quasi strings
-	def genquasi_genary ary
-		return 0 if ary.nil?
-		return 0 if ary.empty?
-		inject_internal ary, nil,
-							 'struct yarvaot_quasi_string_tag',
-							 '{ 0, 0, }' do
-			|r, i| 
-			r << "    #{rstring2quasi i.to_s},\n"
-		end
-	end
-
-	# Generates struct yarvaot_quasi_catch_table_entry_tag
-	def genquasi_gentable ary
-		return 0 if ary.nil?
-		return 0 if ary.empty?
-		inject_internal ary, nil,
-							 'struct yarvaot_quasi_catch_table_entry_tag',
-							 '{CATCH_TYPE_NEXT, 0, 0, 0, 0, 0, }' do
-			|r, (t, i, s, e, c, sp)|
-			q = recursive_transform i, false
-			r << "    { CATCH_TYPE_#{t.to_s.upcase},\n"
-			r << "      #{q == '0' ? q : '&'+q},\n"
-			r << %'      "#{s}",\n'
-			r << %'      "#{e}",\n'
-			r << %'      "#{c}",\n'
-			r << "      #{sp}, },\n"
-		end
-	end
-
-	# Generates iseq template. It reads as:
-	# * when an entry is a null pointer, that becomes a nop
-	# * when an entry is an empty string, that becomes a occf.
-	# * when an entry is a integer string, that becomes an integer.
-	# * otherwise, that becomes a label.
-	#
-	# Take a look at yarvaot_geniseq() in yarvaot.so.
-	def genquasi_gentemplate ary
-		inject_internal ary, nil, 'char const*', '"end"' do |r, i|
-			case i
-			when Integer, Symbol then r << %'\n    "#{i}", '
-			when Array   then
-				if i.first == :phony
-					r << '"", '
-				else
-					i.each do |j|
-						r << '0, '
-					end
-				end
-				r
-			else raise i.inspect
-			end
-		end
-	end
-
-	# Counts how many inline caches are used
-	def genquasi_genicsize ary
-		ret = 0
-		ary.each do |i|
-			case i
-			when Array
-				op, *argv = *i
-				t = YARVAOT::INSNS[op]
-				if t
-					t[:opes].each do |(k, v)|
-						ret += 1 if k == 'IC'
-					end
-				end
-			end
-		end
-		return ret
-	end
-
 	# Generates  a   ISeq  internal  function,  which  actually   runs  on  iseq
 	# evaluations.
-	def genfunc iseq, name, body, file, line, type
-		fnam = namegen name, 'rb_insn_func_t', :uniq
-		labels_seen = Hash.new
-		func = FunctionTemplate.result binding
-		@functions.push func
-		fnam
+	def genfunc fnam, enam, type, name, file, line, body
+		fnam.declaration = 'static rb_insn_func_t'
+		fnam.definition = FunctionTemplate.result binding
 	end
 
 	# This is almost a Ruby-version iseq_build_body().
@@ -659,27 +402,23 @@ rb_control_frame_t*
 {
     static VALUE* pc  = 0;
     static char*  ic  = 0; /* char* to suppress pointer-arith warnings */
-    static size_t sic = 0;
     rb_control_frame_t* saved_r = r;
 
     if(UNLIKELY(pc == 0))
         pc = yarvaot_get_pc(r);
     if(UNLIKELY(ic == 0))
-        ic = yarvaot_get_ic(r);
+        if(yarvaot_set_ic_size(r, <%= count_ic body %>))
+            ic = yarvaot_get_ic(r);
 
 %emu_pc = 0
-    /* Beware!  labels are  *not* equal to  the pc, because  some optimizations
-     * and transoformations are made. */
 again:
     switch(cfp_pc(r) - pc) {
 %body.each do |i|
 %	case i
-%	when Symbol
-%		labels_seen.store i, true
-%	when Numeric
+%	when Symbol, Numeric
 %		# ignore
 %	when Array
-<%= genfunc_geninsn emu_pc, i, iseq, labels_seen %>;
+<%= genfunc_geninsn emu_pc, i, enam %>;
 %	   emu_pc += i.size
 %	end
 %end
@@ -693,49 +432,53 @@ again:
 }
 	end
 
+	# count how many ICs ar used
+	def count_ic b
+		max = -1
+		b.each do |i|
+			case i when Array
+				op, *argv = *i
+				case op when :phony then else
+					ta = YARVAOT::INSNS[op][:opes].zip argv
+					ta.each do |(t, v), a|
+						case t when 'IC'
+							max < a and max = a
+						end
+					end
+				end
+			end
+		end
+		return max + 1
+	end
+
 	# For a instruction _insn_, there is  an equivalent C expression to run that
 	# insn.
-	def genfunc_geninsn pc, insn, parent, labels_seen
+	def genfunc_geninsn pc, insn, parent
 		ret = "    case #{pc}: "
 		op, *argv = *insn
-		ret << case op
-				 # when :nop, :phony
-				 # 	 # nop is NOT actually a no-op... it should update the pc.
-				 # 	 i = insn.size
-				 # 	 "cfp_pc(r) += #{i}"
-				 # when :branchunless, :branchif, :jump
-				 # 	 l = argv[0]
-				 # 	 m = /\d+/.match l.to_s
-				 # 	 s = if labels_seen.has_key? l
-				 # 			  'intr'
-				 # 		  else
-				 # 			  'nointr'
-				 # 		  end
-				 # 	 "yarvaot_insn_#{op}_#{s}(t, r, #{m[0]}, #{l})"
-				 when :phony
-					 # phony insns are placeholders to opt_call_c_function.
-					 'r = yarvaot_insn_nop(t, yarvaot_insn_nop(t, r));'
-				 else
-					 s = genfunc_genargv op, argv, parent, pc
-					 body = if s.empty?
-								  "r = yarvaot_insn_#{op}(t, r)"
-							  else
-								  "r = yarvaot_insn_#{op}(t, r, #{s})"
-							  end
-					 case op
-					 when *Branchers
-						 body + ";\n"\
-						 "        goto again"
-					 when *Invokers
-						 body + ";\n" \
-						 "        if(UNLIKELY(r != saved_r))\n" \
-						 "            return r;\n" \
-						 "        else\n" \
-						 "            goto again"
+		case op when :phony
+			# phony insns are placeholders to opt_call_c_function.
+			ret << 'r = yarvaot_insn_nop(t, yarvaot_insn_nop(t, r));'
+		else
+			s = genfunc_genargv op, argv, parent, pc
+			body = if s.empty?
+						 "r = yarvaot_insn_#{op}(t, r)"
 					 else
-						 body
+						 "r = yarvaot_insn_#{op}(t, r, #{s})"
 					 end
-				 end
+			case op
+			when *Branchers
+				body += ";\n"\
+					 "        goto again"
+			when *Invokers
+				body += ";\n" \
+					 "        if(UNLIKELY(r != saved_r))\n" \
+					 "            return r;\n" \
+					 "        else\n" \
+					 "            goto again"
+			end
+			ret << body
+		end
 	end
 
 	# ISeq operands transformation.
@@ -748,14 +491,13 @@ again:
 				if a.nil? # null pointer
 					0
 				else
-					i = recursive_transform a
+					i = recursive_transform a, parent
 					"DATA_PTR(#{i})"
 				end
 			when 'lindex_t', 'dindex_t', 'rb_num_t'
 				a
 			when 'IC'
-				tmp = "ic(#{a})"
-				tmp
+				"ic(#{a})"
 			when 'OFFSET'
 				m = /\d+/.match a.to_s
 				if m
@@ -776,15 +518,22 @@ again:
 					end
 					tmp.store k, n
 				end
-				robject2csource tmp
+				name = robject2csource tmp
+				name.depends parent
 			when 'VALUE'
-				robject2csource a
+				name = robject2csource a
+				case name when @namespace
+					parent.depends name
+				end
+				name
 			when 'GENTRY' # struct rb_global_entry*
 				sym = robject2csource a
-				"gentry#{sym.sub 'ID2SYM', ''}"
+				parent.depends sym
+				"gentry(#{sym.name})"
 			when 'ID' # not the object, but its interned integer
 				sym = robject2csource a
-				sym.sub 'ID2SYM', ''
+				parent.depends sym
+				sym.name
 			else
 				raise TypeError, [op, ta].inspect
 			end
@@ -792,285 +541,35 @@ again:
 		ta.join ', '
 	end
 
-	# ISeq#to_ary format validation
-	#
-	# Only checks format, not for stack consistency.
-	def format_check iseq
-		x, y, z, w, *ary = *iseq.to_a
-		if x != 'YARVInstructionSequence/SimpleDataFormat' or
-			y != 1 or z != 2 or w != 1 then
-			raise ArgumentError, 'wrong format'
-		end
-		return *ary
-	end
-
-	# Some kinds of literals are there:
-	#
-	# - Fixnums,  as well  as true,  false, and  nil: they  are  100% statically
-	#   computable while the compilation.  No cache needed.
-	# - Bignums, Floats, Ranges and Symbols:  they are almost static, except for
-	#   the first time.  Suited for a caching.
-	# - Classes: not computable  by the compiler, but once  a ruby process boots
-	#   up, they already are.
-	# - Strings:  every time  a literal  is evaluated,  a new  string  object is
-	#   created.  So a cache won't work.
-	# - Regexps: almost  the same  as Strings, except  for /.../o, which  can be
-	#   cached.
-	# - Arrays and Hashes: they also  generate new objects every time, but their
-	#   contents can happen to be cached.
-	#
-	# Cached objects can  be ``shared'' -- for instance  multiple occasions of an
-	# identical bignum can and should point to a single address of memory.
-	def robject2csource obj, qnam = nil
-		put  = nil # a C expression
-		get  = nil # a C expression
-		type = 'VALUE'
-		case obj
-		when Quote # hack
-			get  = obj.unquote.to_s
-		when Fixnum
-			get  = 'LONG2FIX(%d)' % obj
-		when TrueClass, FalseClass, NilClass
-			get  = 'Q%p' % obj
-		when Bignum
-			put = 'rb_cstr2inum("%s", 10)' % obj.to_s
-			qnam = namegen obj.to_s, type
-		when Float
-			put  = 'rb_float_new(%g)' % obj
-		when Range
-			from = robject2csource obj.begin
-			to   = robject2csource obj.end
-			xclp = obj.exclude_end? ? 1 : 0
-			put  = sprintf 'rb_range_new(%s, %s, %d)', from, to, xclp
-		when Class
-			if obj == Object
-				get = 'rb_cObject'
-			elsif obj == Array
-				get = 'rb_cArray'
-			elsif obj == StandardError
-				get = 'rb_eStandardError'
-			else
-				raise TypeError, "unknown literal object #{obj}"
-			end
-		when Symbol
-			# Why a  symbol is not cached  as a VALUE?   Well a VALUE in  C static
-			# variable needs to be scanned during GC because VALUEs can have links
-			# against some other objects in  general.  But that's not the case for
-			# Symbols -- they do not  have links internally.  An ID variable needs
-			# no GC because  it's clear they are  not related to GC at  all.  So a
-			# Symbol is more efficient when stored as an ID, rather than a VALUE.
-			str  = rstring2cstr obj.to_s
-			type = 'ID'
-			qnam = namegen obj.to_s, type
-			get  = 'ID2SYM(%s)' % qnam
-			put  = 'rb_intern(%s)' % str.first.first.strip
-		when String
-			if obj.empty?
-				# empty strings do not even need encodings
-				get = 'rb_str_new(0, 0)'
-			else
-				if obj.ascii_only?
-					qnam = namegen obj, type
-					encn = "US_ASCII"
+	# Several ways are there  to convert an ISeq array into C  source but I find
+	# it the most convenient when passing that to rb_iseq_load().
+	def genexpr fnam, enam, inam, iseq, excs, body, parent
+		b = Array.new
+		body.each do |i|
+			case i when Array
+				case i.first when :phony
+					j = Quote.new "ULONG2NUM((unsigned long)#{fnam})"
+					b << [:opt_call_c_function, j]
 				else
-					encn = obj.encoding.name
-				end
-				argv = rstring2cstr obj
-				tmp  = argv.flatten.join ', '
-				put  = sprintf 'vrb_enc_str_new("%s", %s, 0)', encn, tmp
-			end
-		when Regexp
-			opts = obj.options
-			srcs = robject2csource obj.source
-			put = sprintf 'rb_reg_new_str(%s, %d)', srcs, opts
-		when Array
-			case n = obj.length
-			when 0
-				# zero-length  arrays need  no cache,  because a  creation  of such
-				# object is fast enough.
-				get  = 'rb_ary_new2(0)'
-			when 1
-				# no speedup, but a bit readable output
-				i    = obj.first
-				e    = robject2csource i
-				s    = 'a' + i.to_s
-				qnam = namegen s, type
-				put  = 'rb_ary_new3(1, %s)' % e
-			else
-				put  = 'rb_ary_new3(%d' % obj.length
-				obj.each do |x|
-					y = robject2csource x
-					put << ",\n\t" << y.to_s
-				end
-				put << ')'
-				s = put.sub %r/\Arb_ary_new3\(\d+,\s+/, 'a'
-				qnam = namegen s, type
-			end
-		when Hash
-			# Hashes are not computable in a single expression...
-			qnam = namegen nil, type
-			put  = "rb_hash_new();"
-			obj.each_pair do |k, v|
-				knam = robject2csource k
-				vnam = robject2csource v
-				str = sprintf "\n    rb_hash_aset(%s, %s, %s);", qnam, knam, vnam
-				put << str
-			end
-		else
-			raise TypeError, "unknown literal object #{obj.inspect}"
-		end
-
-		unless put.nil?
-			qnam ||= namegen put, type
-			register_generator_for qnam, put
-		end
-		get ||= qnam
-		return get
-	end
-
-	# From ruby string to quasi string.
-	#
-	# In contrast to rstring2cstr, this method registers names to the namespace
-	# pool, because it needs at least one variable.
-	def rstring2quasi str
-		ary = rstring2cstr str, "\n"
-		name = inject_internal ary, str,
-									  'struct yarvaot_lenptr_tag', '{ 0, 0, }' do
-			|r, (e, l)|
-			s = sprintf "    { %#05x, %s },\n", l, e
-			r << s
-		end
-		%'{ "#{str.encoding.name}", #{name} }'
-	end
-
-	def register_declaration_for name, decl
-		if old = @static[name]
-			if decl != old
-				raise RuntimeError,
-					"multiple, though not identical, static decls for #{name}:\n" \
-					"\t#{old}\n\t#{decl}"
-			end
-			old.replace decl
-		else
-			@static[name] = decl
-		end
-	end
-
-	def register_generator_for name, generator
-		if old = @generators[name]
-			if generator != old
-				raise RuntimeError,
-					"multiple, though not identical, generators for #{name}:\n" \
-					"\t#{old}\n\t#{generator}"
-			end
-			old.replace generator
-		else
-			@generators[name] = generator
-		end
-	end
-
-	# Generates  a name  unique in  this compilation  unit, with  declaring type
-	# _type_.  Takes as much as possible from what's _desired_.
-	#
-	# Note however, that  an identical argument _desired_ generates  a same name
-	# on multiple invocations unless _realuniq_ is true.
-	def namegen desired, type, realuniq = false
-		str = namegen_internal desired, type, realuniq
-		ret = 'y_' + str
-		raise "!! #{ret.length} > #@namemax !! : #{ret}" if ret.length > @namemax
-		ret
-	end
-
-	def namegen_internal desired, type, realuniq
-		limit = @namemax - 2 # 2 is 'y_'.length
-		unless desired.nil?
-			ary = @namedb.fetch desired, Array.new
-			if not ary.empty? and not realuniq
-				ary.each do |rt, rn|
-					return rn if type == rt
-				end
-			end
-			n = nil
-			cand0 = as_tr_cpp desired, ''
-			cand1 = cand0
-			while @namespace.has_key? cand1
-				if n.nil?
-					n = 1
-				else
-					n += 1
-				end
-				cand1 = cand0 + n.to_s
-			end
-			if cand1.length <= limit
-				# OK, take this
-				ary << [type, cand1]
-				@namedb[desired] = ary
-				@namespace[cand1] = desired
-				return cand1
-			end
-		end
-		if desired
-			u = Namespace.new_sha1 desired
-		else
-			u = UUID.new_random
-		end
-		if limit >= u.to_s.length
-			v = u.to_s
-		else
-			# An  UUID is  128 bits  length, while  the infinum  of  maximal local
-			# variable name length in the  ANSI C is 31 characters.  The canonical
-			# RFC4122- style UUID stringization do not work here.
-			bpc = 128.0 / limit
-			radix = 2 ** bpc
-			v = u.to_i.to_s radix.ceil
-		end
-		namegen_internal v, type, realuniq # try again
-	end
-
-	# Returns a 2-dimensional array [[str, len], [str, len], ... ]
-	#
-	# This is needed because Ruby's String#dump is different from C's.
-	def rstring2cstr str, rs = nil
-		a = str.each_line rs
-		a = a.to_a
-		a.map! do |b|
-			c = b.each_byte.each_slice @strmax
-			c.to_a
-		end
-		a.flatten! 1
-		a.map! do |bytes|
-			b = bytes.each_slice 80
-			c = b.map do |d|
-				d.map do |e|
-					case e # this case statement is optimized
-					when 0x00 then '\\0'
-					when 0x07 then '\\a'
-					when 0x08 then '\\b'
-					when 0x09 then '\\t'
-					when 0x0A then '\\n'
-					when 0x0B then '\\v'
-					when 0x0C then '\\f'
-					when 0x0D then '\\r'
-					when 0x22 then '\\"'
-					when 0x27 then '\\\''
-					when 0x5C then '\\\\' # not \\
-					else
-						case e
-						when 0x20 ... 0x7F then '%c' % e
-						else '\\x%x' % e
-						end
+					i.size.times do
+						b << [:nop]
 					end
 				end
+			else
+				b << i
 			end
-			c.map! do |d|
-				"\n        " '"' + d.join + '"'
-			end
-			if c.size == 1
-				c.first.strip!
-			end
-			[ c.join, bytes.size, ]
 		end
-		a
+		# Beware! ISeq#to_a return values are shared among invokations!
+		tmp = iseq.to_a.dup
+		tmp[-2] = excs
+		tmp[-1] = b
+		anam = @namespace.new 'ary_' + inam, :uniq
+		robject2csource tmp, :volatile, anam
+		enam.declaration    = 'static VALUE'
+		enam.definition     = "static VALUE #{enam} = Qundef;"
+		enam.initialization = sprintf '%s = rb_iseq_load(%s, %s, 0);',
+												enam, anam, parent || 'Qnil'
+		enam.depends anam
 	end
 end
 

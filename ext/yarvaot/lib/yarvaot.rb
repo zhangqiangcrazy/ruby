@@ -162,11 +162,11 @@ class YARVAOT::Subcommand
 	end
 end
 
-require 'yarvaot/driver'
-require 'yarvaot/preprocessor'
-require 'yarvaot/compiler'
-require 'yarvaot/assembler'
-require 'yarvaot/linker'
+require_relative 'yarvaot/driver'
+require_relative 'yarvaot/preprocessor'
+require_relative 'yarvaot/compiler'
+require_relative 'yarvaot/assembler'
+require_relative 'yarvaot/linker'
 
 # 
 # Local Variables:

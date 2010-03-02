@@ -219,7 +219,7 @@ HDR2
 		end
 		# -v  without filename,  just print  version string  (done  above) and
 		# quit with successful exit code.
-		Process.exit if target.nil? and $VERBOSE
+		Process.exit if target.nil? and $VERBOSE and @evalary.empty?
 
 		verbose_out 'driver started.'
 		# opening input  file here,  preventing outer-process attackers  to choke
@@ -259,10 +259,11 @@ HDR2
 		if @exec
 			raise <<-end unless sink.is_a? File
 
-Cannot  execute a  pipe.  If  you  are using  Linux that  is actually  possible
-through fexecve(3), but  that functionality is not implemented  to Ruby, so you
-have to specify a real filename rather  than "-", or do not specify anything --
-in that case a canonical filename e.g. a.out is used.
+Cannot execute  a pipe.   On most *NIX  environments that is  actually possible
+through fexecve(3),  which is now in  the POSIX standard since  Issue 7 (2008),
+but that  functionality is not implemented to  Ruby.  So you have  to specify a
+real filename  rather than "-", or  do not specify  anything -- in that  case a
+canonical filename e.g.  a.out is used.
 			end
 			begin
 				path = File.realpath sink.path

@@ -438,6 +438,7 @@ iseq_load(VALUE self, VALUE data, VALUE parent, VALUE opt)
     rb_iseq_t *iseq;
     rb_compile_option_t option;
     int i = 0;
+    long stack_max;
 
     /* [magic, major_version, minor_version, format_type, misc,
      *  name, filename, line_no,
@@ -500,6 +501,10 @@ iseq_load(VALUE self, VALUE data, VALUE parent, VALUE opt)
 		       parent, iseq_type, 0, &option);
 
     rb_iseq_build_from_ary(iseq, locals, args, exception, body);
+    /* stack_max should honor the input because opt_call_c_function
+     * insn can use much many stack spaces than you might think. */
+    stack_max = NUM2LONG(rb_hash_aref(misc, ID2SYM(rb_intern("stack_max"))));
+    if (iseq->stack_max < stack_max) iseq->stack_max = stack_max;
 
     cleanup_iseq_build(iseq);
     return iseqval;
@@ -517,6 +522,7 @@ iseq_s_load(int argc, VALUE *argv, VALUE self)
 VALUE
 rb_iseq_load(VALUE data, VALUE parent, VALUE opt)
 {
+    parent = parent == Qundef ? Qnil : parent;
     if(RTEST(rb_obj_is_kind_of(data, rb_cISeq))) {
 	rb_iseq_t* iseq;
 	GetISeqPtr(data, iseq);

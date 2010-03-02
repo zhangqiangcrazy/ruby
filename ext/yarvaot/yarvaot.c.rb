@@ -19,6 +19,7 @@ __END__
 /* Ruby to C (and then,  to machine executable) compiler, originally written by
  * Urabe Shyouhei  <shyouhei@ruby-lang.org> during  2010.  See the  COPYING for
  * legal info. */
+#define RUBY_EXPORT             /* ??? */
 #include <ruby/ruby.h>
 #include <ruby/encoding.h>
 #include "gc.h"
@@ -49,23 +50,6 @@ extern void rb_vmdebug_debug_print_register(rb_thread_t*);
 #else
 #define DEBUG_ENTER_INSN(nam)   /* void */
 #endif
-
-static VALUE gen_insns_info(void);
-static VALUE rb_str_new_from_quasi_string(struct yarvaot_quasi_string_tag const* q);
-static VALUE rb_sym_new_from_quasi_string(struct yarvaot_quasi_string_tag const* q);
-#ifdef __GNUC__
-__attribute__((__const__, __always_inline__))
-#endif
-static inline char const* yarvaot_iseq_type_name(enum yarvaot_iseq_type_tag t);
-#ifdef __GNUC__
-__attribute__((__const__, __always_inline__))
-#endif
-static inline char const* yarvaot_catch_type_name(enum yarvaot_catch_type_tag t);
-static VALUE yarvaot_new_array_of_symbols(struct yarvaot_quasi_string_tag const* a);
-static VALUE yarvaot_geniseq_genargs(struct yarvaot_quasi_iseq_tag const* q);
-static VALUE yarvaot_geniseq_gencatch(struct yarvaot_quasi_catch_table_entry_tag const* q);
-static VALUE yarvaot_geniseq_genbody(struct yarvaot_quasi_iseq_tag const* q);
-static void yarvaot_set_ic_size(VALUE iseqval, long size);
 
 % insns.each {|insn|
 #line <%= _erbout.lines.to_a.size + 1 %> "yarvaot.c"
@@ -247,207 +231,24 @@ Init_yarvaot(void)
     rb_define_const(rb_mYARVAOT, "INSNS", gen_insns_info());
 }
 
-VALUE
-vrb_enc_str_new(char const* enc, ...)
+int
+yarvaot_set_ic_size(rb_control_frame_t* reg_cfp, size_t size)
 {
-    va_list ap;
-    rb_encoding* e = rb_enc_find(enc);
-    VALUE ret = rb_str_buf_new(0);
-    void const* p = 0;
-    size_t s = 0;
-    va_start(ap, enc);
-    for(;;) {
-        p = va_arg(ap, void const*);
-        if(!p) return ret;
-        s = va_arg(ap, size_t);
-        if(!s) return ret;
-        ret = rb_enc_str_buf_cat(ret, p, (long)s, e);
-    }
-    /* NOTREACHED */
-    va_end(ap);
-}
-
-VALUE
-rb_str_new_from_quasi_string(struct yarvaot_quasi_string_tag const* q)
-{
-    rb_encoding* e = rb_enc_find(q->encoding);
-    VALUE ret = rb_str_buf_new(0);
-    struct yarvaot_lenptr_tag const* p = 0;
-    if(q)
-        for(p = q->entries; p->ptr; p++)
-            ret = rb_enc_str_buf_cat(ret, p->ptr, p->nbytes, e);
-    return ret;
-}
-
-VALUE
-rb_sym_new_from_quasi_string(struct yarvaot_quasi_string_tag const* q)
-{
-    return rb_str_intern(rb_str_new_from_quasi_string(q));
-}
-
-VALUE
-yarvaot_new_array_of_symbols(struct yarvaot_quasi_string_tag const* a)
-{
-    VALUE ret = rb_ary_new();
-    if(a) 
-        for(; a->entries; a++)
-            ret = rb_ary_push(ret, rb_sym_new_from_quasi_string(a));
-    return ret;
-}
-
-char const*
-yarvaot_iseq_type_name(enum yarvaot_iseq_type_tag t)
-{
-    /* this kind  of C  source code can  be extremely  fast when compiled  by a
-     * properly  optimizing  C  compiler,  so  it  is  worth  remembering  this
-     * idiom. */
-    switch(t) {
-#define c(x, y) case x: return #y
-        c(ISEQ_TYPE_TOP,top);
-        c(ISEQ_TYPE_METHOD,        method);
-        c(ISEQ_TYPE_BLOCK,         block);
-        c(ISEQ_TYPE_CLASS,         class);
-        c(ISEQ_TYPE_RESCUE,        rescue);
-        c(ISEQ_TYPE_ENSURE,        ensure);
-        c(ISEQ_TYPE_EVAL,          eval);
-        c(ISEQ_TYPE_MAIN,          main);
-        c(ISEQ_TYPE_DEFINED_GUARD, defined_guard);
-#undef c
-    }
-    rb_bug("unknown ISeq type %d", (int)t);
-    /* NOTREACHED */
-    return 0;
-}
-
-char const*
-yarvaot_catch_type_name(enum yarvaot_catch_type_tag t)
-{
-    switch(t) {
-#define c(x, y) case x: return #y
-        c(CATCH_TYPE_RESCUE, rescue);
-        c(CATCH_TYPE_ENSURE, ensure);
-        c(CATCH_TYPE_RETRY,  retry);
-        c(CATCH_TYPE_BREAK,  break);
-        c(CATCH_TYPE_REDO,   redo);
-        c(CATCH_TYPE_NEXT,   next);
-#undef c
-    }
-    rb_bug("unknown catch type %d", (int)t);
-    /* NOTREACHED */
-    return 0;
-}
-
-VALUE
-yarvaot_geniseq_genargs(struct yarvaot_quasi_iseq_tag const* q)
-{
-    if(q->args.simple) {
-        return INT2FIX(q->args.argc);
-    }
-    else {
-        VALUE ret = rb_ary_new();
-        ret = rb_ary_push(ret, LONG2FIX(q->args.argc));
-        ret = rb_ary_push(ret, yarvaot_new_array_of_symbols(q->args.opts));
-        ret = rb_ary_push(ret, LONG2FIX(q->args.post_len));
-        ret = rb_ary_push(ret, LONG2FIX(q->args.post_start));
-        ret = rb_ary_push(ret, LONG2FIX(q->args.rest));
-        ret = rb_ary_push(ret, LONG2FIX(q->args.block));
-        ret = rb_ary_push(ret, LONG2FIX(q->args.simple));
-        return ret;
-    }
-}
-
-VALUE
-yarvaot_geniseq_gencatch(struct yarvaot_quasi_catch_table_entry_tag const* q)
-{
-    /* Exception table is an array of arrays. */
-    VALUE ret = rb_ary_new();
-    if(!q) return ret;
-    for(; q->start; q++) {
-        VALUE ent = rb_ary_new();
-        ID tid = rb_intern(yarvaot_catch_type_name(q->type));
-        ent = rb_ary_push(ent, ID2SYM(tid));
-        ent = rb_ary_push(ent, yarvaot_geniseq(q->iseq));
-        ent = rb_ary_push(ent, ID2SYM(rb_intern(q->start)));
-        ent = rb_ary_push(ent, ID2SYM(rb_intern(q->end)));
-        ent = rb_ary_push(ent, ID2SYM(rb_intern(q->count)));
-        ent = rb_ary_push(ent, LONG2FIX(q->sp));
-        ret = rb_ary_push(ret, ent);
-    }
-    return ret;
-}
-
-VALUE
-yarvaot_geniseq_genbody(struct yarvaot_quasi_iseq_tag const* q)
-{
-    char const* const* p = 0;
-    VALUE i    = Qundef;
-    VALUE ret  = rb_ary_new();
-    VALUE nop  = rb_ary_new3(1, ID2SYM(rb_intern("nop")));
-    VALUE occf = rb_ary_new3(2, ID2SYM(rb_intern("opt_call_c_function")),
-                             ULONG2NUM((unsigned long)q->impl));
-    for(p = q->template; ; p++)
-        if(*p == 0)             /* for nop */
-            ret = rb_ary_push(ret, nop);
-        else if(**p == 0)       /* for occf */
-            ret = rb_ary_push(ret, occf);
-        else if(MEMCMP(*p, "end", char, 3) == 0) /* end mark */
-            return ret;
-        else if(MEMCMP(*p, "yarv_", char, 5) == 0)
-            ret = rb_ary_push(ret, ID2SYM(rb_intern(*p)));
-        else if(RTEST(i = rb_cstr_to_inum(*p, 0, 0))) /* lineno */
-            ret = rb_ary_push(ret, i);
-        else                    /* ?? what ?? */
-            rb_raise(rb_eTypeError, "unknown: %s", *p);
-}
-
-void
-yarvaot_set_ic_size(VALUE iseqval, long n)
-{
-    rb_iseq_t* iseq;
-    GetISeqPtr(iseqval, iseq);
-    if(n > 0) {
-        void* p = xcalloc(n, sizeof(struct iseq_inline_cache_entry));
-        if(p) {
-            RUBY_FREE_UNLESS_NULL(iseq->ic_entries);
-            iseq->ic_size = n;
-            iseq->ic_entries = p;
-            return;
-        }
-    }
-    /* reaching here indicates an error situation */
-    iseq->ic_size = 0;
-}
-
-VALUE
-yarvaot_geniseq(struct yarvaot_quasi_iseq_tag const* q)
-{
-    if(!q) {
-        /* this can be the case where exception table holds no body */
-        return Qnil;
-    }
-    else {
-        VALUE magic  = vrb_enc_str_new("US-ASCII",
-            "YARVInstructionSequence/SimpleDataFormat", 40, 0);
-        VALUE major  = INT2FIX(1);
-        VALUE minor  = INT2FIX(2);
-        VALUE teeny  = INT2FIX(1);
-        VALUE intro  = rb_hash_new(); /* seems not used at all */
-        VALUE name   = rb_str_new_from_quasi_string(&q->name);
-        VALUE file   = rb_str_new_from_quasi_string(&q->filename);
-        VALUE lineno = LONG2FIX(q->lineno);
-        VALUE type   = ID2SYM(rb_intern(yarvaot_iseq_type_name(q->type)));
-        VALUE locals = yarvaot_new_array_of_symbols(q->locals);
-        VALUE args   = yarvaot_geniseq_genargs(q);
-        VALUE excs   = yarvaot_geniseq_gencatch(q->catches);
-        VALUE body   = yarvaot_geniseq_genbody(q);
-        VALUE to_a   = rb_ary_new3(13,
-                                   magic, major, minor, teeny,
-                                   intro, name, file, lineno, type,
-                                   locals, args, excs, body);
-        VALUE iseq   = rb_iseq_load(to_a, Qnil, Qnil);
-        yarvaot_set_ic_size(iseq, q->ic_size);
-        return iseq;
-    }
+    rb_iseq_t* iseq = 0;
+    void* p = 0;
+    if(!reg_cfp)
+        return FALSE;
+    else if(!(iseq = reg_cfp->iseq))
+        return FALSE;
+    else if(size <= iseq->ic_size)
+        return TRUE;
+    else if(!(p = xcalloc(size, sizeof(struct iseq_inline_cache_entry))))
+        return FALSE;
+    /* else */
+    RUBY_FREE_UNLESS_NULL(iseq->ic_entries);
+    iseq->ic_size = size;
+    iseq->ic_entries = p;
+    return TRUE;
 }
 
 /*
