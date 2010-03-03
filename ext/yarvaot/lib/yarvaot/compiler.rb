@@ -274,9 +274,9 @@ Init_<%= canonname n %>(VALUE unused)
 		fnam = @namespace.new 'func_' + name, :uniq
 		enam = @namespace.new 'iseq_' + name, :uniq
 		verbose_out "compiler is now compiling: %s -> %s", name, fnam
-		b, e = prepare body, excs, enam
+		a, e, b = prepare args, excs, body, enam
 		genfunc fnam, enam, type, name, file, line, b
-		genexpr fnam, enam, name, iseq, e, b, parent
+		genexpr fnam, enam, name, iseq, a, e, b, parent
 		return needfunc ? fnam : enam
 	end
 
@@ -317,37 +317,36 @@ Init_<%= canonname n %>(VALUE unused)
 	#     putnil
 	#
 	# And the OCCF can happily squash those nops.
-	def prepare a, b, p
+	def prepare args, excs, body, parent
 		labels = Hash.new
 		phony = [:phony, nil]
-		case a[0] when Symbol
-			x, emu_pc = [], 0
+		case body[0] when Symbol
+			converted, emu_pc = [], 0
 		else
-			x, emu_pc = [phony], 2
+			converted, emu_pc = [phony], 2
 		end
-		y = b.dup
-		a.each_with_index do |i, j|
-			x << i
+		body.each_with_index do |i, j|
+			converted << i
 			case i
 			when Symbol
 				labels.store i, emu_pc
-				x << phony
+				converted << phony
 				emu_pc += 2
 			when Array
 				emu_pc += i.size
 				case i.first when *Invokers
-					unless a[j+1].is_a? Symbol or # that case does not need it
-							a.size == j + 1 # last entry needs no care
+					unless body[j+1].is_a? Symbol or # that case does not need it
+							 body.size == j + 1			# last entry needs no care
 						l = "label_phony_#{emu_pc}".intern
 						labels.store l, emu_pc
-						x << l
-						x << phony
+						converted << l
+						converted << phony
 						emu_pc += 2
 					end
 				end
 			end
 		end
-		x.map! do |i|
+		converted.map! do |i|
 			case i
 			when Integer
 				i
@@ -372,17 +371,25 @@ Init_<%= canonname n %>(VALUE unused)
 				i
 			end
 		end
-		y.map! do |(t, i, s, e, c, sp)|
-			j = recursive_transform i, p
+		newex = excs.map do |(t, i, s, e, c, sp)|
+			j = recursive_transform i, parent
 			k = Quote.new j
-			p.depends j if j.is_a? @namespace
+			parent.depends j if j.is_a? @namespace
 			[t, k,
 			 "yarv_#{labels[s]}".intern,
 			 "yarv_#{labels[e]}".intern,
 			 "yarv_#{labels[c]}".intern,
 			 sp]
 		end
-		return x, y
+		case args when Array
+			newav = args.dup
+			newav[1] = args[1].map do |i|
+				"yarv_#{labels[i]}".intern
+			end
+		else
+			newav = args
+		end
+		return newav, newex, converted
 	end
 
 	# Generates  a   ISeq  internal  function,  which  actually   runs  on  iseq
@@ -454,7 +461,7 @@ again:
 	# For a instruction _insn_, there is  an equivalent C expression to run that
 	# insn.
 	def genfunc_geninsn pc, insn, parent
-		ret = "    case #{pc}: "
+		ret = sprintf "    case %#07x: ", pc
 		op, *argv = *insn
 		case op when :phony
 			# phony insns are placeholders to opt_call_c_function.
@@ -543,7 +550,7 @@ again:
 
 	# Several ways are there  to convert an ISeq array into C  source but I find
 	# it the most convenient when passing that to rb_iseq_load().
-	def genexpr fnam, enam, inam, iseq, excs, body, parent
+	def genexpr fnam, enam, inam, iseq, args, excs, body, parent
 		b = Array.new
 		body.each do |i|
 			case i when Array
@@ -561,6 +568,7 @@ again:
 		end
 		# Beware! ISeq#to_a return values are shared among invokations!
 		tmp = iseq.to_a.dup
+		tmp[-3] = args
 		tmp[-2] = excs
 		tmp[-1] = b
 		anam = @namespace.new 'ary_' + inam, :uniq
