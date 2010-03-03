@@ -72,7 +72,7 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 
 		# no --stop-after-linker, because that's the default.
 
-		@opt.on '-x', '--execute', <<-'begin'.strip do
+		@opt.on '--execute', <<-'begin'.strip do
                                    Instead of creating an executable file, just
                                    execute the compiled output.  This is mainly
                                    for debugging  (through replacing RUBY envi-
@@ -85,6 +85,11 @@ class YARVAOT::Driver < YARVAOT::Subcommand
                                    filesystem  so   if  you  need  intermediate
                                    products, specify --save-temps with it.
 		begin
+                                   # But, for a special purpose, combination of
+                                   # both  --execute and  -c  works, just  like
+                                   # ruby -c.  This  makes it possible for ruby
+                                   # distribution's ``make btest'' to work with
+                                   # this compiler.
 			@exec = true
 		end
 
@@ -111,7 +116,7 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 			@save_temps = optarg
 		end
 
-		@opt.on_tail '--metadebug', <<-'begin'.strip do
+		@opt.on_tail '-d', '--metadebug', <<-'begin'.strip do
                                    Sets $DEBUG of  this compiler suite, not for
                                    the ruby script  to compile.  This is useful
                                    when you debug the suite.
@@ -130,10 +135,10 @@ class YARVAOT::Driver < YARVAOT::Subcommand
 			puts ver
 		end
 
-		@opt.on_tail '-W[n]', <<-'begin'.strip, Integer do |optarg|
+		@opt.on_tail '-W [n]', <<-'begin'.strip, Integer do |optarg|
                                    Not yet.
 		begin
-			# Not yet.
+			# Not yet.  Accept ruby options.
 		end
 
 		@opt.on_tail '-r', '--require=FEATURE', <<-'begin'.strip do |optarg|
@@ -203,6 +208,7 @@ HDR2
 		end
 		if @exec
 			who = self
+			stop_after, @stop_after = @stop_after, nil
 			target = argv.shift
 		else
 			@opt.parse! argv		  # force optoinparser to raise error
@@ -256,7 +262,10 @@ HDR2
 			File.chmod 0755, sink if sink.kind_of? File
 		end
 
-		if @exec
+		if @exec and stop_after == :assembler
+			# OK, process aborts early on failures
+			puts "Syntax OK"
+		elsif @exec
 			raise <<-end unless sink.is_a? File
 
 Cannot execute  a pipe.   On most *NIX  environments that is  actually possible
@@ -286,6 +295,7 @@ canonical filename e.g.  a.out is used.
 	# one by one, passing one's output to the other's input.
 	def run f, n
 		verbose_out 'driver entered in-order mode.'
+		group = Array.new
 		@subcommands.each_pair do |k, v|
 			next unless k
 			verbose_out "driver runs #{k}"
@@ -300,9 +310,18 @@ canonical filename e.g.  a.out is used.
 					f = sink
 				end
 			end
-			return f if @stop_after == k
+			return f, nil if @stop_after == k
 		end
-		return f
+		return f, nil
+	ensure
+		begin
+			loop do
+				pid, stat = Process.wait2
+				raise stat.inspect unless stat.success?
+			end
+		rescue Errno::ECHILD
+			# no child
+		end
 	end
 
 	private

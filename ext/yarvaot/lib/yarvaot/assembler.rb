@@ -44,6 +44,8 @@ class YARVAOT::Assembler < YARVAOT::Subcommand
 			l = RbConfig.expand l, c
 			verbose_out "running C compiler: %s", l
 			p = Process.spawn l, h
+			# should wait this process, or the linker which follows this stage can
+			# read corrupted tempfile before CC finishes to write to.
 			Process.waitpid p
 		end
 	end
