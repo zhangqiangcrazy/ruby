@@ -432,7 +432,7 @@ module YARVAOT::Converter
 		when Hash
 			# Hashes are not computable in a single expression...
 			name ||= @namespace.new
-			init = "rb_hash_new();"
+			init = "rb_hash_new()"
 			obj.each_pair do |k, v|
 				knam = robject2csource k, :volatile
 				vnam = robject2csource v, :volatile
@@ -469,17 +469,23 @@ module YARVAOT::Converter
 
 	# Yet more long string than gen_lenptr
 	def gen_each_lenptr var, str
+		names = Array.new
 		str.each_line.with_index do |i, j|
 			a = rstring2cstr i
 			case a.size when 1
 				vnam  = sprintf '%s_%x', var, j
-				gen_lenptr vnam, *a[0]
+				gnam = gen_lenptr vnam, *a[0]
+				names << gnam
 			else
 				a.each_with_index do |b, k|
 					vnam = sprintf '%s_%x_%x', var, j, k
-					gen_lenptr vnam, *b
+					gnam = gen_lenptr vnam, *b
+					names << gnam
 				end
 			end
+		end
+		names.each_cons 2 do |x, y|
+			y.depends x
 		end
 	end
 

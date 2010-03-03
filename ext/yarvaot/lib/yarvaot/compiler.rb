@@ -519,7 +519,7 @@ again:
 					tmp.store k, n
 				end
 				name = robject2csource tmp
-				name.depends parent
+				parent.depends name
 			when 'VALUE'
 				name = robject2csource a
 				case name when @namespace
