@@ -271,8 +271,10 @@ canonical filename e.g.  a.out is used.
 				verbose_out 'driver spawns %s.', path
 				child = Process.spawn [path, sink.path], *argv
 			ensure
-				verbose_out 'driver is waiting for subprocess...'
-				Process.waitpid child
+				if child
+					verbose_out 'driver is waiting for subprocess...'
+					Process.waitpid child
+				end
 				verbose_out 'driver unlinks %s.', path
 				File.unlink path
 			end
