@@ -1,7 +1,7 @@
 #define RUBY_VERSION "1.9.2"
 #define RUBY_RELEASE_DATE "2010-03-14"
 #define RUBY_PATCHLEVEL -1
-#define RUBY_BRANCH_NAME "trunk"
+#define RUBY_BRANCH_NAME "shyouhei/yarvaot"
 
 #define RUBY_VERSION_MAJOR 1
 #define RUBY_VERSION_MINOR 9
