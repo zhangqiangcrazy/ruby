@@ -8,6 +8,7 @@
 # This do not directly uses make, but mkmf.rb has some handy global variables.
 require 'rbconfig'
 require 'mkmf'
+require 'tmpdir'
 
 # This is the assembler, C->object transformation engine.
 class YARVAOT::Assembler < YARVAOT::Subcommand
@@ -33,20 +34,41 @@ class YARVAOT::Assembler < YARVAOT::Subcommand
 				p = '-'
 				h = { in: f }
 			end
-			l = sprintf "$(CC) %s %s %s %s -c %s%s -xc %s",
-							$INCFLAGS,
-							$CPPFLAGS,
-							$CFLAGS,
-							$ARCH_FLAG,
-							COUTFLAG,
-							g.path,
-							p
-			l = RbConfig.expand l, c
-			verbose_out "running C compiler: %s", l
-			p = Process.spawn l, h
-			# should wait this process, or the linker which follows this stage can
-			# read corrupted tempfile before CC finishes to write to.
-			Process.waitpid p
+			t = File.basename n, '.*'
+			with_header_files t do |inc|
+				l = sprintf "$(CC) %s -I %s %s %s %s -c %s%s -xc %s",
+								$INCFLAGS,
+								inc,
+								$CPPFLAGS,
+								$CFLAGS,
+								$ARCH_FLAG,
+								COUTFLAG,
+								g.path,
+								p
+				l = RbConfig.expand l, c
+				verbose_out "running C compiler: %s", l
+				p = Process.spawn l, h
+				# should wait this process, or  the linker which follows this stage
+				# can read corrupted tempfile before CC finishes to write to.
+				Process.waitpid p
+			end
+		end
+	end
+
+	private
+
+	# Creates a temporary directory, put neccesary header files in it, and yield
+	# the given block.  Does neccesary finishing up.
+	def with_header_files template
+		Dir.mktmpdir template do |tmp|
+			Dir.chdir tmp do
+				YARVAOT::HEADERS.each_pair do |k, v|
+					File.open k, 'wb:binary' do |f|
+						f.write v
+					end
+				end
+			end
+			yield tmp
 		end
 	end
 end

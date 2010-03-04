@@ -200,6 +200,12 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 #include <ruby/encoding.h>
 #include <ruby/yarvaot.h>
 
+/* Odd, This macro is not in any header files above... */
+#define hide_obj(obj) do {OBJ_FREEZE(obj); RBASIC(obj)->klass = 0;} while (0)
+
+/* Even odder is this function missing... */
+extern void rb_vmdebug_debug_print_register(rb_thread_t *th);
+
 /* This cannot be a typedef */
 #if !defined(__GNUC__) || (__GNUC__ < 4) || \
       ((__GNUC__ == 4) && __GNUC_MINOR__ < 4)
@@ -209,14 +215,6 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
     __attribute__((__unused__))
 #endif
 
-/* control frame is opaque */
-#define cfp_pc(reg) (reg[0])
-#define cfp_sp(reg) (reg[1])
-#define th_cfp(th)  (th[4])
-#define ic(n) (struct iseq_inline_cache_entry*)(ic + (n) * sizeof_ic)
-#define gentry(n) (VALUE)rb_global_entry(n)
-
-static size_t sizeof_ic = 0;
 %@namespace.each_static_decls do |decl|
 <%= decl %>
 %end
@@ -231,7 +229,6 @@ Init_<%= canonname n %>(VALUE unused)
 %@namespace.each_nonstatic_decls do |decl|
     <%= decl %>
 %end
-    sizeof_ic = yarvaot_sizeof_ic();
 %@namespace.each_initializers do |init|
     <%= init %>
 %end
@@ -407,19 +404,19 @@ Init_<%= canonname n %>(VALUE unused)
 rb_control_frame_t*
 <%= fnam %>(rb_thread_t* t, rb_control_frame_t* r)
 {
-    static VALUE* pc  = 0;
-    static char*  ic  = 0; /* char* to suppress pointer-arith warnings */
+    static struct iseq_inline_cache_entry* ic_entries = 0;
+    static VALUE* pc0 = 0;
     rb_control_frame_t* saved_r = r;
 
-    if(UNLIKELY(pc == 0))
-        pc = yarvaot_get_pc(r);
-    if(UNLIKELY(ic == 0))
+    if(UNLIKELY(pc0 == 0))
+        pc0 = r->iseq->iseq_encoded;
+    if(UNLIKELY(ic_entries == 0))
         if(yarvaot_set_ic_size(r, <%= count_ic body %>))
-            ic = yarvaot_get_ic(r);
+            ic_entries = r->iseq->ic_entries;
 
 %emu_pc = 0
 again:
-    switch(cfp_pc(r) - pc) {
+    switch(r->pc - pc0) {
 %body.each do |i|
 %	case i
 %	when Symbol, Numeric
@@ -433,7 +430,7 @@ again:
         /* FALLTHRU */
     default:
         rb_vmdebug_debug_print_register(t);
-        rb_bug("inconsistent pc %d", cfp_pc(r) - pc);
+        rb_bug("inconsistent pc %d", r->pc - pc0);
     }
     /* NOTREACHED */
 }
@@ -504,7 +501,7 @@ again:
 			when 'lindex_t', 'dindex_t', 'rb_num_t'
 				a
 			when 'IC'
-				"ic(#{a})"
+				"&ic_entries[#{a}]"
 			when 'OFFSET'
 				m = /\d+/.match a.to_s
 				if m
@@ -536,7 +533,7 @@ again:
 			when 'GENTRY' # struct rb_global_entry*
 				sym = robject2csource a
 				parent.depends sym
-				"gentry(#{sym.name})"
+				"(VALUE)rb_global_entry(#{sym.name})"
 			when 'ID' # not the object, but its interned integer
 				sym = robject2csource a
 				parent.depends sym

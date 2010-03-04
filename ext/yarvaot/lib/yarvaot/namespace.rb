@@ -164,7 +164,7 @@ class YARVAOT::Namespace
 
 		# Atomic each
 		def each
-			@barenames.values.each do |n|
+			@barenames.each_value do |n|
 				yield n
 			end
 		end

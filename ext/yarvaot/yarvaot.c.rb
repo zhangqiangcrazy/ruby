@@ -23,19 +23,6 @@ __END__
 #include <ruby/ruby.h>
 #include <ruby/encoding.h>
 #include "gc.h"
-#include "eval_intern.h"
-#include "iseq.h"
-#include "vm_opts.h"
-/* This AOT  compiler massively  uses Ruby's VM  feature called  "call threaded
- * code", so we have to enable that option here. */
-#ifdef  OPT_CALL_THREADED_CODE
-#undef  OPT_CALL_THREADED_CODE
-#endif
-#define OPT_CALL_THREADED_CODE 1
-
-#include "vm_core.h"
-#include "vm_insnhelper.h"
-#include "vm_exec.h"
 #include "yarvaot.h"
 
 /* vm_insnhelper.c is actually a header file to be included, vital to build. */
@@ -188,40 +175,39 @@ gen_insns_info(void)
     return ret;
 }
 
-void*
-yarvaot_get_ic(rb_control_frame_t const* reg_cfp)
+static VALUE
+gen_headers(void)
 {
-    rb_iseq_t* iseq = 0;
-    struct iseq_inline_cache_entry* ic_entries = 0;
-
-    if((iseq = reg_cfp->iseq) == NULL) return NULL;
-    if((ic_entries = iseq->ic_entries) == NULL) return NULL;
-    return ic_entries;
-}
-
-size_t
-yarvaot_sizeof_ic(void)
-{
-    return sizeof (struct iseq_inline_cache_entry);
-}
-
-VALUE*
-yarvaot_get_pc(rb_control_frame_t const* reg_cfp)
-{
-    rb_iseq_t* iseq = 0;
-
-    if((iseq = reg_cfp->iseq) == NULL)
-        return NULL;
-    else
-        return iseq->iseq_encoded;
-}
-
-#undef RUBY_VM_CHECK_INTS_TH
-void
-RUBY_VM_CHECK_INTS_TH(rb_thread_t* th)
-{
-    if(th->interrupt_flag)
-        rb_threadptr_execute_interrupts(th);
+%data = Marshal.dump %w[
+%  debug.h
+%  eval_intern.h
+%  id.h
+%  iseq.h
+%  method.h
+%  node.h
+%  thread_pthread.h
+%  thread_win32.h
+%  vm_core.h
+%  vm_core.h
+%  vm_exec.h
+%  vm_insnhelper.c
+%  vm_insnhelper.h
+%  vm_opts.h
+%  vm_opts.h
+%].inject({}) {|r, i|
+%  r[i] = File.read(top_srcdir + '/' + i)
+%  r
+%}
+    unsigned char data[] = {
+%data.each_byte.each_slice(12).each {|bytes|
+        <%= bytes.map {|i| "%#04x" % i }.join(", ") %>,
+%}
+    };
+    size_t size = <%= data.bytesize %>;
+    rb_encoding* binary = rb_ascii8bit_encoding();
+    VALUE str = rb_enc_str_new((char*)data, size, binary);
+    VALUE ret = rb_marshal_load(str);
+    return ret;
 }
 
 void
@@ -229,6 +215,7 @@ Init_yarvaot(void)
 {
     VALUE rb_mYARVAOT = rb_define_module("YARVAOT");
     rb_define_const(rb_mYARVAOT, "INSNS", gen_insns_info());
+    rb_define_const(rb_mYARVAOT, "HEADERS", gen_headers());
 }
 
 int
