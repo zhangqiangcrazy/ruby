@@ -60,7 +60,7 @@ typedef rb_iseq_t *ISEQ;
 /* #define throwdebug printf */
 
 /************************************************/
-#if   DISPATCH_XXX
+#ifdef   DISPATCH_XXX
 error !
 /************************************************/
 #elif OPT_CALL_THREADED_CODE
