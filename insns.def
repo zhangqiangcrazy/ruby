@@ -2094,7 +2094,7 @@ opt_regexpmatch2
  */
 DEFINE_INSN
 opt_call_c_function
-(rb_insn_func_t funcptr)
+(rb_insn_func_t* funcptr)
 ()
 ()
 {
