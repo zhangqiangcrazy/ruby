@@ -21,7 +21,6 @@ END
 end
 
 $defs.push '-DCABI_OPERANDS' if enable_config 'cabi-operands', true
-$defs.push '-DCABI_ACCUM' if enable_config 'cabi-accumlator', true
 
 $VPATH << '$(top_srcdir)' << '$(topdir)'
 $INCFLAGS << ' -I$(top_srcdir) -I$(topdir)'
