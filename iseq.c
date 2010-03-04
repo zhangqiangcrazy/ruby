@@ -543,18 +543,6 @@ rb_iseq_load(VALUE data, VALUE parent, VALUE opt)
     return iseq_load(rb_cISeq, data, parent, opt);
 }
 
-static NODE *
-parse_string(VALUE str, const char *file, int line)
-{
-    VALUE parser = rb_parser_new();
-    NODE *node = rb_parser_compile_string(parser, file, str, line);
-
-    if (!node) {
-	rb_exc_raise(GET_THREAD()->errinfo);	/* TODO: check err */
-    }
-    return node;
-}
-
 VALUE
 rb_iseq_compile_with_option(VALUE src, VALUE file, VALUE line, VALUE opt)
 {
@@ -569,6 +557,8 @@ rb_iseq_compile_with_option(VALUE src, VALUE file, VALUE line, VALUE opt)
         node = rb_compile_file(fn, src, ln);
     else
         node = rb_compile_string(fn, StringValue(src), ln);
+    if (!node)
+        rb_exc_raise(GET_THREAD()->errinfo);
     if (th->base_block && th->base_block->iseq) {
 	return rb_iseq_new_with_opt(node, th->base_block->iseq->name,
 				    file, line, th->base_block->iseq->self,
