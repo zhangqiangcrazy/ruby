@@ -227,7 +227,7 @@ HDR2
 		# quit with successful exit code.
 		Process.exit if target.nil? and $VERBOSE and @evalary.empty?
 
-		verbose_out 'driver started.'
+		verbose_out 'started.'
 		# opening input  file here,  preventing outer-process attackers  to choke
 		# our filesystem.
 		if @evalary.empty?
@@ -246,7 +246,7 @@ HDR2
 			fin = StringIO.new str
 			target = '-e'
 		end
-		verbose_out 'driver opened input file %s.', target
+		verbose_out 'opened input file %s.', target
 
 		# This is the part that actually does compilations.
 		fout, = who.run fin, target
@@ -277,14 +277,14 @@ canonical filename e.g.  a.out is used.
 			begin
 				path = File.realpath sink.path
 				sink.close
-				verbose_out 'driver spawns %s.', path
+				verbose_out 'spawns %s.', path
 				child = Process.spawn [path, sink.path], *argv
 			ensure
 				if child
-					verbose_out 'driver is waiting for subprocess...'
+					verbose_out 'waiting for subprocess...'
 					Process.waitpid child
 				end
-				verbose_out 'driver unlinks %s.', path
+				verbose_out 'unlinks %s.', path
 				File.unlink path
 			end
 		end
@@ -294,11 +294,11 @@ canonical filename e.g.  a.out is used.
 	# argument vector.  This  is a in-order mode, which  invokes its subcommands
 	# one by one, passing one's output to the other's input.
 	def run f, n
-		verbose_out 'driver entered in-order mode.'
+		verbose_out 'entered in-order mode.'
 		group = Array.new
 		@subcommands.each_pair do |k, v|
 			next unless k
-			verbose_out "driver runs #{k}"
+			verbose_out "runs %s", k
 			f = v.run f, n
 			if @save_temps
 				sink = compute_sink v, n
@@ -376,7 +376,7 @@ canonical filename e.g.  a.out is used.
 						 end
 			sink = sprintf "%s.%s", basename, extname
 		end
-		verbose_out 'driver opens output file %s', sink
+		verbose_out 'opens output file %s', sink
 		return open sink, 'w+b'
 	end
 

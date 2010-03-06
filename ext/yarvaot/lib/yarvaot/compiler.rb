@@ -128,14 +128,14 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	# reading from it tend to block.
 	def run f, n
 		run_in_pipe f do |g|
-			verbose_out 'compiler started.'
+			verbose_out 'started.'
 			h, t = intercept f
 			RubyVM::InstructionSequence.compile_option = @opts
 			iseq = RubyVM::InstructionSequence.new h, n
-			verbose_out 'compiler generated iseq.'
+			verbose_out 'generated iseq.'
 			@namemax ||= YARVAOT::Namespace.new
 			compile t.value, n, iseq, g
-			verbose_out 'compiler generated C code.'
+			verbose_out 'generated C code.'
 		end
 	end
 
@@ -270,7 +270,7 @@ Init_<%= canonname n %>(VALUE unused)
 		info, name, file, line, type, locals, args, excs, body = ary
 		fnam = @namespace.new 'func_' + name, :uniq
 		enam = @namespace.new 'iseq_' + name, :uniq
-		verbose_out "compiler is now compiling: %s -> %s", name, fnam
+		verbose_out "now compiling: %s -> %s", name, fnam
 		a, e, b = prepare args, excs, body, enam
 		genfunc fnam, enam, type, name, file, line, b
 		genexpr fnam, enam, name, iseq, a, e, b, parent

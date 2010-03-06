@@ -62,15 +62,15 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 	# of a returing file.
 	def run f, n
 		run_in_pipe f do |g|
-			verbose_out 'preprocessor started.'
+			verbose_out 'started.'
 			ripper = YARVAOT::Ripper.new f, n
 			@terminals, @nonterminals = ripper.parse
-			verbose_out 'preprocessor generated AST.'
+			verbose_out 'generated AST.'
 
 			# this is the transformation
 			obfuscate if @obfuscate
 			recursive_require_resolution if @ahead_of_time_require
-			verbose_out 'preprocessor done conversion.'
+			verbose_out 'done conversion.'
 
 			# output, but wait... @terminals is not sorted
 			t = @terminals.sort_by do |i|
@@ -81,7 +81,7 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 			# reading  from it on  those cases.   That should  be appended  to our
 			# output.
 			redirect f => g
-			verbose_out 'preprocessor finished.'
+			verbose_out 'finished.'
 		end
 	end
 
@@ -145,7 +145,7 @@ class YARVAOT::Preprocessor < YARVAOT::Subcommand
 				x.token.replace "# " << z << "\n"
 			end
 			if w.to_s != x.token
-				verbose_out "preprocessor obfuscation mapping %s => %s", w, x.token
+				verbose_out "obfuscation mapping %s => %s", w, x.token
 			end
 		end
 	end

@@ -82,7 +82,10 @@ class YARVAOT::Subcommand
 	# fmt:: format string
 	# va_list:: variadic argument vector
 	def verbose_out fmt, *va_list
-		STDERR.printf fmt.chomp << "\n", *va_list if $VERBOSE
+		if $VERBOSE
+			fmt2 = "%s: " + fmt.chomp + "\n"
+			STDERR.printf fmt2, self.class.name_to_display, *va_list
+		end
 	end
 
 	# Generic IO  redirection.  This is  needed because a subprocess  itself can
