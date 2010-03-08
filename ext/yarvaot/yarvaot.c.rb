@@ -195,7 +195,11 @@ gen_headers(void)
 %  vm_opts.h
 %  vm_opts.h
 %].inject({}) {|r, i|
-%  r[i] = File.read(top_srcdir + '/' + i)
+%  begin
+%     r[i] = File.read(top_srcdir + '/' + i)
+%  rescue Errno::ENOENT
+%     r[i] = File.read(Dir.getwd + '/../../' + i)
+%  end
 %  r
 %}
     unsigned char data[] = {
