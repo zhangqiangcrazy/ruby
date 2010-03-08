@@ -229,6 +229,12 @@ Init_<%= canonname n %>(VALUE unused)
 %@namespace.each_nonstatic_decls do |decl|
     <%= decl %>
 %end
+%@namespace.each do |nam|
+%  if /\Astatic VALUE\b/.match nam.declaration
+    rb_gc_register_address(&<%= nam.name %>);
+%  end
+%end
+
 %@namespace.each_initializers do |init|
     <%= init %>
 %end

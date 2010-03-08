@@ -402,7 +402,8 @@ module YARVAOT::Converter
 				# no speedup, but a bit readable output
 				i    = obj.first
 				e    = robject2csource i, :volatile
-				s    = 'a' + i.to_s
+				j    = as_tr_cpp e.to_s
+				s    = 'a' + j
 				name ||= @namespace.new s
 				init = 'rb_ary_new3(1, %s)' % e
 				deps << e
