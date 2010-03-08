@@ -30,7 +30,6 @@ yarvaot.o:				\
   $(hdrdir)/ruby/st.h			\
   $(top_srcdir)/debug.h			\
   $(top_srcdir)/eval_intern.h		\
-  $(top_srcdir)/id.h			\
   $(top_srcdir)/iseq.h			\
   $(top_srcdir)/method.h		\
   $(top_srcdir)/node.h			\
