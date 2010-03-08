@@ -392,6 +392,15 @@
 /ext/zlib/zlib.a
 /ext/zlib/conftest.dSYM
 
+# /ext/yarvaot
+/ext/yarvaot/Makefile
+/ext/yarvaot/extconf.h
+/ext/yarvaot/mkmf.log
+/ext/yarvaot/readme.xml
+/ext/yarvaot/xml2rfc.*
+/ext/yarvaot/yarvaot.c
+/ext/yarvaot/yarvaot.h
+
 # /lib/rexml/
 
 # /spec/
