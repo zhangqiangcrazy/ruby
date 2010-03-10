@@ -2,6 +2,14 @@
 # Urabe  Shyouhei <shyouhei@ruby-lang.org>  during 2010.   See the  COPYING for
 # legal info.
 
+.PHONY: benchmark
+benchmark: $(topdir)/ruby
+	ruby -e'puts "#!/bin/sh\necho ./a.out\n"' > ./a.out
+	chmod 755 ./a.out
+	ruby $(top_srcdir)/benchmark/driver.rb -v \
+	  --executables="yarvaot; ./a.out; ruby; $(topdir)/ruby" \
+	  --pattern='bm_' --directory=$(top_srcdir)/benchmark
+
 install: install-hdr
 install-hdr: yarvaot.h $(ARCHHDRDIR) 
 	@-$(COPY) $^
