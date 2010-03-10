@@ -7,8 +7,9 @@ benchmark: $(topdir)/ruby
 	ruby -e'puts "#!/bin/sh\necho ./a.out\n"' > ./a.out
 	chmod 755 ./a.out
 	ruby $(top_srcdir)/benchmark/driver.rb -v \
-	  --executables="yarvaot; ./a.out; ruby; $(topdir)/ruby" \
-	  --pattern='bm_' --directory=$(top_srcdir)/benchmark
+	  --executables="yarvaot; ./a.out; $(topdir)/ruby; ruby" \
+	  --pattern='bm_(?!app_erb|so_count_words|so_k_nucleotide|so_reverse_complement|so_nsieve_bits|.+_mutex)'\
+	  --directory=$(top_srcdir)/benchmark
 
 install: install-hdr
 install-hdr: yarvaot.h $(ARCHHDRDIR) 
