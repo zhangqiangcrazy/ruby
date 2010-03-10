@@ -11,6 +11,29 @@
 
 #include "ruby/ruby.h"
 
+/* FIXME! this bunch of preprocessor business was cut'n'pasted from
+ * dln.c. dln.c should have provided a nessecasy functionality. */
+
+#if defined(__APPLE__) && defined(__MACH__)   /* Mac OS X */
+# if defined(HAVE_DLOPEN)
+   /* Mac OS X with dlopen (10.3 or later) */
+#  define MACOSX_DLOPEN
+# else
+#  define MACOSX_DYLD
+# endif
+#endif
+
+#if defined(HAVE_DLOPEN) && !defined(USE_DLN_A_OUT) && !defined(_AIX) && !defined(MACOSX_DYLD) && !defined(_UNICOSMP)
+/* dynamic load with dlopen() */
+# define USE_DLN_DLOPEN
+#endif
+
+#ifdef USE_DLN_DLOPEN
+# include <dlfcn.h>
+#endif
+
+/* FIXME! cut&paste section end */
+
 /* #define RUBY_MARK_FREE_DEBUG 1 */
 #include "gc.h"
 #include "vm_core.h"
@@ -822,8 +845,19 @@ insn_operand_intern(rb_iseq_t *iseq,
 	break;
 
       case TS_FUNCPTR:
+#ifdef USE_DLN_DLOPEN
+        {
+            Dl_info i;
+            if(dladdr(op, &i) == 0)
+                rb_raise(rb_eRuntimeError, "%s", dlerror());
+            else
+                ret = rb_sprintf("<funcptr:%s>", i.dli_sname);
+            break;
+        }
+#else
 	ret = rb_str_new2("<funcptr>");
 	break;
+#endif
 
       default:
 	rb_bug("rb_iseq_disasm: unknown operand type: %c", type);
