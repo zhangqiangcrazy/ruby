@@ -43,8 +43,11 @@ extern void rb_vmdebug_debug_print_register(rb_thread_t*);
 
 rb_control_frame_t*
 yarvaot_insn_<%= insn.name %>(
-    rb_thread_t* th,
+    rb_thread_t* th<% -%>
+%   if(/^#define CABI_PASS_CFP 1$/.match(extconfh))
+,
     rb_control_frame_t* reg_cfp<% -%>
+%   end
 %   if(/^#define CABI_OPERANDS 1$/.match(extconfh))
 %       insn.opes.map {|(typ, nam)|
 %           if(typ == "...")
@@ -58,6 +61,9 @@ yarvaot_insn_<%= insn.name %>(
 %   end
 )
 {
+%   if(!/^#define CABI_OPERANDS 1$/.match(extconfh))
+    rb_control_frame_t* reg_cfp = th->cfp;
+%   end
     /* make_header_prepare_stack omitted */
     /* make_header_stack_val */
 %   vars = insn.opes + insn.pops + insn.defopes.map() {|ent| ent[0]; };

@@ -21,6 +21,7 @@ END
 end
 
 $defs.push '-DCABI_OPERANDS' if enable_config 'cabi-operands', true
+$defs.push '-DCABI_PASS_CFP' if enable_config 'cabi-pass-cfp', true
 
 $VPATH << '$(top_srcdir)' << '$(topdir)'
 $INCFLAGS << ' -I$(top_srcdir) -I$(topdir)'

@@ -12,7 +12,7 @@ insns = RubyVM::InstructionsLoader.new({
 extconfh = File.read(ARGV[2]);
 
 DATA.rewind();
-ERB.new(DATA.read(), 0, '%').run();
+ERB.new(DATA.read(), 0, '%-').run();
 Process.exit();
 #endif
 __END__
@@ -71,22 +71,29 @@ struct yarvaot_quasi_string_tag {
 <%= insn.comm[:e].gsub(/^/, " * ") %>
  *
  * @param[in]      th       the VM thread to run this instruction
+%  if(/^#define CABI_PASS_CFP 1$/.match(extconfh))
  * @param[in, out] reg_cfp  current control frame
+%  end
  * @returns                 an updated reg_cfp (maybe created in it)
  */
 RUBY_EXTERN rb_control_frame_t* yarvaot_insn_<%=
 
 insn.name
 
-%>(rb_thread_t* th, rb_control_frame_t* reg_cfp<%=
-   if(/^#define CABI_OPERANDS 1$/.match(extconfh))
-       insn.opes.map {|(typ, nam)|
-          (typ == "...") ? ", ..." : ", #{typ} #{nam}"
-       }.join();
-   else
-       '';
-   end
-%>);
+%>(rb_thread_t* th<% -%>
+%  if(/^#define CABI_PASS_CFP 1$/.match(extconfh))
+, rb_control_frame_t* reg_cfp<% -%>
+%  end
+%  if(/^#define CABI_OPERANDS 1$/.match(extconfh))
+%      insn.opes.each {|(typ, nam)|
+%         if (typ == "...") 
+, ...<% -%>
+%         else
+, <%= typ %> <%= nam -%>
+%         end
+%      }
+%  end
+);
 % };
 
 /**
