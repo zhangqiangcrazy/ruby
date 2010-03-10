@@ -1,0 +1,896 @@
+
+
+
+Independent Submission                                          S. Urabe
+README for: YARVAOT                   Network Applied Communication Lab.
+Category: Informational                                        K. Sasada
+                                                 The University of Tokyo
+                                                          March 10, 2010
+
+
+    YARVAOT: A Ruby to C (and then, to machine executable) compiler
+
+Abstract
+
+   This memo describes a new ahead-of-time (AOT) compiler for Ruby
+   programming language.  This compiler massively utilizes Ruby's
+   built-in metaprogramming features and hence it accepts a wide range
+   of conforming Ruby scripts.  More directly speaking, the authors
+   believe that it is the first one of this kind, which actually passes
+   Ruby's standard test suite (``make btest'').
+
+   It is also worth mentioning that the compiler itself is written in
+   Ruby, and can of course compile itself.
+
+Status of This Memo
+
+   This document is not an Internet Standards Track specification; it is
+   published for informational purposes.
+
+Table of Contents
+
+   1.  Introduction . . . . . . . . . . . . . . . . . . . . . . . . .  2
+   2.  Overview . . . . . . . . . . . . . . . . . . . . . . . . . . .  2
+     2.1.  Which is Which . . . . . . . . . . . . . . . . . . . . . .  3
+     2.2.  Runtime Library  . . . . . . . . . . . . . . . . . . . . .  4
+     2.3.  Ruby to Ruby . . . . . . . . . . . . . . . . . . . . . . .  5
+     2.4.  Ruby to C  . . . . . . . . . . . . . . . . . . . . . . . .  5
+     2.5.  C to binary  . . . . . . . . . . . . . . . . . . . . . . .  6
+   3.  In Depth . . . . . . . . . . . . . . . . . . . . . . . . . . .  6
+     3.1.  The Design and Implementation of the Driver  . . . . . . .  6
+     3.2.  The Compiler Proper  . . . . . . . . . . . . . . . . . . .  8
+   4.  Security Considerations  . . . . . . . . . . . . . . . . . . . 14
+   5.  IANA Considerations  . . . . . . . . . . . . . . . . . . . . . 14
+   6.  References . . . . . . . . . . . . . . . . . . . . . . . . . . 14
+     6.1.  Normative References . . . . . . . . . . . . . . . . . . . 14
+     6.2.  Informative References . . . . . . . . . . . . . . . . . . 14
+   Appendix A.  Change Log  . . . . . . . . . . . . . . . . . . . . . 15
+   Appendix B.  Open Issues . . . . . . . . . . . . . . . . . . . . . 15
+   Appendix C.  Tales About San-Tabu  . . . . . . . . . . . . . . . . 15
+
+
+
+
+
+Urabe & Sasada                Informational                     [Page 1]
+
+README                           YARVAOT                      March 2010
+
+
+1.  Introduction
+
+   [Ruby] is an object oriented programming language.  It is accepted
+   worldwide as an easy-to-use development tool.  Its characteristics
+   include a syntax relatively simple to understand, true object
+   oriented design, exceptions, closures, garbage collectors, and a
+   variety of ways to do metaprogrammings.
+
+   Ruby, especially its reference implementation (called ``MRI''
+   throughout this document), is believed to be slow in execution.  Many
+   alternative implementations aims to make Ruby faster, by
+   reimplementing Ruby in a more efficient way.
+
+   Another way to speed up evaluation of a program written in Ruby is to
+   compile it into a machine-readable binary format rather than directly
+   interpret it.  It is however, not straight-forward because Ruby
+   language is almost the highest in level of abstraction from certain
+   execution model of low-level CPUs.  Even compared to the [C]
+   language, Ruby is not directly mapped to it, mainly because Ruby has
+   different flow of execution than C's, such as exceptions.  Most
+   existing Ruby ``compilers'' are either (1) just dumping the entire
+   Ruby interpreter binary along with a target Ruby script into a single
+   binary (for instance [RubyScript2Exe]), or (2) do not support full
+   stack Ruby language, i.e. no exceptions (for instance [ruby2c]).
+
+   This document describes a new sort of Ruby to C translator.  It is
+   able to compile most valid Ruby scripts.  This is achieved by
+   utilizing Ruby interpreter's built-in metaprogramming features.
+
+   Today's MRI uses a virtual-machine execution model called [YARV].
+   This virtual-machine does have necessary runtime support for Ruby
+   execution.  So what it lacks is a way to access its internal state
+   from a precompiled machine executable, and that is what this document
+   proposes.
+
+2.  Overview
+
+   The compiler in question is built on top of current developing MRI
+   source code, and can be separated into several parts:
+
+   o  A set of generator scripts that generates C codes to be used as
+      AOT runtime library.  This part is tightly connected to MRI core's
+      VM generator system.
+
+   o  A set of templates that the generator above uses.  They are almost
+      normal C.
+
+
+
+
+
+Urabe & Sasada                Informational                     [Page 2]
+
+README                           YARVAOT                      March 2010
+
+
+   o  Compiler driver.  This module drives actual compilations.
+
+   o  Compiler subcommands.  There are Ruby to Ruby compiler (or a
+      preprocessor), Ruby to C compiler, C to binary compiler, and
+      linker.  Some of them are wrapper scripts to other (system
+      provided) executables.
+
+   Each components are described below in detail.
+
+   Compiler generated machine executables are either in forms of normal
+   executable (so-called ``a.out''), or in a form of shared library.  In
+   the shared library form, a compiler output can be loaded into another
+   Ruby execution using Ruby's require method.  Executable form is
+   actually a set of shared library and a thin wrapper that requires
+   that library, then kicks its initialization, together in a single
+   binary.
+
+   The compiler is written in Ruby.  And it utilizes most advanced Ruby
+   features include ripper, optparse, enumerator, tsort, and erb.  It
+   needs a runtime library (see below), but even that library is
+   generated from a ruby script.
+
+2.1.  Which is Which
+
+   o  README: This file.
+
+   o  depend: Appended to Makefile.  This is needed because the compiler
+      depends on MRI's VM generator system, which is not the case for
+      normal extension libraries.
+
+   o  extconf.rb: This file mainly does $VPATH tweaks, for the same
+      reason why depend is needed.
+
+   o  yarvaot.h.rb: This file is a Ruby script, at the same time a valid
+      ERb template.  This file generates yarvaot.h file, which should be
+      included from a compiler-generated C code.
+
+   o  yarvaot.c.rb: Same as yarvaot.h.rb, but this is the implementation
+      for it.  This file finally generates the yarvaot.so runtime
+      library.
+
+   o  lib/
+
+      *  uuid.rb: This file was taken from Urabe's private repo.  This
+         is a generic pure-Ruby implementation of [RFC4122].
+
+      *  yarvaot.rb: Abstract class YARVAOT::Subcommand is defined here.
+         This class defines some utility methods, which are used in
+
+
+
+Urabe & Sasada                Informational                     [Page 3]
+
+README                           YARVAOT                      March 2010
+
+
+         common for its subclasses.
+
+      *  yarvaot/
+
+         +  driver.rb: This is the compiler driver.  See below for the
+            flow of compilation.
+
+         +  preprocessor.rb: Ruby to Ruby transformation.
+
+         +  compiler.rb: Ruby to C transformation.
+
+         +  namespace.rb: Ruby to C transformation, part two.  This file
+            includes C-level variable management routines and a way to
+            convert a Ruby object into a series of C function calls that
+            generates an equivalent Ruby object when evaluated.
+
+         +  assembler.rb: C to binary transformation.
+
+         +  linker.rb: Links necessary libs and finally generates an
+            executable output.
+
+2.2.  Runtime Library
+
+   MRI's interpreter is separated into an executable (main.c in
+   practice), and a shared library called libruby.so.  That shared
+   library has a whole bunch of necessary functionalities and data
+   structures in it, so when executables other than MRI itself links
+   against that library, they are able to run their own Ruby execution.
+   This is the main magic that enables AOT compiling of Ruby sourcecode.
+
+   But that alone is not enough to make it so.  Ruby script itself is
+   outside the shared library, hence a compiler should convert a Ruby
+   sourcecode into some kind of executable form that then touches to
+   libruby-provided functionalities.
+
+   To achieve this our compiler generates a support runtime library
+   called yarvaot.so.  This library is itself a valid Ruby extension
+   library to be loaded from other Ruby scripts, but at the same time
+   exports some functionalities to touch Ruby inter-core.
+
+
+
+
+
+
+
+
+
+
+
+
+Urabe & Sasada                Informational                     [Page 4]
+
+README                           YARVAOT                      March 2010
+
+
+   The figure below illustrates dependencies between each runtime
+   library and Ruby environments.
+
+      +-----------------------+------------------+-----------------+
+      | Plaintext Ruby script | YARVAOT compiler | Compiled binary |
+      +--------------------------------+---------------------------+
+      |           MRI main.c           |         yarvaot.so        |
+      +--------------------------------+---------------------------+
+      |                       libruby.so                           |
+      +------------------------------------------------------------+
+
+   o  Good old fashioned MRI execution from a plaintext Ruby script is
+      driven from MRI's main.c, and that process links against
+      libruby.so.
+
+   o  On the other hand an AOT-compiled binary executable directly runs
+      itself, by linking against yarvaot.so, and yarvaot.so is
+      recursively links to libruby.so.
+
+   o  The compiler itself is in plaintext (unless explicitly compiled
+      itself), but utilizes yarvaot.so functionality to generate binary
+      executables.
+
+2.3.  Ruby to Ruby
+
+   A Ruby compiler's preprocessor is a Ruby to Ruby transformation
+   engine.  That kind of programs are almost impossible without MRI's
+   standard library called ripper.  This compiler is of course using
+   that library.
+
+   Ripper is an event driven Ruby token visitor, much like SAX in XML.
+   To do necessary preprocessings, all ripper events are hooked, and an
+   abstract syntax tree is generated.
+
+   Preprocessor then traverses the generated AST and does necessary
+   conversions such as token obfuscation.  It finally outputs a series
+   of preprocessed tokens.  Preprocessor-output Ruby programs are valid
+   in syntax, but not meant to be run directly.  They are normally
+   passed to the Ruby to C engine.
+
+2.4.  Ruby to C
+
+   The whole point of [YARV] was not to directly traverse an AST, but to
+   transform it into a series of execution units, called Instruction
+   Sequence (ISeq).  Current MRI has a built-in functionality to access
+   this ISeq.  ISeqs are serialized (in compared to tree-form AST),
+   which means, it is possible to transform into a series of C function
+   calls.  This is the main concept of the compiler.
+
+
+
+Urabe & Sasada                Informational                     [Page 5]
+
+README                           YARVAOT                      March 2010
+
+
+   This can be seen as a new layer added to MRI's input transformation
+   sequence:
+
+                  pre-YARV        YARV           AOT
+                +-----------+ +-----------+ +-----------+
+                | Plaintext | | Plaintext | | Plaintext |
+                +-----------+ +-----------+ +-----------+
+                      |             |             |
+                      V             V             V
+                +-----------+ +-----------+ +-----------+
+                |    AST    | |    AST    | |    AST    |
+                +-----------+ +-----------+ +-----------+
+                                    |             |
+                                    V             V
+                              +-----------+ +-----------+
+                              |    ISeq   | |    ISeq   |
+                              +-----------+ +-----------+  -+
+                                                  |         |
+                                                  V         |
+                                            +-----------+   | new
+                                            |     C     |   |
+                                            +-----------+  -+
+
+   Prior to YARV migration, MRI directly evaluated ASTs.  Now it
+   evaluates ISeqs.  AOT compiler adds a new layer, which uses C
+   language as a intermediate expression.
+
+2.5.  C to binary
+
+   This part is a very thin wrapper to a system-provided C compiler.  It
+   prepares necessary header files, and necessary configurations, then
+   invokes that compiler.
+
+3.  In Depth
+
+   Quite generally speaking, the technical term ``compiler'' is a
+   synonym to ``filter program''; in other words, a compiler is a tool
+   which accepts some inputs and then outputs something generated from
+   that input.
+
+   A compiler output can be a input to another compiler.  At the same
+   time a compiler need not be a single component.  So it is a common
+   trend for compilers to be consist of several subcomponents.
+
+3.1.  The Design and Implementation of the Driver
+
+   Among compiler subcomponents a compiler driver is a program which
+   drives other subcomponents.  A driver is kind of like a supervisor
+
+
+
+Urabe & Sasada                Informational                     [Page 6]
+
+README                           YARVAOT                      March 2010
+
+
+   process of an operating system.  But YARVAOT's compiler driver is
+   itself a subclass of YARVAOT::Subcommand and a subcomponent of
+   YARVAOT is itself an OS-level process.  The driver is to spawn a
+   subcommand with properly redirecting IO.
+
+                         +--------+
+                 input   |        |    +--------------+
+               ----------)        (----| Preprocessor |--+
+                         |        |    +--------------+  |
+                         |        |    +--------------+  |
+                         |        | +--|  Comppiler   |--+
+                         | Driver | |  +--------------+
+                         |        | |  +--------------+
+                         |        | +--|  Assembler   |--+
+                         |        |    +--------------+  |
+                 output  |        |    +--------------+  |
+               <---------)        (----|    Linker    |--+
+                         |        |    +--------------+
+                         +--------+
+
+   This is due to several reasons:
+
+   o  Because ripper (or MRI's parser in general) stops accepting input
+      at the appearance of __END__ terminal symbol and never has any
+      concern with contents after that, an input to the preprocessor
+      stage must be an instance of IO, not a String.
+
+   o  Assembler and linker stage are actually wrappers to other
+      processes (like a C compiler), so it is natural for them to be a
+      OS process.
+
+   o  For instance the assembler part needs to extract necessary header
+      files to some #include-searchable paths before actually spawning a
+      C compiler.  That kind of preparations can be done while leading
+      stages are in action.
+
+   When the driver finished interpreting command line options and
+   determined which subcommand to kick, it sends run method to an
+   appropriate subcommand.
+
+   Every subcommands should at least understand run method in addition
+   to ordinary initialize method:
+
+       Subcommand#run(io, name)
+
+   Argument io is a kind of IO instance and can at least be read from.
+   Argument name is the name of that io, e.g. a file path.
+
+
+
+
+Urabe & Sasada                Informational                     [Page 7]
+
+README                           YARVAOT                      March 2010
+
+
+   A subcommand should return an IO object that can also be read.  So
+   the minimum implementation of this method is:
+
+       # An echoing subcommand (or a ``cat'')
+       def run(io, name)
+          io
+       end
+
+   But of course, most subcommands read from the io, do conversions and
+   then return a new pipe to write to.
+
+3.2.  The Compiler Proper
+
+   The compiler, or the Ruby to C transformation engine, is a key part
+   of this product.
+
+   The point is RubyVM::InstructionSequence.  An instance of it is
+   created by simply sending a new method to that class, with passing
+   some IO or String to its first argument.  An ISeq object can then be
+   evaluated using its eval method.  So if one can transform an ISeq
+   into some other form and then reconstruct an equivalent ISeq, that
+   reconstructed one should run.  The compiler's goal is that
+   transformation; necessary and sufficient information to be saved into
+   C variables, and evaluation body to be a series of C function.
+
+   Luckily, ISeqs have to_a method which outputs every info an ISeq
+   holds into an Array instance.  And such arrays can be converted back
+   to ISeqs by using undocumented C level API rb_iseq_load(), which is
+   in the libruby.so.  So at the base line a compiler (of level zero)
+   can be:
+
+       # The baseline compiler, concept code.
+       def compile(io)
+          str = Marhsal.dump(ISeq.new(io).to_a)
+          <<-end
+             rb_iseq_load(rb_marshal_load("#{str}"));
+          end
+       end
+
+   But the code above has some problems:
+
+   o  Strings should be escaped.  Or more generally speaking, C
+      variables are different from Ruby variables so a compiler have to
+      manage their lifetime, expression, scope and so on.
+
+   o  ISeqs reconstructed using rb_iseq_load() are true 100% identical
+      copies of Ruby script interpretation; which means evaluations of
+      such ISeqs have no metaphysical background of being compiled.
+
+
+
+Urabe & Sasada                Informational                     [Page 8]
+
+README                           YARVAOT                      March 2010
+
+
+   One might normally imagine a compilation of a Ruby script is to
+   convert Ruby methods in it to equivalent C functions.  Above compiler
+   lacks that part.
+
+3.2.1.  Subroutine Threaded Code
+
+   Current MRI is an ISeq processor.  All instructions have their own
+   C-level implementations.  MRI's interpreter core-loop is fetching an
+   instruction from an ISeq, and then evaluates it, one by one.  Now
+   that we have those instructions as a series of ISeq#to_a dumped
+   sequences, all we have to do is to convert them into a single C
+   function to call those instruction implementations.
+
+   Let's get more concrete.  For instance when you have this Ruby
+   method:
+
+       def foo
+          bar = baz
+       end
+
+   MRI generates an ISeq for it:
+
+       == disasm: <RubyVM::InstructionSequence:foo@<compiled>>==
+       0000 putnil
+       0001 send             :baz, 0, nil, 24, <ic:0>
+       0007 dup
+       0008 setlocal         bar
+       0010 leave
+
+   Whose #to_a contains a set of instructions:
+
+       ["YARVInstructionSequence/SimpleDataFormat",
+        ...,
+        [[:putnil],
+         [:send, :baz, 0, nil, 24, 0],
+         [:dup],
+         [:setlocal, 2],
+         [:leave]
+        ]
+       ]
+
+
+
+
+
+
+
+
+
+
+
+Urabe & Sasada                Informational                     [Page 9]
+
+README                           YARVAOT                      March 2010
+
+
+   And a compiler-generated C function shall be something like:
+
+       void foo(void)
+       {
+           putnil();
+           send(rb_intern("baz"), 0, Qnil, 24, ic[0]);
+           dup();
+           setlocal(rb_intern("bar"));
+           leave();
+       }
+
+   At this point a compilation is a simple series of Array#map.  Fairly
+   straight-forward.  But in C we already have dup(2) system call (and
+   some other naming conflicts).  So there is yarvaot.so.  In
+   yarvaot.so, all needed instruction hypostases are available with
+   prefixed ``yarvaot_insn_''.  For instance the dup instruction is
+   declared as this:
+
+       /**
+        * category: stack
+        *
+        * duplicate stack top.
+        *
+        * @param[in]      th       the VM thread to run this instruction
+        * @returns                 an updated reg_cfp.
+        */
+       RUBY_EXTERN rb_control_frame_t* yarvaot_insn_dup(rb_thread_t* t);
+
+   OK, but what is this argument th?
+
+3.2.2.  Execution Flow Controls
+
+   Above example code is simple.  Simple in a way that it executes from
+   up to down, with no branching, no method calls, no blocks, no loops.
+   Most real Ruby scripts has some (or all).  Compilers have to deal
+   with them.
+
+   Let's see some example.
+
+       def foo
+          if @x then true
+          else false
+          end
+       end
+
+
+
+
+
+
+
+Urabe & Sasada                Informational                    [Page 10]
+
+README                           YARVAOT                      March 2010
+
+
+   will be converted as:
+
+       == disasm: <RubyVM::InstructionSequence:foo@<compiled>>==
+       0000 getinstancevariable :@x, <ic:0>
+       0003 branchunless     11
+       0005 jump             7
+       0007 putobject        true
+       0009 jump             13
+       0011 putobject        false
+       0013 leave
+
+   Do you see the execution flow?  The first column of disassembler
+   output is the program counters and branching instructions takes PCs
+   as operands.
+
+   Branch instructions are implemented in a way that they assign PC to
+   the given value (iff condition suffices).  There are also
+   instructions that touches to VM stack frames -- You have already seen
+   one; the leave instruction.  For those instructions that touches PC
+   and frames, those info are passed to instructions as their first
+   argument, typed rb_thread_t*.  A compiler generated function should
+   properly pass it to calling instructions, and also should check the
+   value afterwards.
+
+       void foo(rb_thread_t* th)
+       {
+       again:
+           if(stack_updated_p(th)) return;
+           switch(get_current_pc(th)) {
+           case  0: yarvaot_insn_getinstancevariable(th, "@x", ic[0]);
+                        goto again;
+           case  3: yarvaot_insn_branchunless(th, 11);
+                        goto again;
+           case  5: yarvaot_insn_jump(th, 7);
+                        goto again;
+           case  7: yarvaot_insns_putobject(th, Qtrue);
+                        goto again;
+           case  9: yarvaot_insn_jump(th, 13);
+                        goto again;
+           case 11: yarvaot_insn_putobject(th, Qfalse);
+                        goto again;
+           case 13: yarvaot_insn_leave(th);
+                        goto again;
+           }
+       }
+
+   Those ``goto again'' are a bit redundant, because not all
+   instructions touch PC and/or stack.  There are safe positions where
+
+
+
+Urabe & Sasada                Informational                    [Page 11]
+
+README                           YARVAOT                      March 2010
+
+
+   you can omit them.  The compiler does implement that, but current
+   implementation is not ready for future instruction addition...
+   Redundancy here do not harm (except CPU cache miss-hit), so falling
+   back to above implementation is recommended if you create one.
+
+3.2.3.  Calling Convension
+
+   OK, assume you have successfully created your C function.  We now
+   have to call that function somehow.
+
+   Functions of above form are intended to be invoked from inside of
+   Ruby's VM core loop.  So there can be two possible ways for them to
+   be kicked:
+
+   o  Invoke a new VM loop every time that C function is needed.  This
+      is simpler, though slow as it sounds.
+
+   o  Ride on an existing VM loop.  This can be tricky, but fast.
+
+   Below is the way to do the latter.  For easier way, take a look at
+   ruby_exec_node() implementation.
+
+   What is needed anyway is a stab ISeq to pass to vm_exec_core().
+   There is a special instruction designed for this purpose,
+   opt_call_c_function, so put that instruction alone.
+
+       == disasm: <RubyVM::InstructionSequence:foo@<compiled>>==
+       0000 opt_call_c_function <funcptr:foo_compiled>
+
+   Where funcptr is the pointer to the precompiled function.
+
+   For hopping aboard an existing VM loop, you need a bit more.  When
+   doing so, an ISeq can be visited more than once with different PCs.
+   Let us see an example:
+
+       def bar
+       end
+
+       def foo
+          bar
+       end
+
+
+
+
+
+
+
+
+
+
+Urabe & Sasada                Informational                    [Page 12]
+
+README                           YARVAOT                      March 2010
+
+
+   It will be converted into:
+
+       == disasm: <RubyVM::InstructionSequence:bar@<compiled>>==
+       0000 putnil
+       0001 leave
+       == disasm: <RubyVM::InstructionSequence:foo@<compiled>>==
+       0000 putnil
+       0001 send             :bar, 0, nil, 24, <ic:0>
+       0007 leave
+
+   The point is that send(:bar) hops aboard on foo's VM core loop.  In
+   doing so, send instruction will save current PC &c. to the current VM
+   stack frame and then shift away that stack frame with a new one for
+   bar method.
+
+               Ruby's send/leave instruction are CPS
+
+           -------------- single VM loop -------------->
+           -----------------+-------------+-------------
+             method foo     | method bar  | foo (cont.)
+             ---> SEND :bar | ----> LEAVE | (*) ------>
+           --------|--------+---------^---+-------------
+                   | (*)              |
+                   +------------------+
+
+   Instruction send implicitly saves current continuation (*) onto the
+   stack top, then switches execution to the target method (bar in this
+   case).  Instruction leave then pops that continuation from the stack,
+   and continue to execute from that point.
+
+   Because of this mechanism, a stab ISeq should be able to (1) hold
+   this (*), and (2) properly restart an ISeq from the middle of it.
+   Hence, at any possible point of sequence where continuation can be
+   made, opt_call_c_function should be inserted.
+
+   So for instance stab ISeqs for above example should be:
+
+       == disasm: <RubyVM::InstructionSequence:bar@<compiled>>==
+       0000 opt_call_c_function <funcptr:bar_compiled>
+       == disasm: <RubyVM::InstructionSequence:foo@<compiled>>==
+       0000 opt_call_c_function <funcptr:bar_compiled>
+       0002 nop
+       0003 nop
+       0004 nop
+       0005 nop
+       0006 nop
+       0007 opt_call_c_function <funcptr:bar_compiled>
+
+
+
+
+Urabe & Sasada                Informational                    [Page 13]
+
+README                           YARVAOT                      March 2010
+
+
+   Continuations are created at some statically computable points.  So
+   you can omit any impossibly positioned opt_call_c_functions, like
+   foo's disasm in above example.  In it, PCs from 1 to 6 are not
+   possible continuation point, because those points were inside the
+   send instruction originally.
+
+   Note however, that those possible continuation point can be as dense
+   as one PC each on some situation (hint: exception).  And
+   opt_call_c_function consumes 2 PCs.  How to solve this is an exercise
+   for you.  The compiler implements one way, but that is not the only
+   answer.  Try another one.
+
+4.  Security Considerations
+
+   o  Every single security threat that the MRI has, including as-yet
+      unknown ones, should also affect to any compiler-generated
+      binaries.
+
+   o  On most operating systems Ruby scripts cannot be setuid-root.  One
+      can bypass that check by compiling a Ruby script into a binary
+      executable.  Dangers might be there.
+
+   o  (It is currently prohibited by the linker subcommand but) if you
+      manually link your binary statically to libruby-static.a, not
+      dynamically to libruby.so, any security fixes applied to the MRI
+      do not propagate to your binary, unless explicitly recompile them.
+
+5.  IANA Considerations
+
+   This memo includes no request to IANA.
+
+6.  References
+
+6.1.  Normative References
+
+   [Ruby]            Matsumoto, Y., "The Ruby Programming Language",
+                     <http://www.ruby-lang.org>.
+
+   [YARV]            Sasada, K., Matsumoto, Y., Maeda, A., and Namiki,
+                     M., "YARV: Yet Another RubyVM The Implementation
+                     and Evaluation", IPSJ PRO Vol.47, No.SIG 2(PRO28),
+                     pp.57-73 (2006.2), 2006.
+
+6.2.  Informative References
+
+   [C]               International Organization for Standardization,
+                     "Programming languages - C", ISO Standard 9899,
+                     1990.
+
+
+
+Urabe & Sasada                Informational                    [Page 14]
+
+README                           YARVAOT                      March 2010
+
+
+   [RFC4122]         Leach, P., Mealling, M., and Salz, R., "A
+                     Universally Unique IDentifier (UUID) URN
+                     Namespace", RFC 4122, July 2005.
+
+   [RubyScript2Exe]  Veenstra, E., "RubyScript2Exe - A Ruby Compiler",
+                     <http://www.erikveen.dds.nl/rubyscript2exe/>.
+
+   [ruby2c]          Davis, R., "RubyToC",
+                     <http://ruby2c.rubyforge.org>.
+
+Appendix A.  Change Log
+
+   initial version.
+
+Appendix B.  Open Issues
+
+   o  More optimizations needs be.  It does almost nothing now.
+
+      *  Some sort of method inlining can be there.
+
+      *  Method invocations are the bottlenecks.
+
+      *  For instance a literal one plus a literal two can be
+         precalculated as a literal three...  Only if you are 100% sure
+         Fixnum#+ is not redefined.
+
+   o  There should be an easy way to compile a whole project; currently
+      only one file can be compiled on one compilation unit.  A typical
+      usage of Ruby consists of many Ruby scripts to be coordinated.
+
+Appendix C.  Tales About San-Tabu
+
+   Feel something odd to read the implementation?  That can be the
+   indentation.
+
+   Ruby community has long been split between Japanese domestic and the
+   rest of this universe.  One of those gaps is indentation.  Most Ruby
+   programmers worldwide uses 2 horizontal spaces for that purpose.
+   Japanese residents on the other hand, uses one hard tab, and set
+   their tab width to 3 (they call this manner ``san-tabu'', literally
+   ``tab three'').  This fashion was sourced from Tada Tadashi and his
+   code (namely tDiary).  He tells us that:
+
+   o  Indentations are Holy Wars.  There is no single ultimate answer.
+      So programmers should not force others some specific indent-level.
+      When codes use hard tabs, users can set their editor to use
+      whatever preferred tab width.  That should gain the greatest
+      happiness for the greatest number.
+
+
+
+Urabe & Sasada                Informational                    [Page 15]
+
+README                           YARVAOT                      March 2010
+
+
+   o  3 spaces width tab stop is his preference. 4 spaces are too wide,
+      2 spaces are too narrow.  Because Ruby has a keyword ``end'',
+      which is 3 chars length, deep indents are most beautiful when tab
+      stops are 3 width:
+
+                   ...
+                end
+             end
+          end
+       end
+
+   He also claim that the patriarch of the church of san-tabu is Shugo
+   Maeda, the famous author of modruby and net/imap.  But Shugo no
+   longer uses this setting.  Current practical guru of this church is
+   Tadashi.
+
+Authors' Addresses
+
+   Shyouhei Urabe
+   Network Applied Communication Laboratory, Ltd.
+   Ko-wa bldg. 3 2F, Sotokanda 5-6-12
+   Chiyodaku ward, Tokyo pref.
+   Japan
+
+   EMail: shyouhei@netlab.jp
+
+
+   Koichi Sasada
+   The University of Tokyo
+   Akihabara Dai-Building 13F, Sotokanda 1-18-13
+   Chiyodaku ward, Tokyo pref.
+   Japan
+
+   EMail: sasada@ci.i.u-tokyo.ac.jp
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+Urabe & Sasada                Informational                    [Page 16]
+
