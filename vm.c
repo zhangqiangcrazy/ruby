@@ -1517,7 +1517,7 @@ rb_vm_mark(void *ptr)
 }
 
 int
-ruby_vm_free(rb_vm_t *vm)
+ruby_vmptr_destruct(rb_vm_t *vm)
 {
     rb_thread_t *th = GET_THREAD();
 

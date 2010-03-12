@@ -76,7 +76,7 @@ ruby_vm_destruct(rb_vm_t *vm)
     return 0;
 }
 #endif
-    if (ruby_vm_free(vm)) {
+    if (ruby_vmptr_destruct(vm)) {
 	vmmgr_del(vm);
 	free(vm);
     }

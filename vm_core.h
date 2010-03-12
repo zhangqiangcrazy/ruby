@@ -793,7 +793,7 @@ void *ruby_objspace_xrealloc(struct rb_objspace *objspace, void *ptr, size_t siz
 void *ruby_objspace_xrealloc2(struct rb_objspace *objspace, void *ptr, size_t n, size_t size);
 void ruby_objspace_xfree(struct rb_objspace *objspace, void *ptr);
 
-int ruby_vm_free(rb_vm_t *vm);
+int ruby_vmptr_destruct(rb_vm_t *vm);
 
 #define sysstack_error rb_errSysStack
 
