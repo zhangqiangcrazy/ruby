@@ -96,6 +96,17 @@ add_options_arg_list(struct rb_options_arg_list *list, const char *arg)
 }
 
 #define init_options_arg_list(list) (*((list)->tail = &(list)->head) = 0)
+#define process_options_arg_list(arg_list, body) do { \
+	struct rb_options_arg_element *list;		  \
+	while ((list = (arg_list)->head) != 0) {	  \
+	    const char *arg = list->arg;		  \
+	    (arg_list)->head = list->next;		  \
+	    free(list);					  \
+	    body;					  \
+	}						  \
+    } while (0)
+
+#define src_encoding_index GET_VM()->src_encoding_index
 
 struct rb_vm_options *
 rb_vm_options_init(struct rb_vm_options *opt)
@@ -465,6 +476,24 @@ ruby_options_add_library_path(struct rb_vm_options *opt, const char *path)
     add_modules(&opt->load_path, path);
 }
 
+void
+ruby_options_add_to_argv(struct rb_vm_options *opt, const char *arg)
+{
+    add_options_arg_list(&opt->argv, arg);
+}
+
+void
+ruby_options_add_expression(struct rb_vm_options *opt, const char *s)
+{
+    if (!opt->e_script) {
+	opt->e_script = rb_str_new(0, 0);
+	if (opt->script == 0)
+	    opt->script = "-e";
+    }
+    rb_str_cat2(opt->e_script, s);
+    rb_str_cat2(opt->e_script, "\n");
+}
+
 extern void Init_ext(void);
 extern VALUE rb_vm_top_self(void);
 
@@ -481,13 +510,11 @@ require_libraries(struct rb_options_arg_list *req_list)
 
     Init_ext();		/* should be called here for some reason :-( */
     CONST_ID(require, "require");
-    while ((list = req_list->head) != 0) {
-	VALUE feature = rb_str_new_cstr(list->arg);
-	req_list->head = list->next;
-	free(list);
-	rb_str_freeze(feature);
-	rb_funcall2(rb_vm_top_self(), require, 1, &feature);
-    }
+    process_options_arg_list(req_list, {
+	    VALUE feature = rb_str_new_cstr(arg);
+	    rb_str_freeze(feature);
+	    rb_funcall2(rb_vm_top_self(), require, 1, &feature);
+	});
 
     th->parse_in_eval = prev_parse_in_eval;
     th->base_block = prev_base_block;
@@ -815,13 +842,7 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct rb_vm_options *opt, int
 	    if (!s) {
 		rb_raise(rb_eRuntimeError, "no code specified for -e");
 	    }
-	    if (!opt->e_script) {
-		opt->e_script = rb_str_new(0, 0);
-		if (opt->script == 0)
-		    opt->script = "-e";
-	    }
-	    rb_str_cat2(opt->e_script, s);
-	    rb_str_cat2(opt->e_script, "\n");
+	    ruby_options_add_expression(opt, s);
 	    break;
 
 	  case 'r':
@@ -1233,6 +1254,16 @@ rb_f_chomp(argc, argv)
 void rb_stdio_set_default_encoding(void);
 VALUE rb_parser_dump_tree(NODE *node, int comment);
 
+static void vm_set_argv(VALUE ary, int argc, char **argv);
+static void
+push_frozen_str(VALUE ary, const char *s)
+{
+    VALUE arg = rb_external_str_new(s, strlen(s));
+
+    OBJ_FREEZE(arg);
+    rb_ary_push(ary, arg);
+}
+
 static VALUE
 process_options(rb_vm_t *vm, int argc, char **argv, struct rb_vm_options *opt)
 {
@@ -1248,6 +1279,8 @@ process_options(rb_vm_t *vm, int argc, char **argv, struct rb_vm_options *opt)
 
     argc -= i;
     argv += i;
+
+    process_options_arg_list(&opt->load_path, ruby_incpush(arg));
 
     if (opt->dump & DUMP_BIT(usage)) {
 	usage(origarg.argv[0]);
@@ -1290,7 +1323,9 @@ process_options(rb_vm_t *vm, int argc, char **argv, struct rb_vm_options *opt)
 	    opt->script = "-";
 	}
 	else {
-	    opt->script = argv[0];
+	    const char *arg0 = argv[0];
+	    if (!opt->script) opt->script = arg0;
+	    else arg0 = opt->script;
 	    if (opt->script[0] == '\0') {
 		opt->script = "-";
 	    }
@@ -1299,13 +1334,13 @@ process_options(rb_vm_t *vm, int argc, char **argv, struct rb_vm_options *opt)
 
 		opt->script = 0;
 		if (path) {
-		    opt->script = dln_find_file_r(argv[0], path, fbuf, sizeof(fbuf));
+		    opt->script = dln_find_file_r(arg0, path, fbuf, sizeof(fbuf));
 		}
 		if (!opt->script) {
-		    opt->script = dln_find_file_r(argv[0], getenv(PATH_ENV), fbuf, sizeof(fbuf));
+		    opt->script = dln_find_file_r(arg0, getenv(PATH_ENV), fbuf, sizeof(fbuf));
 		}
 		if (!opt->script)
-		    opt->script = argv[0];
+		    opt->script = arg0;
 	    }
 	    argc--;
 	    argv++;
@@ -1358,7 +1393,12 @@ process_options(rb_vm_t *vm, int argc, char **argv, struct rb_vm_options *opt)
 	}
     }
     ruby_init_gems(!(opt->disable & DISABLE_BIT(gems)));
-    ruby_vm_set_argv(vm, argc, argv);
+    {
+	VALUE av = ruby_vm_get_argv(vm);
+	vm_set_argv(av, argc, argv);
+	process_options_arg_list(&opt->argv, push_frozen_str(av, arg));
+    }
+
     process_sflag(vm, &opt->sflag);
 
     {
@@ -1853,6 +1893,23 @@ ruby_prog_init(void)
 #endif
 }
 
+static void
+vm_set_argv(VALUE av, int argc, char **argv)
+{
+    int i;
+
+    rb_ary_clear(av);
+    for (i = 0; i < argc; i++) {
+	push_frozen_str(av, argv[i]);
+    }
+}
+
+void
+ruby_vm_set_argv(rb_vm_t *vm, int argc, char **argv)
+{
+    vm_set_argv(ruby_vm_get_argv(vm), argc, argv);
+}
+
 void
 ruby_set_argv(int argc, char **argv)
 {
@@ -1862,21 +1919,6 @@ ruby_set_argv(int argc, char **argv)
     else
 	dln_argv0 = argv[0];
 #endif
-}
-
-void
-ruby_vm_set_argv(rb_vm_t *vm, long argc, char **argv)
-{
-    long i;
-    VALUE av = ruby_vm_get_argv(vm);
-
-    rb_ary_clear(av);
-    for (i = 0; i < argc; i++) {
-	VALUE arg = rb_external_str_new(argv[i], strlen(argv[i]));
-
-	OBJ_FREEZE(arg);
-	rb_ary_push(av, arg);
-    }
 }
 
 VALUE

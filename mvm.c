@@ -95,10 +95,14 @@ vm_init_options(rb_vm_t *vm)
     return vm->init_options;
 }
 
+/*
+ * ARGV
+ */
 int
 ruby_vm_init_add_argv(rb_vm_t *vm, const char *arg)
 {
-    rb_bug("not supported");
+    void ruby_options_add_to_argv(struct rb_vm_options *, const char *);
+    ruby_options_add_to_argv(vm_init_options(vm), arg);
     return 1;
 }
 
@@ -121,14 +125,16 @@ ruby_vm_init_add_library_path(rb_vm_t *vm, const char *path)
 int
 ruby_vm_init_add_expression(rb_vm_t *vm, const char *expr)
 {
-    rb_bug("not supported");
+    void ruby_options_add_expression(struct rb_vm_options *, const char *);
+    ruby_options_add_expression(vm_init_options(vm), expr);
     return 1;
 }
 
 int
 ruby_vm_init_script(rb_vm_t *vm, const char *script)
 {
-    rb_bug("not supported");
+    if (script) return 0;
+    vm_init_options(vm)->script = script;
     return 1;
 }
 
@@ -172,6 +178,18 @@ ruby_vm_init_add_initializer(rb_vm_t *vm, void (*initializer)(rb_vm_t *))
     *i->tail = f;
     i->tail = &f->next;
     return 1;
+}
+
+void
+ruby_vm_init_call_initializer(rb_vm_t *vm)
+{
+    struct rb_vm_initializer *init = vm_init_options(vm)->initializer;
+    struct rb_vm_initializer_func *f;
+
+    if (!init) return;
+    for (f = init->head; f; f = f->next) {
+	(*f->func)(vm);
+    }
 }
 
 int

@@ -304,7 +304,7 @@ struct rb_vm_options {
 	    int index;
 	} enc;
     } src, ext, intern;
-    struct rb_options_arg_list req_list, load_path;
+    struct rb_options_arg_list req_list, load_path, argv;
 };
 
 typedef struct rb_queue_element {
@@ -769,6 +769,7 @@ VALUE rb_vm_invoke_proc(rb_thread_t *th, rb_proc_t *proc, VALUE self,
 VALUE rb_vm_make_proc(rb_thread_t *th, const rb_block_t *block, VALUE klass);
 VALUE rb_vm_make_env_object(rb_thread_t *th, rb_control_frame_t *cfp);
 rb_vm_t *ruby_make_bare_vm(void);
+void ruby_vm_init_call_initializer(rb_vm_t *vm);
 
 void *rb_thread_call_with_gvl(void *(*func)(void *), void *data1);
 int ruby_thread_has_gvl_p(void);

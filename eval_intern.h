@@ -229,7 +229,7 @@ void ruby_native_cond_destroy(rb_thread_cond_t *cond);
 VALUE ruby_vm_get_argv(rb_vm_t *vm);
 const char *ruby_vm_get_inplace_mode(rb_vm_t *vm);
 void ruby_vm_set_inplace_mode(rb_vm_t *vm, const char *suffix);
-void ruby_vm_set_argv(rb_vm_t *vm, long argc, char **argv);
+void ruby_vm_set_argv(rb_vm_t *vm, int argc, char **argv);
 int rb_vm_get_sourceline(const rb_control_frame_t *);
 void rb_trap_restore_mask(void);
 
