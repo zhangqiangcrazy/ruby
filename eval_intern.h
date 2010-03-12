@@ -215,6 +215,7 @@ void rb_vm_thread_terminate_all(rb_vm_t *vm);
 VALUE ruby_vm_argf(rb_vm_t *vm);
 
 int ruby_native_thread_create(rb_thread_t *);
+void ruby_native_thread_init(rb_thread_t *);
 void ruby_native_thread_lock_initialize(rb_thread_lock_t *lock);
 void ruby_native_thread_lock_destroy(rb_thread_lock_t *lock);
 void ruby_native_thread_lock(rb_thread_lock_t *lock);

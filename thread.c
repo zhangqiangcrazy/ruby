@@ -316,13 +316,13 @@ rb_threadptr_interrupt(rb_thread_t *th)
 
 
 static int
-terminate_i(st_data_t key, st_data_t val, rb_thread_t *main_thread)
+terminate_i(st_data_t key, st_data_t val, st_data_t main_thread)
 {
     VALUE thval = key;
     rb_thread_t *th;
     GetThreadPtr(thval, th);
 
-    if (th != main_thread) {
+    if (th != (rb_thread_t *)main_thread) {
 	thread_debug("terminate_i: %p\n", (void *)th);
 	rb_threadptr_interrupt(th);
 	th->thrown_errinfo = eTerminateSignal;
@@ -430,10 +430,22 @@ ruby_thread_init_stack(rb_thread_t *th)
     native_thread_init_stack(th);
 }
 
+void
+ruby_native_thread_init(rb_thread_t *th)
+{
+    /* init thread core */
+    InitVM_native_thread(th);
+    native_mutex_initialize(&th->interrupt_lock);
+}
+
 int
 ruby_native_thread_create(rb_thread_t *th)
 {
-    native_mutex_initialize(&th->interrupt_lock);
+    ruby_native_thread_init(th);
+    /* acquire global vm lock */
+    thread_debug("InitVM_Thread: %p", th->vm);
+    native_mutex_lock(&th->vm->global_vm_lock);
+
     th->priority = GET_THREAD()->priority;
     th->thgroup = GET_THREAD()->thgroup;
 
@@ -445,22 +457,15 @@ ruby_native_thread_create(rb_thread_t *th)
     return native_thread_create(th);
 }
 
+static void thread_terminated_1(rb_thread_t *th, int state);
+static void thread_terminated_2(rb_thread_t *th, int state);
+
 static int
 thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_start)
 {
     int state;
     VALUE args = th->first_args;
     rb_proc_t *proc;
-    rb_thread_t *join_th;
-    rb_thread_t *main_th;
-    VALUE errinfo = Qnil;
-# ifdef USE_SIGALTSTACK
-    void rb_register_sigaltstack(rb_thread_t *th);
-
-    rb_register_sigaltstack(th);
-# endif
-
-    ruby_thread_set_native(th);
 
     ruby_thread_set_native(th);
 
@@ -491,73 +496,10 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
 		}
 	    });
 	}
-	else {
-	    errinfo = th->errinfo;
-	    if (NIL_P(errinfo)) errinfo = rb_errinfo();
-	    if (state == TAG_FATAL) {
-		/* fatal error within this thread, need to stop whole script */
-	    }
-	    else if (rb_obj_is_kind_of(errinfo, rb_eSystemExit)) {
-		if (th->safe_level >= 4) {
-		    th->errinfo = rb_exc_new3(rb_eSecurityError,
-					      rb_sprintf("Insecure exit at level %d", th->safe_level));
-		    errinfo = Qnil;
-		}
-	    }
-	    else if (th->safe_level < 4 &&
-		     (th->vm->thread_abort_on_exception ||
-		      th->abort_on_exception || RTEST(ruby_debug))) {
-		/* exit on main_thread */
-	    }
-	    else {
-		errinfo = Qnil;
-	    }
-	    th->value = Qnil;
-	}
-
-	th->status = THREAD_KILLED;
-	thread_debug("thread end: %p\n", (void *)th);
-
-	main_th = th->vm->main_thread;
-	if (th != main_th) {
-	    if (TYPE(errinfo) == T_OBJECT) {
-		/* treat with normal error object */
-		rb_threadptr_raise(main_th, 1, &errinfo);
-	    }
-	}
+	thread_terminated_1(th, state);
 	TH_POP_TAG();
-
-	/* locking_mutex must be Qfalse */
-	if (th->locking_mutex != Qfalse) {
-	    rb_bug("thread_start_func_2: locking_mutex must not be set (%p:%"PRIxVALUE")",
-		   (void *)th, th->locking_mutex);
-	}
-
-	/* delete self other than main thread from living_threads */
-	if (th != main_th) {
-	    st_delete_wrap(th->vm->living_threads, th->self);
-	}
-
-	/* wake up joining threads */
-	join_th = th->join_list_head;
-	while (join_th) {
-	    if (join_th == main_th) errinfo = Qnil;
-	    rb_threadptr_interrupt(join_th);
-	    switch (join_th->status) {
-	      case THREAD_STOPPED: case THREAD_STOPPED_FOREVER:
-		join_th->status = THREAD_RUNNABLE;
-	      default: break;
-	    }
-	    join_th = join_th->join_list_next;
-	}
-
-	if (!th->root_fiber) {
-	    rb_thread_recycle_stack_release(th->stack);
-	    th->stack = 0;
-	}
     }
-    thread_unlock_all_locking_mutexes(th);
-    if (th != main_th) rb_check_deadlock(th->vm);
+    thread_terminated_2(th, state);
     if (th->vm->main_thread == th) {
 	int signo = 0;
 	ruby_vm_cleanup(th->vm, state);
@@ -566,10 +508,99 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
 	if (signo) ruby_default_signal(signo);
     }
     else {
+	thread_cleanup_func(th);
 	native_mutex_unlock(&th->vm->global_vm_lock);
     }
-
     return 0;
+}
+
+static void
+thread_terminated_1(rb_thread_t *th, int state)
+{
+    rb_thread_t *main_th;
+    VALUE errinfo = Qnil;
+
+    if (state) {
+	errinfo = th->errinfo;
+	if (NIL_P(errinfo)) errinfo = rb_errinfo();
+	if (state == TAG_FATAL) {
+	    /* fatal error within this thread, need to stop whole script */
+	}
+	else if (rb_obj_is_kind_of(errinfo, rb_eSystemExit)) {
+	    if (th->safe_level >= 4) {
+		th->errinfo = rb_exc_new3(rb_eSecurityError,
+					  rb_sprintf("Insecure exit at level %d", th->safe_level));
+		errinfo = Qnil;
+	    }
+	}
+	else if (th->safe_level < 4 &&
+		 (th->vm->thread_abort_on_exception ||
+		  th->abort_on_exception || RTEST(ruby_debug))) {
+	    /* exit on main_thread */
+	}
+	else {
+	    errinfo = Qnil;
+	}
+	th->value = Qnil;
+    }
+
+    th->status = THREAD_KILLED;
+    thread_debug("thread end: %p\n", (void *)th);
+
+    main_th = th->vm->main_thread;
+    if (th != main_th) {
+	if (TYPE(errinfo) == T_OBJECT) {
+	    /* treat with normal error object */
+	    rb_threadptr_raise(main_th, 1, &errinfo);
+	}
+    }
+}
+
+static void
+thread_terminated_2(rb_thread_t *th, int state)
+{
+    rb_thread_t *join_th;
+    rb_thread_t *main_th = th->vm->main_thread;
+
+    /* locking_mutex must be Qfalse */
+    if (th->locking_mutex != Qfalse) {
+	rb_bug("thread_terminated_2: locking_mutex must not be set (%p:%"PRIxVALUE")",
+	       (void *)th, th->locking_mutex);
+    }
+
+    /* delete self other than main thread from living_threads */
+    if (th != main_th) {
+	st_delete_wrap(th->vm->living_threads, th->self);
+    }
+
+    /* wake up joining threads */
+    join_th = th->join_list_head;
+    while (join_th) {
+	rb_threadptr_interrupt(join_th);
+	switch (join_th->status) {
+	  case THREAD_STOPPED: case THREAD_STOPPED_FOREVER:
+	    join_th->status = THREAD_RUNNABLE;
+	  default: break;
+	}
+	join_th = join_th->join_list_next;
+    }
+
+    if (!th->root_fiber) {
+	rb_thread_recycle_stack_release(th->stack);
+	th->stack = 0;
+    }
+    thread_unlock_all_locking_mutexes(th);
+    if (th != main_th) rb_check_deadlock(th->vm);
+}
+
+void
+ruby_threadptr_cleanup(rb_thread_t *th)
+{
+    thread_terminated_1(th, 0);
+    thread_terminated_2(th, 0);
+    thread_cleanup_func(th);
+    native_mutex_unlock(&th->vm->global_vm_lock);
+    st_delete_wrap(th->vm->living_threads, th->self);
 }
 
 static VALUE
@@ -601,6 +632,39 @@ thread_create_core(VALUE thval, VALUE args, VALUE (*fn)(ANYARGS))
 	rb_raise(rb_eThreadError, "can't create Thread (%d)", err);
     }
     return thval;
+}
+
+struct search_thread_arg {
+    rb_thread_t *thptr;
+    rb_thread_id_t tid;
+};
+
+static int
+search_thread_i(st_data_t thval, st_data_t thid, st_data_t arg)
+{
+    struct search_thread_arg *p = (struct search_thread_arg *)arg;
+    if (native_thread_equal((rb_thread_id_t)thid, (rb_thread_id_t)p->tid)) {
+	GetThreadPtr(thval, p->thptr);
+	return ST_STOP;
+    }
+    return ST_CONTINUE;
+}
+
+rb_thread_t *
+ruby_vm_search_thread(rb_vm_t *vm, rb_thread_id_t tid)
+{
+    struct search_thread_arg arg;
+    if (!vm->living_threads) return 0;
+    arg.thptr = 0;
+    arg.tid = tid;
+    st_foreach(vm->living_threads, search_thread_i, (st_data_t)&arg);
+    return arg.thptr;
+}
+
+rb_thread_t *
+ruby_vm_search_current_thread(rb_vm_t *vm)
+{
+    return ruby_vm_search_thread(vm, native_thread_id());
 }
 
 /* :nodoc: */
@@ -4669,19 +4733,6 @@ InitVM_Thread(void)
     rb_define_global_function("set_trace_func", set_trace_func, 1);
     rb_define_method(rb_cThread, "set_trace_func", thread_set_trace_func_m, 1);
     rb_define_method(rb_cThread, "add_trace_func", thread_add_trace_func_m, 1);
-
-    /* init thread core */
-    InitVM_native_thread();
-    {
-	/* main thread setting */
-	{
-	    /* acquire global vm lock */
-	    rb_thread_lock_t *lp = &GET_THREAD()->vm->global_vm_lock;
-	    thread_debug("InitVM_Thread: %p", GET_THREAD()->vm);
-	    native_mutex_lock(lp);
-	    native_mutex_initialize(&GET_THREAD()->interrupt_lock);
-	}
-    }
 
     rb_thread_start_timer_thread();
 

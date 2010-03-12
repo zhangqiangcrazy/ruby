@@ -17,6 +17,9 @@
 #include <sys/resource.h>
 #endif
 
+#define native_thread_id() pthread_self()
+#define native_thread_equal(x, y) pthread_equal(x, y)
+
 static int native_mutex_trylock(pthread_mutex_t *lock);
 
 void
@@ -179,10 +182,8 @@ Init_native_thread(void)
 }
 
 static void
-InitVM_native_thread(void)
+InitVM_native_thread(rb_thread_t *th)
 {
-    rb_thread_t *th = GET_THREAD();
-
     th->thread_id = pthread_self();
     native_cond_initialize(&th->native_thread_data.sleep_cond);
     ruby_thread_set_native(th);

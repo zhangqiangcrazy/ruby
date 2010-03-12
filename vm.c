@@ -1519,9 +1519,11 @@ rb_vm_mark(void *ptr)
 int
 ruby_vm_free(rb_vm_t *vm)
 {
+    rb_thread_t *th = GET_THREAD();
+
     if (!vm) return FALSE;
 
-    if (vm == GET_VM()) {
+    if (th && vm == th->vm) {
 	if (vm->self) {
 	    vm->self = 0;
 	}
@@ -2098,6 +2100,7 @@ rb_vm_to_s(VALUE self)
     return str;
 }
 
+static rb_thread_t *vm_thread_new(rb_vm_t *vm);
 static rb_thread_t *vm_make_main_thread(rb_vm_t *vm);
 
 struct vm_create_args {
@@ -2154,7 +2157,7 @@ rb_vm_start(VALUE self)
     args.lock = &GET_VM()->global_vm_lock;
     ruby_native_cond_initialize(&args.waiting);
 
-    ruby_native_thread_create(th);
+    ruby_native_thread_init(th);
     ruby_native_thread_unlock(&vm->global_vm_lock);
 
     while (!args.initialized) {
@@ -2173,6 +2176,91 @@ rb_vm_join(VALUE self)
     GetVMPtr(self, vm);
     status = ruby_vm_join(vm);
     return INT2NUM(status);
+}
+
+static ruby_vm_t *
+ruby_set_vm_context(ruby_vm_t *vm, void **local)
+{
+    rb_thread_t *th;
+    ruby_vm_t *prev_vm = 0;
+
+    th = GET_THREAD();
+
+    if (th) {
+	prev_vm = th->vm;
+
+	if (prev_vm != vm) {
+	    th->machine_stack_end = (VALUE *)local;
+	}
+    }
+
+    if (!th || prev_vm != vm) {
+	th = ruby_vm_search_current_thread(vm);
+    }
+    if (th == 0) {
+	th = rb_objspace_xmalloc(vm->objspace, sizeof(*th));
+	MEMZERO(th, rb_thread_t, 1);
+	th->vm = vm;
+	th->machine_stack_start = (VALUE *)local;
+	rb_thread_set_current_raw(th);
+	th_init(th, TypedData_Wrap_Struct(rb_cThread, &thread_data_type, th));
+	st_insert(vm->living_threads, th->self, (st_data_t)th->thread_id);
+	*local = 0;
+    }
+    else {
+	*local = (void *)th->machine_stack_end;
+	rb_thread_set_current_raw(th);
+    }
+
+    return prev_vm;
+}
+
+static void
+ruby_reset_vm_context(ruby_vm_t *prev_vm, void *local)
+{
+    rb_thread_t *th = GET_THREAD();
+
+    if (local == 0) {
+	ruby_threadptr_cleanup(th);
+    }
+    else {
+	th->machine_stack_end = local;
+    }
+
+    if (prev_vm == 0) {
+	rb_thread_set_current_raw(0);
+    }
+    else if (th->vm != prev_vm) {
+	rb_thread_set_current_raw(ruby_vm_search_current_thread(prev_vm));
+    }
+}
+
+struct vm_call_arg {
+    void (*func)(void *);
+    void *arg;
+};
+
+static VALUE
+vm_call(VALUE arg)
+{
+    struct vm_call_arg *vp = (struct vm_call_arg *)arg;
+    (*vp->func)(vp->arg);
+    return Qnil;
+}
+
+int
+ruby_vm_call(rb_vm_t *vm, void (*func)(void *), void *arg)
+{
+    struct vm_call_arg v;
+    void* local = 0;
+    int status;
+    rb_vm_t *prev_vm = ruby_set_vm_context(vm, &local);
+
+    v.func = func;
+    v.arg = arg;
+    rb_protect(vm_call, (VALUE)&v, &status);
+    ruby_reset_vm_context(prev_vm, local);
+    return status == 0;
 }
 
 VALUE
@@ -2587,13 +2675,19 @@ ruby_make_bare_vm(void)
 static rb_thread_t *
 vm_make_main_thread(rb_vm_t *vm)
 {
+    return vm->main_thread = vm_thread_new(vm);
+}
+
+static rb_thread_t *
+vm_thread_new(rb_vm_t *vm)
+{
     rb_thread_t *th;
 
     th = rb_objspace_xmalloc(vm->objspace, sizeof(*th));
     MEMZERO(th, rb_thread_t, 1);
     th->vm = vm;
-    vm->main_thread = th;
     th_init(th, 0);
+    ruby_native_thread_init(th);
 
     return th;
 }

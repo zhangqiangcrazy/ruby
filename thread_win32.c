@@ -16,6 +16,9 @@
 #define WIN32_WAIT_TIMEOUT 10	/* 10 ms */
 #undef Sleep
 
+#define native_thread_id() GetCurrentThread()
+#define native_thread_equal(x, y) (GetThreadId(x) == GetThreadId(y))
+
 #define native_thread_yield() Sleep(0)
 #define remove_signal_thread_list(th)
 

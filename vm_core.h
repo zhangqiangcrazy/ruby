@@ -769,6 +769,8 @@ VALUE rb_vm_invoke_proc(rb_thread_t *th, rb_proc_t *proc, VALUE self,
 VALUE rb_vm_make_proc(rb_thread_t *th, const rb_block_t *block, VALUE klass);
 VALUE rb_vm_make_env_object(rb_thread_t *th, rb_control_frame_t *cfp);
 rb_vm_t *ruby_make_bare_vm(void);
+rb_thread_t *ruby_vm_search_thread(rb_vm_t *vm, rb_thread_id_t tid);
+rb_thread_t *ruby_vm_search_current_thread(rb_vm_t *vm);
 void ruby_vm_init_call_initializer(rb_vm_t *vm);
 
 void *rb_thread_call_with_gvl(void *(*func)(void *), void *data1);
@@ -839,6 +841,7 @@ enum ruby_vm_interrupted_bits {
 void rb_threadptr_signal_raise(rb_thread_t *th, int sig);
 void rb_threadptr_signal_exit(rb_thread_t *th);
 void rb_threadptr_execute_interrupts(rb_thread_t *);
+void ruby_threadptr_cleanup(rb_thread_t *);
 
 void rb_thread_lock_unlock(rb_thread_lock_t *);
 void rb_thread_lock_destroy(rb_thread_lock_t *);

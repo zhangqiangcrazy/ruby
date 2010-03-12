@@ -297,10 +297,22 @@ ruby_vm_exec_node(rb_vm_t *vm, void *n)
     return ruby_vm_exec_internal(vm, n);
 }
 
+static void
+vm_run_call(void *p)
+{
+    rb_vm_t *vm = GET_VM();
+    int *result = p;
+
+    *result = 0;
+    *result = ruby_vm_start(vm, *result = ruby_vm_init(vm));
+}
+
 int
 ruby_vm_run(rb_vm_t *vm)
 {
-    return ruby_vm_start(vm, ruby_vm_init(vm));
+    int state;
+    ruby_vm_call(vm, vm_run_call, &state);
+    return state;
 }
 
 int
