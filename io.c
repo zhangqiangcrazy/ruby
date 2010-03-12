@@ -10148,10 +10148,10 @@ InitVM_IO(void)
     if (!stdfds || (fd = stdfds[0]) == -1 || !(f = fdopen(fd, "r"))) f = stdin;
     rb_stdin = prep_stdio(f, FMODE_READABLE, rb_cIO, "<STDIN>");
     rb_define_hooked_variable("$stdout", &rb_stdout, 0, stdout_setter);
-    if (!stdfds || (fd = stdfds[1]) == -1 || !(f = fdopen(fd, "w"))) f = stdin;
+    if (!stdfds || (fd = stdfds[1]) == -1 || !(f = fdopen(fd, "w"))) f = stdout;
     rb_stdout = prep_stdio(f, FMODE_WRITABLE, rb_cIO, "<STDOUT>");
     rb_define_hooked_variable("$stderr", &rb_stderr, 0, stdout_setter);
-    if (!stdfds || (fd = stdfds[2]) == -1 || !(f = fdopen(fd, "w"))) f = stdin;
+    if (!stdfds || (fd = stdfds[2]) == -1 || !(f = fdopen(fd, "w"))) f = stderr;
     rb_stderr = prep_stdio(f, FMODE_WRITABLE|FMODE_SYNC, rb_cIO, "<STDERR>");
     rb_define_hooked_variable("$>", &rb_stdout, 0, stdout_setter);
     orig_stdout = rb_stdout;
