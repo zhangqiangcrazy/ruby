@@ -425,23 +425,23 @@ static VALUE rb_threadptr_raise(rb_thread_t *, int, VALUE *);
 void rb_thread_recycle_stack_release(VALUE *);
 
 void
-ruby_thread_init_stack(rb_thread_t *th)
+ruby_threadptr_init_stack(rb_thread_t *th)
 {
     native_thread_init_stack(th);
 }
 
 void
-ruby_native_thread_init(rb_thread_t *th)
+ruby_threadptr_init(rb_thread_t *th)
 {
     /* init thread core */
     InitVM_native_thread(th);
     native_mutex_initialize(&th->interrupt_lock);
 }
 
-int
-ruby_native_thread_create(rb_thread_t *th)
+static int
+ruby_threadptr_create(rb_thread_t *th)
 {
-    ruby_native_thread_init(th);
+    ruby_threadptr_init(th);
     /* acquire global vm lock */
     thread_debug("InitVM_Thread: %p", th->vm);
     native_mutex_lock(&th->vm->global_vm_lock);
@@ -625,7 +625,7 @@ thread_create_core(VALUE thval, VALUE args, VALUE (*fn)(ANYARGS))
 
     /* kick thread */
     st_insert(th->vm->living_threads, thval, (st_data_t) th->thread_id);
-    err = ruby_native_thread_create(th);
+    err = ruby_threadptr_create(th);
     if (err) {
 	st_delete_wrap(th->vm->living_threads, th->self);
 	th->status = THREAD_KILLED;

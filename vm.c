@@ -2157,7 +2157,7 @@ rb_vm_start(VALUE self)
     args.lock = &GET_VM()->global_vm_lock;
     ruby_native_cond_initialize(&args.waiting);
 
-    ruby_native_thread_init(th);
+    ruby_threadptr_init(th);
     ruby_native_thread_unlock(&vm->global_vm_lock);
 
     while (!args.initialized) {
@@ -2643,7 +2643,7 @@ rb_vm_set_progname(VALUE filename)
     cfp->iseq->filename = filename;
 }
 
-void ruby_thread_init_stack(rb_thread_t *th);
+void ruby_threadptr_init_stack(rb_thread_t *th);
 
 rb_vm_t *
 ruby_make_bare_vm(void)
@@ -2662,7 +2662,7 @@ ruby_make_bare_vm(void)
 
     th = vm_make_main_thread(vm);
     rb_thread_set_current_raw(th);
-    ruby_thread_init_stack(th);
+    ruby_threadptr_init_stack(th);
 #ifdef HAVE_FCHDIR
     th->cwd.fd = ruby_dirfd(".");
 #else
@@ -2687,7 +2687,7 @@ vm_thread_new(rb_vm_t *vm)
     MEMZERO(th, rb_thread_t, 1);
     th->vm = vm;
     th_init(th, 0);
-    ruby_native_thread_init(th);
+    ruby_threadptr_init(th);
 
     return th;
 }
