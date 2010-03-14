@@ -15,6 +15,8 @@ class YARVAOT::Linker < YARVAOT::Subcommand
 	def initialize
 		super
 		@shared = false
+		@main = nil
+		@main_pid = nil
 
 		@opt.on '--shared', <<-'begin'.strip do |optarg|
                                    Invokes a linker,  instead of a compiler, to
@@ -40,6 +42,8 @@ recompile   a   new   ruby   installation  with   configuring   --enable-shared
 --without-static-linked-ext.
 
 			end
+		elsif not @shared
+			@main = create_mainobj n
 		end
 	end
 
@@ -54,6 +58,7 @@ recompile   a   new   ruby   installation  with   configuring   --enable-shared
 				 end
 			l = RbConfig.expand l, c
 			verbose_out "running Linker: %s", l
+			Process.waitpid @main_pid if @main_pid
 			p = Process.spawn l
 			Process.waitpid p
 		end
@@ -75,13 +80,12 @@ recompile   a   new   ruby   installation  with   configuring   --enable-shared
 	end
 
 	def aout_line f, n, h
-		g = create_mainobj n
 		sprintf "$(CC) %s%s %s %s -L$(archdir) -l:yarvaot.$(DLEXT)" \
 				  " %s %s %s %s %s",
 				  COUTFLAG,
 				  h.path,
 				  f.path,
-				  g.path,
+				  @main.path,
 				  $LIBPATH.join,
 				  $DLDFLAGS,
 				  $LOCAL_LIBS,
@@ -103,12 +107,9 @@ recompile   a   new   ruby   installation  with   configuring   --enable-shared
 							g.path
 			l = RbConfig.expand l, c
 			verbose_out "running C compiler: %s", l
-			p = Process.spawn l, in: r
+			@main_pid = Process.spawn l, in: r
 			genmain w, n
 			w.close
-			Process.waitpid p
-			g.close
-			g.open
 		end
 	end
 

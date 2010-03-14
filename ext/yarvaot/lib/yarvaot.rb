@@ -61,7 +61,7 @@ class YARVAOT::Subcommand
 	# kind of course)  stops the whole execution so it  something is wrong, just
 	# raise it.
 	def runup n
-		true # OK, default no preparation
+		verbose_out "nothing to do."
 	end
 
 	# This is the main method, but  does nothing on this class itself. should be

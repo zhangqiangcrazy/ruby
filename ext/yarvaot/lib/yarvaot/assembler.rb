@@ -16,7 +16,32 @@ class YARVAOT::Assembler < YARVAOT::Subcommand
 	# Instantiate.  Does nothing yet.
 	def initialize
 		super
-		@opt.separator '    assembler has no option yet.'
+		@dir = nil
+		@optdir = nil
+		@opt.on '--rubysrc DIR', <<-'begin'.strip, String do |optarg|
+                                   Supply  a  directory  which has  *identical*
+                                   contents to the  source code which this ruby
+                                   binary was created, and a compilation gets a
+                                   little bit faster.   Note that if you supply
+                                   wrong  contents  (e.g.   wrong version  ruby
+                                   source  directory), a  compiled  binary gets
+                                   broken.  And compilation  san safely be done
+                                   without this flag.
+		begin
+			@optdir = optarg
+		end
+
+	end
+
+	def runup n
+		if @optdir
+			@dir = @optdir
+		else
+			t = canonname n
+			@dir = Dir.mktmpdir t
+			prepare_header_files n
+		end
+		verbose_out 'ruby headers in %s', @dir
 	end
 
 	# GCC, at least  version 4.3.3 on Linux, cannot dump  an assembler output to
@@ -34,41 +59,48 @@ class YARVAOT::Assembler < YARVAOT::Subcommand
 				p = '-'
 				h = { in: f }
 			end
-			t = File.basename n, '.*'
-			with_header_files t do |inc|
-				l = sprintf "$(CC) %s -I %s %s %s %s -c %s%s -xc %s",
-								$INCFLAGS,
-								inc,
-								$CPPFLAGS,
-								$CFLAGS,
-								$ARCH_FLAG,
-								COUTFLAG,
-								g.path,
-								p
-				l = RbConfig.expand l, c
-				verbose_out "running C compiler: %s", l
+			l = sprintf "$(CC) %s -I %s %s %s %s -c %s%s -xc %s",
+							$INCFLAGS,
+							@dir,
+							$CPPFLAGS,
+							$CFLAGS,
+							$ARCH_FLAG,
+							COUTFLAG,
+							g.path,
+							p
+			l = RbConfig.expand l, c
+			verbose_out "running C compiler: %s", l
+			begin
 				p = Process.spawn l, h
+			ensure
 				# should wait this process, or  the linker which follows this stage
 				# can read corrupted tempfile before CC finishes to write to.
-				Process.waitpid p
+				n, s = Process.waitpid2 p
+				if s.success?
+					unless @optdir
+						verbose_out 'vanishing %s', @dir
+						FileUtils.remove_entry_secure @dir
+					end
+				else
+					# leave header files
+					# do not run linker
+					raise Errno::ECHILD, s.inspect
+				end
 			end
 		end
 	end
 
 	private
 
-	# Creates a temporary directory, put neccesary header files in it, and yield
-	# the given block.  Does neccesary finishing up.
-	def with_header_files template
-		Dir.mktmpdir template do |tmp|
-			Dir.chdir tmp do
-				YARVAOT::HEADERS.each_pair do |k, v|
-					File.open k, 'wb:binary' do |f|
-						f.write v
-					end
+	# Creates a temporary directory, put neccesary header files in it.
+	def prepare_header_files name
+		Dir.chdir @dir do
+			YARVAOT::HEADERS.each_pair do |k, v|
+				verbose_out 'dumping header file <%s>', k
+				File.open k, 'wb:binary' do |f|
+					f.write v
 				end
 			end
-			yield tmp
 		end
 	end
 end

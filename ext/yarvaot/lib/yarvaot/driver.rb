@@ -314,6 +314,9 @@ canonical filename e.g.  a.out is used.
 			return f, nil if @stop_after == k
 		end
 		return f, nil
+	rescue Errno::ECHILD
+		# OK, just leave.
+		Process.abort
 	ensure
 		begin
 			loop do
