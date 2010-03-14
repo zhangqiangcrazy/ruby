@@ -248,6 +248,7 @@ HDR2
 		end
 		verbose_out 'opened input file %s.', target
 
+		who.runup target
 		# This is the part that actually does compilations.
 		fout, = who.run fin, target
 		if @save_temps # in that case already done.
@@ -321,6 +322,15 @@ canonical filename e.g.  a.out is used.
 			end
 		rescue Errno::ECHILD
 			# no child
+		end
+	end
+
+	# Just propagate to each subcommands
+	def runup n
+		@subcommands.each_pair do |k, v|
+			next unless k
+			verbose_out "preparing %s", k
+			v.runup n
 		end
 	end
 

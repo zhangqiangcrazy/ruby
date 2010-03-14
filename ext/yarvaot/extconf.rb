@@ -11,15 +11,6 @@ extend RbConfig
 
 exit true unless enable_config 'yarvaot', true
 
-if CONFIG['ENABLE_SHARED'] != 'yes' or !CONFIG['EXTSTATIC'].empty?
-	message <<END
-Sorry, YARVAOT feature needs an explicit dynamic loading of both this extension
-library and the libruby.#{CONFIG['DLEXT']}.
-You cannot compile this lib without dynamic loadings.
-END
-	exit
-end
-
 $defs.push '-DCABI_OPERANDS' if enable_config 'cabi-operands', true
 $defs.push '-DCABI_PASS_CFP' if enable_config 'cabi-pass-cfp', true
 

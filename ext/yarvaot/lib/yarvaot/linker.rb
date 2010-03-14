@@ -29,6 +29,20 @@ class YARVAOT::Linker < YARVAOT::Subcommand
 	# attribute reader needed from driver
 	attr_reader :shared
 
+	def runup n
+		# linker needs explicit dynamic linking.
+		if CONFIG['ENABLE_SHARED'] != 'yes' or !CONFIG['EXTSTATIC'].empty?
+			Process.abort <<-end
+
+Sorry, a  compiler-generated program needs dynamic loading  of libraries, which
+is  not supported  for  this ruby  binary.   Use one  which  supports that,  or
+recompile   a   new   ruby   installation  with   configuring   --enable-shared
+--without-static-linked-ext.
+
+			end
+		end
+	end
+
 	def run f, n
 		run_in_tempfile n do |h|
 			c = RbConfig::CONFIG.merge 'hdrdir' => $hdrdir.quote,

@@ -56,10 +56,18 @@ class YARVAOT::Subcommand
 		end
 	end
 
+	# Preparation, if any.  This method  is called prior to #run invocation, and
+	# only when #run is scheduled to be invoked.  Any exceptions (of rescue-able
+	# kind of course)  stops the whole execution so it  something is wrong, just
+	# raise it.
+	def runup n
+		true # OK, default no preparation
+	end
+
 	# This is the main method, but  does nothing on this class itself. should be
 	# overridden by subclasses.
 	def run f, n
-		return f
+		raise NotImplementedError
 	end
 
 	private
