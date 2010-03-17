@@ -1,3 +1,7 @@
+Thu Mar 18 03:47:12 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (ruby_threadptr_init): added prototype.
+
 Tue Feb 16 09:35:18 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* mvm.c (ruby_vm_init_add_{library,library_path,initializer}):
