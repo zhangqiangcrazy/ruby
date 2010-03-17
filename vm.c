@@ -1597,6 +1597,7 @@ vm_init2(rb_vm_t *vm)
     vm->ref_count = 1;
     vm->argc = -1;
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
+    ruby_native_thread_lock(&vm->global_vm_lock);
     ruby_native_cond_initialize(&vm->global_vm_waiting);
     rb_queue_initialize(&vm->queue.message);
     rb_queue_initialize(&vm->queue.signal);
@@ -2211,6 +2212,10 @@ ruby_set_vm_context(ruby_vm_t *vm, void **local)
 	*local = (void *)th->machine_stack_end;
 	rb_thread_set_current_raw(th);
     }
+    if (prev_vm != vm) {
+	if (prev_vm) ruby_native_thread_unlock(&prev_vm->global_vm_lock);
+	ruby_native_thread_lock(&vm->global_vm_lock);
+    }
 
     return prev_vm;
 }
@@ -2229,9 +2234,12 @@ ruby_reset_vm_context(ruby_vm_t *prev_vm, void *local)
 
     if (prev_vm == 0) {
 	rb_thread_set_current_raw(0);
+	ruby_native_thread_unlock(&th->vm->global_vm_lock);
     }
     else if (th->vm != prev_vm) {
 	rb_thread_set_current_raw(ruby_vm_search_current_thread(prev_vm));
+	ruby_native_thread_unlock(&th->vm->global_vm_lock);
+	ruby_native_thread_lock(&prev_vm->global_vm_lock);
     }
 }
 

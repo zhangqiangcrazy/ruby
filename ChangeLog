@@ -1,3 +1,12 @@
+Thu Mar 18 04:30:08 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (ruby_threadptr_cleanup): do not unlock VM.
+
+	* vm.c (vm_init2): lock VM at first.
+
+	* vm.c (ruby_set_vm_context, ruby_reset_vm_context): maintain
+	  global VM lock.
+
 Thu Mar 18 03:47:12 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* vm_core.h (ruby_threadptr_init): added prototype.

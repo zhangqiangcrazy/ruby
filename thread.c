@@ -599,7 +599,6 @@ ruby_threadptr_cleanup(rb_thread_t *th)
     thread_terminated_1(th, 0);
     thread_terminated_2(th, 0);
     thread_cleanup_func(th);
-    native_mutex_unlock(&th->vm->global_vm_lock);
     st_delete_wrap(th->vm->living_threads, th->self);
 }
 
