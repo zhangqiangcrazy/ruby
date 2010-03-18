@@ -601,6 +601,20 @@ ruby_threadptr_cleanup(rb_thread_t *th)
     st_delete_wrap(th->vm->living_threads, th->self);
 }
 
+static void *
+vm_spawn(void *arg)
+{
+    ruby_vm_run(arg);
+    return NULL;
+}
+
+int
+ruby_vm_spawn(rb_vm_t *vm)
+{
+    pthread_t thread_id;
+    return pthread_create(&thread_id, NULL, vm_spawn, vm);
+}
+
 static VALUE
 thread_create_core(VALUE thval, VALUE args, VALUE (*fn)(ANYARGS))
 {
