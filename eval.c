@@ -47,7 +47,7 @@ ruby_init(void)
 {
     static int initialized = 0;
     int state;
-    rb_vm_t *vm;
+    rb_vm_t *volatile vm;
 
     if (initialized)
 	return 0;
