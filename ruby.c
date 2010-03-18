@@ -119,6 +119,7 @@ rb_vm_options_init(struct rb_vm_options *opt)
     opt->stdfds[0] = opt->stdfds[1] = opt->stdfds[2] = -1;
     init_options_arg_list(&opt->req_list);
     init_options_arg_list(&opt->load_path);
+    init_options_arg_list(&opt->argv);
     return opt;
 }
 
@@ -1930,7 +1931,10 @@ ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
     if (argc > 0 && argv[0]) {		/* for the time being */
 	ruby_script(argv[0]);  /* for the time being */
     }
-    rb_argv0 = rb_str_new4(rb_progname);
+    if (rb_progname)
+	rb_argv0 = rb_str_new4(rb_progname);
+    else
+	rb_argv0 = rb_str_new_cstr("ruby");
     rb_gc_register_mark_object(rb_argv0);
     if (!optp) optp = rb_vm_options_init(&opt);
     iseq = process_options(vm, argc, argv, optp);

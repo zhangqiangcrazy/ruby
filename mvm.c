@@ -85,12 +85,14 @@ ruby_vm_destruct(rb_vm_t *vm)
 
 
 /* initialize API */
+struct rb_vm_options *rb_vm_options_init(struct rb_vm_options *opt);
+
 static struct rb_vm_options *
 vm_init_options(rb_vm_t *vm)
 {
     if (!vm->init_options) {
 	vm->init_options = malloc(sizeof(vm->init_options));
-	memset(vm->init_options, 0, sizeof(vm->init_options));
+	rb_vm_options_init(vm->init_options);
     }
     return vm->init_options;
 }
