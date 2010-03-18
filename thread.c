@@ -612,7 +612,9 @@ int
 ruby_vm_spawn(rb_vm_t *vm)
 {
     pthread_t thread_id;
-    return pthread_create(&thread_id, NULL, vm_spawn, vm);
+    int err = pthread_create(&thread_id, NULL, vm_spawn, vm);
+    native_mutex_unlock(&vm->global_vm_lock);
+    return err;
 }
 
 static VALUE

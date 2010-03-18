@@ -1,3 +1,7 @@
+Thu Mar 18 18:16:57 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (ruby_vm_spawn): unlock vm for spawned thread.
+
 Thu Mar 18 18:13:21 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* mvm.c (vm_init_options), ruby.c (rb_vm_options_init): properly
