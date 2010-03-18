@@ -316,7 +316,7 @@ ruby_vm_run(rb_vm_t *vm)
 }
 
 int
-ruby_vm_start(rb_vm_t *vm, int status)
+ruby_vmptr_start(rb_vm_t *vm, int status)
 {
     void *n;
 

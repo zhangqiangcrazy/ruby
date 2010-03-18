@@ -31,7 +31,6 @@ int ruby_vm_exit_signal(ruby_vm_t *vm);
 int ruby_vm_run(ruby_vm_t *vm);
 int ruby_vm_run_node(ruby_vm_t *vm, void *n);
 int ruby_vm_exec_node(ruby_vm_t *vm, void *n);
-int ruby_vm_start(ruby_vm_t *vm, int status);
 int ruby_vm_join(ruby_vm_t *vm);
 int ruby_vm_cleanup(ruby_vm_t *vm, int ex);
 int ruby_vm_destruct(ruby_vm_t *vm);
