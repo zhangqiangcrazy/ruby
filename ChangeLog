@@ -1,3 +1,8 @@
+Thu Mar 18 13:21:56 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread_pthread.c (InitVM_native_thread), vm.c (vm_thread_new):
+	  fixed setting current native thread.
+
 Thu Mar 18 10:20:50 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* thread.c (ruby_threadptr_create): do not lock VM before new

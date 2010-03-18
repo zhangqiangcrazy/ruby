@@ -186,7 +186,6 @@ InitVM_native_thread(rb_thread_t *th)
 {
     th->thread_id = pthread_self();
     native_cond_initialize(&th->native_thread_data.sleep_cond);
-    ruby_thread_set_native(th);
 }
 
 static void

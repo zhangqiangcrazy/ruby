@@ -2696,6 +2696,7 @@ vm_thread_new(rb_vm_t *vm)
     th->vm = vm;
     th_init(th, 0);
     ruby_threadptr_init(th);
+    ruby_thread_set_native(th);
 
     return th;
 }
