@@ -444,7 +444,6 @@ ruby_threadptr_create(rb_thread_t *th)
     ruby_threadptr_init(th);
     /* acquire global vm lock */
     thread_debug("InitVM_Thread: %p", th->vm);
-    native_mutex_lock(&th->vm->global_vm_lock);
 
     th->priority = GET_THREAD()->priority;
     th->thgroup = GET_THREAD()->thgroup;
