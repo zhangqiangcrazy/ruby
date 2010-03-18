@@ -61,6 +61,8 @@ void *ruby_vm_specific_ptr(ruby_vm_t *, int);
 
 /* system level initializer */
 
+void ruby_sysinit(int *, char ***);
+
 #if (defined(__APPLE__) || defined(__NeXT__)) && defined(__MACH__)
 /* to link startup code with ObjC support */
 #define RUBY_GLOBAL_SETUP static void objcdummyfunction(void) {objc_msgSend();}
@@ -68,7 +70,6 @@ void *ruby_vm_specific_ptr(ruby_vm_t *, int);
 #define RUBY_GLOBAL_SETUP
 #endif
 
-void ruby_sysinit(int *, char ***);
 
 #ifdef __ia64
 void ruby_init_stack(volatile void *, void *);
