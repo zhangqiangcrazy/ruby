@@ -1610,6 +1610,7 @@ vm_init2(rb_vm_t *vm)
     vm->specific_storage.ptr = rb_objspace_xmalloc2(vm->objspace, vm->specific_storage.len, sizeof(VALUE));
     MEMZERO(vm->specific_storage.ptr, VALUE, vm->specific_storage.len);
     vm->cache = rb_objspace_xmalloc2(vm->objspace, CACHE_SIZE, sizeof(struct cache_entry));
+    vm->living_threads = st_init_numtable();
 }
 
 /* Thread */
@@ -2616,7 +2617,6 @@ InitVM_VM(void)
 	th->top_self = rb_vm_top_self();
 	rb_thread_set_current(th);
 
-	vm->living_threads = st_init_numtable();
 	st_insert(vm->living_threads, th_self, (st_data_t) th->thread_id);
 
 	rb_gc_register_mark_object(iseqval);
