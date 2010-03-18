@@ -123,6 +123,16 @@ rb_vm_options_init(struct rb_vm_options *opt)
     return opt;
 }
 
+struct rb_vm_options *
+rb_vmptr_init_options(rb_vm_t *vm)
+{
+    if (!vm->init_options) {
+	vm->init_options = malloc(sizeof(*vm->init_options));
+	rb_vm_options_init(vm->init_options);
+    }
+    return vm->init_options;
+}
+
 static NODE *load_file(rb_vm_t *vm, VALUE, const char *, int, struct rb_vm_options *);
 static void forbid_setid(const char *, struct rb_vm_options *);
 #define forbid_setid(s) forbid_setid(s, opt)

@@ -1,3 +1,8 @@
+Thu Mar 18 20:36:14 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ruby.c (rb_vmptr_init_options): moved from mvm.c and fixed
+	  allocation size.
+
 Thu Mar 18 20:34:54 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* vm.c (vm_init2): initialize living_threads here.
