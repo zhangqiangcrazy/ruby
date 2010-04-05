@@ -5,7 +5,7 @@ Independent Submission                                          S. Urabe
 README for: YARVAOT                   Network Applied Communication Lab.
 Category: Informational                                        K. Sasada
                                                  The University of Tokyo
-                                                          March 10, 2010
+                                                           April 5, 2010
 
 
     YARVAOT: A Ruby to C (and then, to machine executable) compiler
@@ -54,7 +54,7 @@ Table of Contents
 
 Urabe & Sasada                Informational                     [Page 1]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
 1.  Introduction
@@ -110,7 +110,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                     [Page 2]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    o  Compiler driver.  This module drives actual compilations.
@@ -166,7 +166,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                     [Page 3]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
          common for its subclasses.
@@ -222,7 +222,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                     [Page 4]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    The figure below illustrates dependencies between each runtime
@@ -278,7 +278,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                     [Page 5]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    This can be seen as a new layer added to MRI's input transformation
@@ -334,7 +334,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                     [Page 6]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    process of an operating system.  But YARVAOT's compiler driver is
@@ -347,7 +347,7 @@ README                           YARVAOT                      March 2010
                ----------)        (----| Preprocessor |--+
                          |        |    +--------------+  |
                          |        |    +--------------+  |
-                         |        | +--|  Comppiler   |--+
+                         |        | +--|   Compiler   |--+
                          | Driver | |  +--------------+
                          |        | |  +--------------+
                          |        | +--|  Assembler   |--+
@@ -390,7 +390,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                     [Page 7]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    A subcommand should return an IO object that can also be read.  So
@@ -446,7 +446,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                     [Page 8]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    One might normally imagine a compilation of a Ruby script is to
@@ -502,7 +502,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                     [Page 9]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    And a compiler-generated C function shall be something like:
@@ -558,7 +558,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                    [Page 10]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    will be converted as:
@@ -614,7 +614,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                    [Page 11]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    you can omit them.  The compiler does implement that, but current
@@ -622,7 +622,7 @@ README                           YARVAOT                      March 2010
    Redundancy here do not harm (except CPU cache miss-hit), so falling
    back to above implementation is recommended if you create one.
 
-3.2.3.  Calling Convension
+3.2.3.  Calling Convention
 
    OK, assume you have successfully created your C function.  We now
    have to call that function somehow.
@@ -670,7 +670,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                    [Page 12]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    It will be converted into:
@@ -726,7 +726,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                    [Page 13]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    Continuations are created at some statically computable points.  So
@@ -782,7 +782,7 @@ README                           YARVAOT                      March 2010
 
 Urabe & Sasada                Informational                    [Page 14]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    [RFC4122]         Leach, P., Mealling, M., and Salz, R., "A
@@ -838,7 +838,7 @@ Appendix C.  Tales About San-Tabu
 
 Urabe & Sasada                Informational                    [Page 15]
 
-README                           YARVAOT                      March 2010
+README                           YARVAOT                      April 2010
 
 
    o  3 spaces width tab stop is his preference. 4 spaces are too wide,
