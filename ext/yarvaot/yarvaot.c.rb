@@ -166,6 +166,8 @@ gen_insns_info(void)
 %       rets: i.rets,
 %       body: i.body,
 %       comm: i.comm,
+%       defopes: i.defopes,
+%       tvars: i.tvars,
 %   }
 %   r
 %}

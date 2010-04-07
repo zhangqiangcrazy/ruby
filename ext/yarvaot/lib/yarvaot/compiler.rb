@@ -144,7 +144,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	# This is a technique to enclose an object to a lambda's lexical scope.
 	def gencb flag
 		lambda do |optarg|
-			@iseq_compile_option[flag] = optarg
+			@opts[flag] = optarg
 		end
 	end
 
@@ -184,7 +184,7 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 	# to have in its first argument is of type "VALUE (*)(VALUE)".  The function
 	# type of  a generated entry  point is subject  to change in future  when we
 	# abandon rb_protect().
-	Template = ERB.new <<-'end', 0, '%', 'io'
+	Template = ERB.new <<-'end', 0, '%-', 'io'
 /*
  * Auto-generated C sourcecode using YARVAOT, a Ruby to C compiler.
  *
@@ -218,6 +218,81 @@ extern void rb_vmdebug_debug_print_register(rb_thread_t *th);
 %@namespace.each_static_decls do |decl|
 <%= decl %>
 %end
+
+#include <vm_insnhelper.c>
+#define INSN_LABEL(x) x
+
+% YARVAOT::INSNS.each_pair {|(name, insn)|
+static inline rb_control_frame_t*
+yarvaot_insn_inline_<%= name %>(
+    rb_thread_t* th,
+    rb_control_frame_t* reg_cfp<% -%>
+%   insn[:opes].map {|(typ, nam)|
+%       if(typ == "...")
+,
+     ...<% -%>
+%       else
+,
+    <%= typ %> <%= nam -%>
+%       end;
+%   }
+)
+{
+%   vars = insn[:opes] + insn[:pops];
+%   insn[:rets].each {|(typ, nam)|
+%       if(vars.all? {|(vtyp, vnam)| vnam != nam } && nam != "...")
+    <%= typ %> <%= nam %>;
+%       end
+%   }
+%   insn[:tvars].each() {|(typ, nam)|
+        <%= typ %> <%= nam %>;
+%   }
+%   popn = 0;
+%   pops = Array.new();
+%   insn[:pops].each {|(typ, nam, rst)|
+%       break if(nam == "...");
+%       if(rst)
+%           pops << "#{typ} #{nam} = SCREG(#{rst});";
+%       else
+%           pops << "#{typ} #{nam} = TOPN(#{popn});";
+%           popn += 1;
+%       end;
+%   }
+    <%= pops.reverse.join("\n    ")%>
+    ADD_PC(1 + <%=
+        insn[:opes].inject(0) {|r, (t, n)|
+            break(r) if t == "..."
+            r + 1
+        }
+    %>);
+    PREFETCH(GET_PC());
+%   if(popn > 0)
+    POPN(<%= popn %>);
+%   end;
+    {
+%   b = insn[:body].gsub(/^\s*/, '\\&    ').rstrip
+<%= b %>
+    }
+    CHECK_STACK_OVERFLOW(reg_cfp, <%=
+    insn[:rets].reverse.inject(0) {|r, (typ, nam, rst)|
+        break(r) if nam == "...";
+        r if rst
+        r + 1
+    }
+%>);
+%   insn[:rets].reverse_each() {|(typ, nam, rst)|
+%       if rst
+    SCREG(<%= rst %>) = nam;
+%       elsif nam == "..."
+%           break;
+%       else
+    PUSH(<%= nam %>);
+%       end;
+%   }
+    return reg_cfp;
+}
+
+% };
 
 %@namespace.each_funcs do |decl|
 <%= decl %>
@@ -468,13 +543,14 @@ again:
 		op, *argv = *insn
 		case op when :phony
 			# phony insns are placeholders to opt_call_c_function.
-			ret << 'r = yarvaot_insn_nop(t, yarvaot_insn_nop(t, r));'
+			# ret << 'r = yarvaot_insn_nop(t, yarvaot_insn_nop(t, r));'
+			ret << 'r->pc += 2'
 		else
 			s = genfunc_genargv op, argv, parent, pc
 			body = if s.empty?
-						 "r = yarvaot_insn_#{op}(t, r)"
+						 "r = yarvaot_insn_inline_#{op}(t, r)"
 					 else
-						 "r = yarvaot_insn_#{op}(t, r, #{s})"
+						 "r = yarvaot_insn_inline_#{op}(t, r, #{s})"
 					 end
 			case op
 			when *Branchers

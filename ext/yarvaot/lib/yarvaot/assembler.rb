@@ -100,6 +100,7 @@ class YARVAOT::Assembler < YARVAOT::Subcommand
 				File.open k, 'wb:binary' do |f|
 					f.write v
 				end
+				FileUtils.touch "insns.inc"
 			end
 		end
 	end
