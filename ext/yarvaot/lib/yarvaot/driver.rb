@@ -223,8 +223,8 @@ HDR2
 					end
 			target = argv.shift if who != self
 		end
-		# -v  without filename,  just print  version string  (done  above) and
-		# quit with successful exit code.
+		# -v without  filename, just print  version string (done above)  and quit
+		# with successful exit code.
 		Process.exit if target.nil? and $VERBOSE and @evalary.empty?
 
 		verbose_out 'started.'

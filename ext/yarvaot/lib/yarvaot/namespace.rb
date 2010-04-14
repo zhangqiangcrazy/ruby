@@ -22,7 +22,7 @@ class YARVAOT::Namespace
 		if limit <= 0
 			raise ArgumentError, "offered namespace too narrow"
 		elsif 128.0 / limit > 36
-			# Integer#to_s takes radix of range up to 36.  This limit is due to
+			# Integer#to_s takes  radix of range up  to 36.  This limit  is due to
 			# UUIDs to be safely represented in the namespace.
 			raise ArgumentError, 
 			"offered namespace too narrow: at least 128bits are needed."
@@ -280,7 +280,7 @@ module YARVAOT::Converter
 	# - Arrays and Hashes: they also  generate new objects every time, but their
 	#   contents can happen to be cached.
 	#
-	# Cached objects can  be ``shared'' -- for instance  multiple occasions of an
+	# Cached objects can be ``shared''  -- for instance multiple occasions of an
 	# identical bignum can and should point to a single address of memory.
 	def robject2csource obj, volatilep = false, name = nil
 		decl = 'VALUE'

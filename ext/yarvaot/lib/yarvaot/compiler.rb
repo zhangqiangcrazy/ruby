@@ -123,8 +123,8 @@ class YARVAOT::Compiler < YARVAOT::Subcommand
 
 	# Run.  Eat the file, do necessary conversions, then return a new file.
 	#
-	# One thing  to note is  that this method  invokes a process  inside because
-	# the input file  is normally a pipe from  preprocessor stage... which means
+	# One thing to note is that this method invokes a process inside because the
+	# input  file is  normally a  pipe  from preprocessor  stage... which  means
 	# reading from it tend to block.
 	def run f, n
 		run_in_pipe f do |g|
