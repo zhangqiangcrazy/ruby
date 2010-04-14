@@ -7,7 +7,7 @@ benchmark: $(topdir)/ruby
 	ruby -e'puts "#!/bin/sh\necho ./a.out\n"' > ./a.out
 	chmod 755 ./a.out
 	ruby $(top_srcdir)/benchmark/driver.rb -v \
-	  --executables="yarvaot; ./a.out; $(topdir)/ruby; ruby" \
+	  --executables="yarvaot; ./a.out; $(topdir)/ruby" \
 	  --pattern='bm_(?!app_erb|so_count_words|so_k_nucleotide|so_reverse_complement|so_nsieve_bits|.+_mutex)'\
 	  --directory=$(top_srcdir)/benchmark
 
