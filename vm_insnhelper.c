@@ -1086,8 +1086,8 @@ static NODE *
 vm_cref_push(rb_thread_t *th, VALUE klass, int noex, rb_block_t *blockptr)
 {
     rb_control_frame_t *cfp = vm_get_ruby_level_caller_cfp(th, th->cfp);
-    NODE *cref = NEW_BLOCK(klass);
-    cref->nd_file = 0;
+    NODE *cref = NEW_CREF(klass);
+    cref->nd_omod = Qnil;
     cref->nd_visi = noex;
 
     if (blockptr) {
@@ -1096,6 +1096,11 @@ vm_cref_push(rb_thread_t *th, VALUE klass, int noex, rb_block_t *blockptr)
     else if (cfp) {
 	cref->nd_next = vm_get_cref0(cfp->iseq, cfp->lfp, cfp->dfp);
     }
+#if 0
+    if (cref->nd_next) {
+	cref->nd_omod = cref->nd_next->nd_omod;
+    }
+#endif
 
     return cref;
 }

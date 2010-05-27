@@ -4,7 +4,7 @@
 
 #define CACHE_SIZE 0x800
 #define CACHE_MASK 0x7ff
-#define EXPR1(c,m) ((((c)>>3)^(m))&CACHE_MASK)
+#define EXPR1(c,o,m) ((((c)>>3)^((o)>>3)^(m))&CACHE_MASK)
 
 static void rb_vm_check_redefinition_opt_method(const rb_method_entry_t *me);
 
@@ -15,6 +15,7 @@ static ID added, singleton_added, attached;
 struct cache_entry {		/* method hash table. */
     ID mid;			/* method's id */
     VALUE klass;		/* receiver's class */
+    VALUE omod;			/* overlay modules */
     rb_method_entry_t *me;
 };
 
@@ -395,6 +396,7 @@ static rb_method_entry_t*
 search_method(VALUE klass, ID id)
 {
     st_data_t body;
+
     if (!klass) {
 	return 0;
     }
@@ -416,14 +418,21 @@ search_method(VALUE klass, ID id)
  * rb_method_entry() simply.
  */
 rb_method_entry_t *
-rb_method_entry_get_without_cache(VALUE klass, ID id)
+rb_method_entry_get_without_cache(VALUE klass, VALUE omod, ID id)
 {
-    rb_method_entry_t *me = search_method(klass, id);
+    VALUE iclass;
+    rb_method_entry_t *me;
+
+    if (!NIL_P(omod) && !NIL_P(iclass = rb_hash_lookup(omod, klass))) {
+	klass = iclass;
+    }
+    me = search_method(klass, id);
 
     if (ruby_running) {
 	struct cache_entry *ent;
-	ent = cache + EXPR1(klass, id);
+	ent = cache + EXPR1(klass, omod, id);
 	ent->klass = klass;
+	ent->omod = omod;
 
 	if (UNDEFINED_METHOD_ENTRY_P(me)) {
 	    ent->mid = id;
@@ -443,13 +452,19 @@ rb_method_entry_t *
 rb_method_entry(VALUE klass, ID id)
 {
     struct cache_entry *ent;
+    NODE *cref = rb_vm_cref();
+    VALUE omod = Qnil;
 
-    ent = cache + EXPR1(klass, id);
-    if (ent->mid == id && ent->klass == klass) {
+    if (cref && !NIL_P(cref->nd_omod)) {
+	omod = cref->nd_omod;
+    }
+
+    ent = cache + EXPR1(klass, omod, id);
+    if (ent->mid == id && ent->klass == klass && ent->omod == omod) {
 	return ent->me;
     }
 
-    return rb_method_entry_get_without_cache(klass, id);
+    return rb_method_entry_get_without_cache(klass, omod, id);
 }
 
 static void

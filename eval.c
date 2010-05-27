@@ -969,6 +969,31 @@ top_include(int argc, VALUE *argv, VALUE self)
     return rb_mod_include(argc, argv, rb_cObject);
 }
 
+/*
+ *  call-seq:
+ *     overlay_module(klass, mod)
+ *
+ *  Append features of <i>mod</i> to <i>klass</i> only in the scope where
+ *  <code>overlay_module</code> is called.
+ */
+
+static VALUE
+f_overlay_module(VALUE self, VALUE klass, VALUE module)
+{
+    NODE *cref = rb_vm_cref();
+    VALUE c;
+
+    Check_Type(module, T_MODULE);
+    if (NIL_P(cref->nd_omod)) {
+	cref->nd_omod = rb_hash_new();
+	rb_funcall(cref->nd_omod, rb_intern("compare_by_identity"), 0);
+    }
+    c = rb_include_class_new(module, klass);
+    rb_hash_aset(cref->nd_omod, klass, c);
+    rb_clear_cache_by_class(klass);
+    return Qnil;
+}
+
 VALUE rb_f_trace_var();
 VALUE rb_f_untrace_var();
 
@@ -1135,6 +1160,8 @@ Init_eval(void)
     rb_define_singleton_method(rb_cModule, "constants", rb_mod_s_constants, -1);
 
     rb_define_singleton_method(rb_vm_top_self(), "include", top_include, -1);
+
+    rb_define_global_function("overlay_module", f_overlay_module, 2);
 
     rb_define_method(rb_mKernel, "extend", rb_obj_extend, -1);
 
