@@ -981,15 +981,23 @@ static VALUE
 f_overlay_module(VALUE self, VALUE klass, VALUE module)
 {
     NODE *cref = rb_vm_cref();
-    VALUE c;
+    VALUE iclass, c, superclass = klass;
 
     Check_Type(module, T_MODULE);
     if (NIL_P(cref->nd_omod)) {
 	cref->nd_omod = rb_hash_new();
 	rb_funcall(cref->nd_omod, rb_intern("compare_by_identity"), 0);
     }
-    c = rb_include_class_new(module, klass);
-    rb_hash_aset(cref->nd_omod, klass, c);
+    else if (!NIL_P(c = rb_hash_lookup(cref->nd_omod, klass))) {
+	superclass = c;
+    }
+    c = iclass = rb_include_class_new(module, superclass);
+    module = RCLASS_SUPER(module);
+    while (module) {
+	c = RCLASS_SUPER(c) = rb_include_class_new(module, RCLASS_SUPER(c));
+	module = RCLASS_SUPER(module);
+    }
+    rb_hash_aset(cref->nd_omod, klass, iclass);
     rb_clear_cache_by_class(klass);
     return Qnil;
 }
