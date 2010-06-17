@@ -331,6 +331,7 @@ typedef struct {
     rb_iseq_t *block_iseq;	/* cfp[8] / block[3] */
     VALUE proc;			/* cfp[9] / block[4] */
     const rb_method_entry_t *me;/* cfp[10] */
+    VALUE klass;		/* cfp[11] */
 } rb_control_frame_t;
 
 typedef struct rb_block_struct {

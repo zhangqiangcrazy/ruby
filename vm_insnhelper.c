@@ -62,6 +62,7 @@ vm_push_frame(rb_thread_t * th, const rb_iseq_t * iseq,
     cfp->block_iseq = 0;
     cfp->proc = 0;
     cfp->me = 0;
+    cfp->klass = Qnil;
 
 #define COLLECT_PROFILE 0
 #if COLLECT_PROFILE
