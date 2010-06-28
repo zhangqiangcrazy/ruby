@@ -792,7 +792,7 @@ defined
 	break;
       case DEFINED_METHOD:{
 	VALUE klass = CLASS_OF(v);
-	const rb_method_entry_t *me = rb_method_entry(klass, SYM2ID(obj));
+	const rb_method_entry_t *me = rb_method_entry(klass, SYM2ID(obj), 0);
 
 	if (me) {
 	    if (!(me->flag & NOEX_PRIVATE)) {
@@ -964,7 +964,7 @@ defineclass
 
     /* enter scope */
     vm_push_frame(th, class_iseq,
-		  VM_FRAME_MAGIC_CLASS, klass, (VALUE) GET_BLOCK_PTR(),
+		  VM_FRAME_MAGIC_CLASS, klass, 0, (VALUE) GET_BLOCK_PTR(),
 		  class_iseq->iseq_encoded, GET_SP(), 0,
 		  class_iseq->local_size);
     RESTORE_REGS();
@@ -996,7 +996,7 @@ send
 (VALUE val) // inc += - (int)(op_argc + ((op_flag & VM_CALL_ARGS_BLOCKARG_BIT) ? 1 : 0));
 {
     const rb_method_entry_t *me;
-    VALUE recv, klass;
+    VALUE recv, klass, defined_class;
     rb_block_t *blockptr = 0;
     VALUE flag = op_flag;
     int num = caller_setup_args(th, GET_CFP(), flag, (int)op_argc,
@@ -1006,8 +1006,8 @@ send
     /* get receiver */
     recv = (flag & VM_CALL_FCALL_BIT) ? GET_SELF() : TOPN(num);
     klass = CLASS_OF(recv);
-    me = vm_method_search(id, klass, ic);
-    CALL_METHOD(num, blockptr, flag, id, me, recv);
+    me = vm_method_search(id, klass, ic, &defined_class);
+    CALL_METHOD(num, blockptr, flag, id, me, recv, defined_class);
 }
 
 /**
@@ -1027,7 +1027,7 @@ invokesuper
     VALUE flag = op_flag;
     int num = caller_setup_args(th, GET_CFP(), flag,
 				(int)op_argc, blockiseq, &blockptr);
-    VALUE recv, klass;
+    VALUE recv, klass, defined_class;
     ID id;
     const rb_method_entry_t *me;
 
@@ -1041,9 +1041,9 @@ invokesuper
 	rb_raise(rb_eNotImpError, "super from singleton method that is defined to multiple classes is not supported; this will be fixed in 1.9.3 or later");
     }
 
-    me = rb_method_entry(klass, id);
+    me = rb_method_entry(klass, id, &defined_class);
 
-    CALL_METHOD(num, blockptr, flag, id, me, recv);
+    CALL_METHOD(num, blockptr, flag, id, me, recv, defined_class);
 }
 
 /**
@@ -1668,7 +1668,7 @@ opt_neq
 (VALUE val)
 {
     extern VALUE rb_obj_not_equal(VALUE obj1, VALUE obj2);
-    const rb_method_entry_t *me = vm_method_search(idNeq, CLASS_OF(recv), ic);
+    const rb_method_entry_t *me = vm_method_search(idNeq, CLASS_OF(recv), ic, 0);
     val = Qundef;
 
     if (check_cfunc(me, rb_obj_not_equal)) {
@@ -2069,7 +2069,7 @@ opt_not
 (VALUE val)
 {
     extern VALUE rb_obj_not(VALUE obj);
-    const rb_method_entry_t *me = vm_method_search(idNot, CLASS_OF(recv), ic);
+    const rb_method_entry_t *me = vm_method_search(idNot, CLASS_OF(recv), ic, 0);
 
     if (check_cfunc(me, rb_obj_not)) {
 	val = RTEST(recv) ? Qfalse : Qtrue;

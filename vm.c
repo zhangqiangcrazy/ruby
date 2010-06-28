@@ -70,7 +70,7 @@ static inline VALUE
 rb_vm_set_finish_env(rb_thread_t * th)
 {
     vm_push_frame(th, 0, VM_FRAME_MAGIC_FINISH,
-		  Qnil, th->cfp->lfp[0], 0,
+		  Qnil, rb_cObject, th->cfp->lfp[0], 0,
 		  th->cfp->sp, 0, 1);
     th->cfp->pc = (VALUE *)&finish_insn_seq[0];
     return Qtrue;
@@ -90,7 +90,7 @@ vm_set_top_stack(rb_thread_t * th, VALUE iseqval)
     rb_vm_set_finish_env(th);
 
     vm_push_frame(th, iseq, VM_FRAME_MAGIC_TOP,
-		  th->top_self, 0, iseq->iseq_encoded,
+		  th->top_self, rb_cObject, 0, iseq->iseq_encoded,
 		  th->cfp->sp, 0, iseq->local_size);
 
     CHECK_STACK_OVERFLOW(th->cfp, iseq->stack_max);
@@ -105,7 +105,7 @@ vm_set_eval_stack(rb_thread_t * th, VALUE iseqval, const NODE *cref)
 
     /* for return */
     rb_vm_set_finish_env(th);
-    vm_push_frame(th, iseq, VM_FRAME_MAGIC_EVAL, block->self,
+    vm_push_frame(th, iseq, VM_FRAME_MAGIC_EVAL, block->self, block->klass,
 		  GC_GUARDED_PTR(block->dfp), iseq->iseq_encoded,
 		  th->cfp->sp, block->lfp, iseq->local_size);
 
@@ -490,6 +490,7 @@ rb_vm_make_proc(rb_thread_t *th, const rb_block_t *block, VALUE klass)
     GetProcPtr(procval, proc);
     proc->blockprocval = blockprocval;
     proc->block.self = block->self;
+    proc->block.klass = block->klass;
     proc->block.lfp = block->lfp;
     proc->block.dfp = block->dfp;
     proc->block.iseq = block->iseq;
@@ -539,9 +540,11 @@ invoke_block_from_c(rb_thread_t *th, const rb_block_t *block,
 				     type == VM_FRAME_MAGIC_LAMBDA);
 
 	ncfp = vm_push_frame(th, iseq, type,
-			     self, GC_GUARDED_PTR(block->dfp),
+			     self, th->passed_defined_class,
+			     GC_GUARDED_PTR(block->dfp),
 			     iseq->iseq_encoded + opt_pc, cfp->sp + arg_size, block->lfp,
 			     iseq->local_size - arg_size);
+	th->passed_defined_class = 0;
 	ncfp->me = th->passed_me;
 	th->passed_me = 0;
 	th->passed_block = blockptr;
@@ -1318,7 +1321,8 @@ vm_exec(rb_thread_t *th)
 	    /* push block frame */
 	    cfp->sp[0] = err;
 	    vm_push_frame(th, catch_iseq, VM_FRAME_MAGIC_BLOCK,
-			  cfp->self, (VALUE)cfp->dfp, catch_iseq->iseq_encoded,
+			  cfp->self, cfp->klass,
+			  (VALUE)cfp->dfp, catch_iseq->iseq_encoded,
 			  cfp->sp + 1 /* push value */, cfp->lfp, catch_iseq->local_size - 1);
 
 	    state = 0;
@@ -1456,7 +1460,7 @@ rb_vm_call_cfunc(VALUE recv, VALUE (*func)(VALUE), VALUE arg,
     VALUE val;
 
     vm_push_frame(th, DATA_PTR(iseqval), VM_FRAME_MAGIC_TOP,
-		  recv, (VALUE)blockptr, 0, reg_cfp->sp, 0, 1);
+		  recv, CLASS_OF(recv), (VALUE)blockptr, 0, reg_cfp->sp, 0, 1);
 
     val = (*func)(arg);
 
@@ -1668,6 +1672,7 @@ rb_thread_mark(void *ptr)
 	RUBY_MARK_UNLESS_NULL(th->root_fiber);
 	RUBY_MARK_UNLESS_NULL(th->stat_insn_usage);
 	RUBY_MARK_UNLESS_NULL(th->last_status);
+	RUBY_MARK_UNLESS_NULL(th->passed_defined_class);
 
 	RUBY_MARK_UNLESS_NULL(th->locking_mutex);
 
@@ -1779,7 +1784,7 @@ th_init2(rb_thread_t *th, VALUE self)
 
     th->cfp = (void *)(th->stack + th->stack_size);
 
-    vm_push_frame(th, 0, VM_FRAME_MAGIC_TOP, Qnil, 0, 0,
+    vm_push_frame(th, 0, VM_FRAME_MAGIC_TOP, Qnil, rb_cObject, 0, 0,
 		  th->stack, 0, 1);
 
     th->status = THREAD_RUNNABLE;

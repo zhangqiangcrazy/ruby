@@ -157,8 +157,8 @@ extern VALUE ruby_vm_const_missing_count;
   c1->nd_next = __tmp_c2->nd_next; \
 } while (0)
 
-#define CALL_METHOD(num, blockptr, flag, id, me, recv) do { \
-    VALUE v = vm_call_method(th, GET_CFP(), num, blockptr, flag, id, me, recv); \
+#define CALL_METHOD(num, blockptr, flag, id, me, recv, defined_class) do { \
+    VALUE v = vm_call_method(th, GET_CFP(), num, blockptr, flag, id, me, recv, defined_class); \
     if (v == Qundef) { \
 	RESTORE_REGS(); \
 	NEXT_INSN(); \
@@ -193,8 +193,9 @@ extern VALUE ruby_vm_const_missing_count;
 #if USE_IC_FOR_SPECIALIZED_METHOD
 
 #define CALL_SIMPLE_METHOD(num, id, recv) do { \
-    VALUE klass = CLASS_OF(recv); \
-    CALL_METHOD(num, 0, 0, id, vm_method_search(id, klass, ic), recv); \
+    VALUE klass = CLASS_OF(recv), defined_class; \
+    const rb_method_entry_t *me = vm_method_search(id, klass, ic, &defined_class); \
+    CALL_METHOD(num, 0, 0, id, me, recv, defined_class); \
 } while (0)
 
 #else

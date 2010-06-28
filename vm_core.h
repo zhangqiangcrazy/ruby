@@ -132,6 +132,9 @@ struct iseq_inline_cache_entry {
 	rb_method_entry_t *method;
 	long index;
     } ic_value;
+    union {
+	VALUE defined_class;
+    } ic_value2;
 };
 
 #if 1
@@ -325,17 +328,18 @@ typedef struct {
     VALUE *bp;			/* cfp[2] */
     rb_iseq_t *iseq;		/* cfp[3] */
     VALUE flag;			/* cfp[4] */
-    VALUE self;			/* cfp[5] / block[0] */
-    VALUE *lfp;			/* cfp[6] / block[1] */
-    VALUE *dfp;			/* cfp[7] / block[2] */
-    rb_iseq_t *block_iseq;	/* cfp[8] / block[3] */
-    VALUE proc;			/* cfp[9] / block[4] */
-    const rb_method_entry_t *me;/* cfp[10] */
-    VALUE klass;		/* cfp[11] */
+    VALUE self;			/* cfp[5]  / block[0] */
+    VALUE klass;		/* cfp[6]  / block[1] */
+    VALUE *lfp;			/* cfp[7]  / block[2] */
+    VALUE *dfp;			/* cfp[8]  / block[3] */
+    rb_iseq_t *block_iseq;	/* cfp[9]  / block[4] */
+    VALUE proc;			/* cfp[10] / block[5] */
+    const rb_method_entry_t *me;/* cfp[11] */
 } rb_control_frame_t;
 
 typedef struct rb_block_struct {
     VALUE self;			/* share with method frame if it's only block */
+    VALUE klass;		/* share with method frame if it's only block */
     VALUE *lfp;			/* share with method frame if it's only block */
     VALUE *dfp;			/* share with method frame if it's only block */
     rb_iseq_t *iseq;
@@ -393,6 +397,7 @@ typedef struct rb_thread_struct {
 
     /* for bmethod */
     const rb_method_entry_t *passed_me;
+    VALUE passed_defined_class;
 
     /* for load(true) */
     VALUE top_self;

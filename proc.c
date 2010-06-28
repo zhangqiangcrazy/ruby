@@ -903,7 +903,7 @@ static VALUE
 mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
 {
     VALUE method;
-    VALUE rclass = klass;
+    VALUE rclass = klass, defined_class;
     ID rid = id;
     struct METHOD *data;
     rb_method_entry_t *me, meb;
@@ -911,7 +911,7 @@ mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
     rb_method_flag_t flag = NOEX_UNDEF;
 
   again:
-    me = rb_method_entry(klass, id);
+    me = rb_method_entry(klass, id, &defined_class);
     if (UNDEFINED_METHOD_ENTRY_P(me)) {
 	ID rmiss = rb_intern("respond_to_missing?");
 	VALUE sym = ID2SYM(id);
@@ -953,12 +953,12 @@ mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
 	}
     }
     if (def && def->type == VM_METHOD_TYPE_ZSUPER) {
-	klass = RCLASS_SUPER(me->klass);
+	klass = RCLASS_SUPER(defined_class);
 	id = def->original_id;
 	goto again;
     }
 
-    klass = me->klass;
+    klass = defined_class;
 
     while (rclass != klass &&
 	   (FL_TEST(rclass, FL_SINGLETON) || TYPE(rclass) == T_ICLASS)) {
@@ -1648,7 +1648,7 @@ method_arity(VALUE method)
 int
 rb_mod_method_arity(VALUE mod, ID id)
 {
-    rb_method_entry_t *me = rb_method_entry(mod, id);
+    rb_method_entry_t *me = rb_method_entry(mod, id, 0);
     return rb_method_entry_arity(me);
 }
 
