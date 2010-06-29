@@ -1027,9 +1027,10 @@ invokesuper
     VALUE flag = op_flag;
     int num = caller_setup_args(th, GET_CFP(), flag,
 				(int)op_argc, blockiseq, &blockptr);
-    VALUE recv, klass, defined_class;
+    VALUE recv, klass;
     ID id;
     const rb_method_entry_t *me;
+    rb_iseq_t *ip;
 
     flag = VM_CALL_SUPER_BIT | VM_CALL_FCALL_BIT;
 
@@ -1041,9 +1042,19 @@ invokesuper
 	rb_raise(rb_eNotImpError, "super from singleton method that is defined to multiple classes is not supported; this will be fixed in 1.9.3 or later");
     }
 
-    me = rb_method_entry(klass, id, &defined_class);
+    ip = GET_ISEQ();
+    while (ip && !ip->klass) {
+	ip = ip->parent_iseq;
+    }
+  again:
+    me = rb_method_entry(klass, id, &klass);
+    if (me && me->def->type == VM_METHOD_TYPE_ISEQ &&
+	me->def->body.iseq == ip) {
+	klass = RCLASS_SUPER(klass);
+	goto again;
+    }
 
-    CALL_METHOD(num, blockptr, flag, id, me, recv, defined_class);
+    CALL_METHOD(num, blockptr, flag, id, me, recv, klass);
 }
 
 /**
