@@ -15,6 +15,7 @@
 struct METHOD {
     VALUE recv;
     VALUE rclass;
+    VALUE defined_class;
     ID id;
     rb_method_entry_t me;
 };
@@ -861,6 +862,7 @@ static void
 bm_mark(void *ptr)
 {
     struct METHOD *data = ptr;
+    rb_gc_mark(data->defined_class);
     rb_gc_mark(data->rclass);
     rb_gc_mark(data->recv);
     rb_mark_method_entry(&data->me);
@@ -974,6 +976,7 @@ mnew(VALUE klass, VALUE obj, ID id, VALUE mclass, int scope)
 
     data->recv = obj;
     data->rclass = rclass;
+    data->defined_class = defined_class;
     data->id = rid;
     data->me = *me;
     if (def) def->alias_count++;
@@ -1085,6 +1088,7 @@ method_unbind(VALUE obj)
     data->me = orig->me;
     if (orig->me.def) orig->me.def->alias_count++;
     data->rclass = orig->rclass;
+    data->defined_class = orig->defined_class;
     OBJ_INFECT(method, obj);
 
     return method;
@@ -1421,10 +1425,10 @@ rb_method_call(int argc, VALUE *argv, VALUE method)
     if ((state = EXEC_TAG()) == 0) {
 	rb_thread_t *th = GET_THREAD();
 	VALUE rb_vm_call(rb_thread_t *th, VALUE recv, VALUE id, int argc, const VALUE *argv,
-			 const rb_method_entry_t *me);
+			 const rb_method_entry_t *me, VALUE defined_class);
 
 	PASS_PASSED_BLOCK_TH(th);
-	result = rb_vm_call(th, data->recv, data->id,  argc, argv, &data->me);
+	result = rb_vm_call(th, data->recv, data->id,  argc, argv, &data->me, data->defined_class);
     }
     POP_TAG();
     if (safe >= 0)
