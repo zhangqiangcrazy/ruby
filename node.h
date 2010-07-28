@@ -265,9 +265,10 @@ typedef struct RNode {
 
 #define RNODE(obj)  (R_CAST(RNode)(obj))
 
-/* 0..4:T_TYPES, 5:FL_MARK, 6:reserved, 7:NODE_FL_NEWLINE */
+/* 0..4:T_TYPES, 5:FL_MARK, 6:NODE_FL_NESTED_DEF, 7:NODE_FL_NEWLINE */
 #define NODE_FL_NEWLINE (((VALUE)1)<<7)
 #define NODE_FL_CREF_PUSHED_BY_EVAL NODE_FL_NEWLINE
+#define NODE_FL_NESTED_DEF (((VALUE)1)<<6)
 
 #define NODE_TYPESHIFT 8
 #define NODE_TYPEMASK  (((VALUE)0x7f)<<NODE_TYPESHIFT)

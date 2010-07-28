@@ -969,18 +969,9 @@ top_include(int argc, VALUE *argv, VALUE self)
     return rb_mod_include(argc, argv, rb_cObject);
 }
 
-/*
- *  call-seq:
- *     overlay_module(klass, mod)
- *
- *  Append features of <i>mod</i> to <i>klass</i> only in the scope where
- *  <code>overlay_module</code> is called.
- */
-
-static VALUE
-f_overlay_module(VALUE self, VALUE klass, VALUE module)
+void
+rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 {
-    NODE *cref = rb_vm_cref();
     VALUE iclass, c, superclass = klass;
 
     Check_Type(module, T_MODULE);
@@ -999,6 +990,21 @@ f_overlay_module(VALUE self, VALUE klass, VALUE module)
     }
     rb_hash_aset(cref->nd_omod, klass, iclass);
     rb_clear_cache_by_class(klass);
+}
+
+/*
+ *  call-seq:
+ *     overlay_module(klass, mod)
+ *
+ *  Append features of <i>mod</i> to <i>klass</i> only in the scope where
+ *  <code>overlay_module</code> is called.
+ */
+
+static VALUE
+f_overlay_module(VALUE self, VALUE klass, VALUE module)
+{
+    NODE *cref = rb_vm_cref();
+    rb_overlay_module(cref, klass, module);
     return Qnil;
 }
 

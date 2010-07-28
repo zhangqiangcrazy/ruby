@@ -717,6 +717,8 @@ rb_threadptr_exec_event_hooks(rb_thread_t *th, rb_event_flag_t flag, VALUE self,
     } \
 } while (0)
 
+void rb_overlay_module(NODE*, VALUE, VALUE);
+
 #if defined __GNUC__ && __GNUC__ >= 4
 #pragma GCC visibility push(default)
 #endif

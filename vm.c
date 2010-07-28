@@ -1821,14 +1821,37 @@ rb_thread_alloc(VALUE klass)
     return self;
 }
 
+static VALUE
+find_module_for_nested_methods(NODE *cref, VALUE klass)
+{
+    VALUE iclass;
+
+    if (NIL_P(cref->nd_omod))
+	return Qnil;
+    iclass = rb_hash_lookup(cref->nd_omod, klass);
+    if (NIL_P(iclass))
+	return Qnil;
+    while (iclass) {
+	VALUE module = RBASIC(iclass)->klass;
+	if (FL_TEST(module, RMODULE_HAS_NESTED_METHODS)) {
+	    return module;
+	}
+	iclass = RCLASS_SUPER(iclass);
+    }
+    return Qnil;
+}
+
 VALUE rb_iseq_clone(VALUE iseqval, VALUE newcbase);
 
 static void
-vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval,
+vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval, VALUE nested,
 		 rb_num_t is_singleton, NODE *cref)
 {
     VALUE klass = cref->nd_clss;
+    VALUE target, defined_class;
+    rb_method_entry_t *me;
     int noex = (int)cref->nd_visi;
+    int is_nested = RTEST(nested);
     rb_iseq_t *miseq;
     GetISeqPtr(iseqval, miseq);
 
@@ -1853,12 +1876,30 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval,
 	noex = NOEX_PUBLIC;
     }
 
+    if (is_nested) {
+	target = find_module_for_nested_methods(cref, klass);
+	if (NIL_P(target)) {
+	    target = rb_module_new();
+	    FL_SET(target, RMODULE_HAS_NESTED_METHODS);
+	    rb_overlay_module(cref, klass, target);
+	}
+	else {
+	    me = search_method(target, id, &defined_class);
+	    if (me && me->def->type == VM_METHOD_TYPE_ISEQ &&
+		me->def->body.iseq == miseq) {
+		return;
+	    }
+	}
+    }
+    else {
+	target = klass;
+    }
     /* dup */
     COPY_CREF(miseq->cref_stack, cref);
     miseq->cref_stack->nd_visi = NOEX_PUBLIC;
-    miseq->klass = klass;
+    miseq->klass = target;
     miseq->defined_method_id = id;
-    rb_add_method(klass, id, VM_METHOD_TYPE_ISEQ, miseq, noex);
+    rb_add_method(target, id, VM_METHOD_TYPE_ISEQ, miseq, noex);
 
     if (!is_singleton && noex == NOEX_MODFUNC) {
 	rb_add_method(rb_singleton_class(klass), id, VM_METHOD_TYPE_ISEQ, miseq, NOEX_PUBLIC);
@@ -1872,10 +1913,10 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval,
 } while (0)
 
 static VALUE
-m_core_define_method(VALUE self, VALUE cbase, VALUE sym, VALUE iseqval)
+m_core_define_method(VALUE self, VALUE cbase, VALUE sym, VALUE iseqval, VALUE nested)
 {
     REWIND_CFP({
-	vm_define_method(GET_THREAD(), cbase, SYM2ID(sym), iseqval, 0, rb_vm_cref());
+	vm_define_method(GET_THREAD(), cbase, SYM2ID(sym), iseqval, nested, 0, rb_vm_cref());
     });
     return Qnil;
 }
@@ -1884,7 +1925,7 @@ static VALUE
 m_core_define_singleton_method(VALUE self, VALUE cbase, VALUE sym, VALUE iseqval)
 {
     REWIND_CFP({
-	vm_define_method(GET_THREAD(), cbase, SYM2ID(sym), iseqval, 1, rb_vm_cref());
+	vm_define_method(GET_THREAD(), cbase, SYM2ID(sym), iseqval, Qfalse, 1, rb_vm_cref());
     });
     return Qnil;
 }
@@ -2000,7 +2041,7 @@ Init_VM(void)
     rb_define_method_id(klass, id_core_set_method_alias, m_core_set_method_alias, 3);
     rb_define_method_id(klass, id_core_set_variable_alias, m_core_set_variable_alias, 2);
     rb_define_method_id(klass, id_core_undef_method, m_core_undef_method, 2);
-    rb_define_method_id(klass, id_core_define_method, m_core_define_method, 3);
+    rb_define_method_id(klass, id_core_define_method, m_core_define_method, 4);
     rb_define_method_id(klass, id_core_define_singleton_method, m_core_define_singleton_method, 3);
     rb_define_method_id(klass, id_core_set_postexe, m_core_set_postexe, 1);
     rb_obj_freeze(fcore);
