@@ -151,7 +151,12 @@ extern VALUE ruby_vm_const_missing_count;
 
 #define COPY_CREF(c1, c2) do {  \
   NODE *__tmp_c2 = (c2); \
-  c1->nd_omod = __tmp_c2->nd_omod; \
+  if (NIL_P(__tmp_c2->nd_omod)) { \
+      c1->nd_omod = __tmp_c2->nd_omod; \
+  } \
+  else { \
+      c1->nd_omod = rb_hash_dup(__tmp_c2->nd_omod); \
+  } \
   c1->nd_clss = __tmp_c2->nd_clss; \
   c1->nd_visi = __tmp_c2->nd_visi;\
   c1->nd_next = __tmp_c2->nd_next; \
