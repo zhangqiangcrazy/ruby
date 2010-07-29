@@ -183,7 +183,7 @@ getclassvariable
 ()
 (VALUE val)
 {
-    NODE * const cref = vm_get_cref(GET_ISEQ(), GET_LFP(), GET_DFP());
+    NODE * const cref = rb_vm_get_cref(GET_ISEQ(), GET_LFP(), GET_DFP());
     val = rb_cvar_get(vm_get_cvar_base(cref), id);
 }
 
@@ -198,7 +198,7 @@ setclassvariable
 (VALUE val)
 ()
 {
-    NODE * const cref = vm_get_cref(GET_ISEQ(), GET_LFP(), GET_DFP());
+    NODE * const cref = rb_vm_get_cref(GET_ISEQ(), GET_LFP(), GET_DFP());
     rb_cvar_set(vm_get_cvar_base(cref), id, val);
 }
 

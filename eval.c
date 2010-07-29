@@ -23,6 +23,8 @@ VALUE proc_invoke(VALUE, VALUE, VALUE, VALUE);
 VALUE rb_binding_new(int);
 NORETURN(void rb_raise_jump(VALUE));
 
+NODE *rb_vm_get_cref(const rb_iseq_t *, const VALUE *, const VALUE *);
+
 ID rb_frame_callee(void);
 VALUE rb_eLocalJumpError;
 VALUE rb_eSysStackError;
@@ -994,16 +996,35 @@ rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 
 /*
  *  call-seq:
- *     overlay_module(klass, mod)
+ *     overlay_module(klass, mod [, binding])
  *
  *  Append features of <i>mod</i> to <i>klass</i> only in the scope where
  *  <code>overlay_module</code> is called.
  */
 
 static VALUE
-f_overlay_module(VALUE self, VALUE klass, VALUE module)
+f_overlay_module(int argc, VALUE *argv, VALUE self)
 {
-    NODE *cref = rb_vm_cref();
+    VALUE klass, module, binding;
+    NODE *cref;
+
+    rb_scan_args(argc, argv, "21", &klass, &module, &binding);
+    if (NIL_P(binding)) {
+	cref = rb_vm_cref();
+    }
+    else {
+	rb_binding_t *bind;
+	rb_env_t *env;
+
+	if (!rb_obj_is_kind_of(binding, rb_cBinding)) {
+	    rb_raise(rb_eTypeError,
+		     "wrong argument type %s (expected Binding)",
+		     rb_obj_classname(binding));
+	}
+	GetBindingPtr(binding, bind);
+	GetEnvPtr(bind->env, env);
+	cref = rb_vm_get_cref(env->block.iseq, env->block.lfp, env->block.dfp);
+    }
     rb_overlay_module(cref, klass, module);
     return Qnil;
 }
@@ -1175,7 +1196,7 @@ Init_eval(void)
 
     rb_define_singleton_method(rb_vm_top_self(), "include", top_include, -1);
 
-    rb_define_global_function("overlay_module", f_overlay_module, 2);
+    rb_define_global_function("overlay_module", f_overlay_module, -1);
 
     rb_define_method(rb_mKernel, "extend", rb_obj_extend, -1);
 

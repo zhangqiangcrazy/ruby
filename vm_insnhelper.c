@@ -1085,13 +1085,13 @@ vm_get_cref0(const rb_iseq_t *iseq, const VALUE *lfp, const VALUE *dfp)
     }
 }
 
-static NODE *
-vm_get_cref(const rb_iseq_t *iseq, const VALUE *lfp, const VALUE *dfp)
+NODE *
+rb_vm_get_cref(const rb_iseq_t *iseq, const VALUE *lfp, const VALUE *dfp)
 {
     NODE *cref = vm_get_cref0(iseq, lfp, dfp);
 
     if (cref == 0) {
-	rb_bug("vm_get_cref: unreachable");
+	rb_bug("rb_vm_get_cref: unreachable");
     }
     return cref;
 }
@@ -1120,7 +1120,7 @@ vm_cref_push(rb_thread_t *th, VALUE klass, int noex, rb_block_t *blockptr)
 static inline VALUE
 vm_get_cbase(const rb_iseq_t *iseq, const VALUE *lfp, const VALUE *dfp)
 {
-    NODE *cref = vm_get_cref(iseq, lfp, dfp);
+    NODE *cref = rb_vm_get_cref(iseq, lfp, dfp);
     VALUE klass = Qundef;
 
     while (cref) {
@@ -1136,7 +1136,7 @@ vm_get_cbase(const rb_iseq_t *iseq, const VALUE *lfp, const VALUE *dfp)
 static inline VALUE
 vm_get_const_base(const rb_iseq_t *iseq, const VALUE *lfp, const VALUE *dfp)
 {
-    NODE *cref = vm_get_cref(iseq, lfp, dfp);
+    NODE *cref = rb_vm_get_cref(iseq, lfp, dfp);
     VALUE klass = Qundef;
 
     while (cref) {
@@ -1171,7 +1171,7 @@ vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 
     if (orig_klass == Qnil) {
 	/* in current lexical scope */
-	const NODE *cref = vm_get_cref(iseq, th->cfp->lfp, th->cfp->dfp);
+	const NODE *cref = rb_vm_get_cref(iseq, th->cfp->lfp, th->cfp->dfp);
 	const NODE *root_cref = NULL;
 	VALUE klass = orig_klass;
 
