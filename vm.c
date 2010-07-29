@@ -2134,7 +2134,7 @@ Init_VM(void)
 	th->cfp->pc = iseq->iseq_encoded;
 	th->cfp->self = th->top_self;
 
-	rb_define_global_const("TOPLEVEL_BINDING", rb_binding_new());
+	rb_define_global_const("TOPLEVEL_BINDING", rb_binding_new(0));
     }
     vm_init_redefined_flag();
 }

@@ -311,13 +311,21 @@ binding_clone(VALUE self)
 }
 
 VALUE
-rb_binding_new(void)
+rb_binding_new(int level)
 {
     rb_thread_t *th = GET_THREAD();
     rb_control_frame_t *cfp = rb_vm_get_ruby_level_next_cfp(th, th->cfp);
     VALUE bindval = binding_alloc(rb_cBinding);
     rb_binding_t *bind;
+    int i;
 
+    if (level < 0) {
+	rb_raise(rb_eArgError, "level should not be negative: %d", level);
+    }
+    for (i = 0; i < level && cfp; i++) {
+	cfp = RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp);
+	cfp = rb_vm_get_ruby_level_next_cfp(th, cfp);
+    }
     if (cfp == 0) {
 	rb_raise(rb_eRuntimeError, "Can't create Binding Object on top of Fiber.");
     }
@@ -346,9 +354,16 @@ rb_binding_new(void)
  */
 
 static VALUE
-rb_f_binding(VALUE self)
+rb_f_binding(int argc, VALUE *argv, VALUE self)
 {
-    return rb_binding_new();
+    VALUE vlevel;
+    int level = 0;
+
+    rb_scan_args(argc, argv, "01", &vlevel);
+    if (!NIL_P(vlevel)) {
+	level = NUM2INT(vlevel);
+    }
+    return rb_binding_new(level);
 }
 
 /*
@@ -2238,6 +2253,6 @@ Init_Binding(void)
     rb_define_method(rb_cBinding, "clone", binding_clone, 0);
     rb_define_method(rb_cBinding, "dup", binding_dup, 0);
     rb_define_method(rb_cBinding, "eval", bind_eval, -1);
-    rb_define_global_function("binding", rb_f_binding, 0);
+    rb_define_global_function("binding", rb_f_binding, -1);
 }
 

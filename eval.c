@@ -20,7 +20,7 @@
 #define numberof(array) (int)(sizeof(array) / sizeof((array)[0]))
 
 VALUE proc_invoke(VALUE, VALUE, VALUE, VALUE);
-VALUE rb_binding_new(void);
+VALUE rb_binding_new(int);
 NORETURN(void rb_raise_jump(VALUE));
 
 ID rb_frame_callee(void);
