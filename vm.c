@@ -1890,6 +1890,7 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval, VALUE nested,
 		return;
 	    }
 	}
+	noex = NOEX_PRIVATE;
     }
     else {
 	target = klass;
