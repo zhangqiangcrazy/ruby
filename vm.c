@@ -1884,7 +1884,7 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval, VALUE nested,
 	    rb_overlay_module(cref, klass, target);
 	}
 	else {
-	    me = search_method(target, id, &defined_class);
+	    me = search_method(target, id, Qnil, &defined_class);
 	    if (me && me->def->type == VM_METHOD_TYPE_ISEQ &&
 		me->def->body.iseq == miseq) {
 		return;
