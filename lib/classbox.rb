@@ -19,20 +19,14 @@ class Classbox < Module
     modules = @__overlayed_modules__[klass] ||= []
     modules.push(mod)
     overlay_module(klass, mod, binding(1))
-    # TODO: Why isn't the following code necessary?
-    # import_to(block.binding)
     mod.module_eval(&block)
   end
 end
 
 def classbox(name, &block)
-  begin
-    mod = Object.const_get(name)
-  rescue NameError
-    mod = Classbox.new
-    Object.const_set(name, mod)
-  end
-  mod.module_eval(&block)
+  classbox = Classbox.new
+  Object.const_set(name, classbox)
+  classbox.module_eval(&block)
 end
 
 def import_classbox(classbox)
