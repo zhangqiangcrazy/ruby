@@ -1,3 +1,18 @@
+Thu Aug 19 22:57:43 2010  NAKAMURA, Hiroshi  <nahi@ruby-lang.org>
+
+	* test/openssl/{test_x509cert.rb,test_ssl.rb,test_x509req.rb}: added
+	  tests for SSL and wrong signature algorithm combination.
+
+Thu Aug 19 17:00:21 2010  NAKAMURA, Hiroshi  <nahi@ruby-lang.org>
+
+	* test/openssl/test_ssl.rb: removed unnecessary free port scanning of
+	  test_ssl.rb.
+
+Thu Aug 19 16:47:51 2010  NAKAMURA, Hiroshi  <nahi@ruby-lang.org>
+
+	* ext/openssl/lib/openssl/config.rb, test/openssl/test_config.rb:
+	  cosmetic changes for 1.9 compatibility; let it run on 1.9 as-is.
+
 Sun Aug 15 19:59:58 2010  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
 
 	* lib/webrick/httpresponse.rb (WEBrick::HTTPResponse#set_error):
