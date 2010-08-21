@@ -1876,7 +1876,7 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval, VALUE nested,
 	noex = NOEX_PUBLIC;
     }
 
-    if (is_nested) {
+    if (is_nested && th->cfp->lfp == th->cfp->dfp) {
 	target = find_module_for_nested_methods(cref, klass);
 	if (NIL_P(target)) {
 	    target = rb_module_new();
