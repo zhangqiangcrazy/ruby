@@ -659,6 +659,8 @@ void
 rb_undef(VALUE klass, ID id)
 {
     rb_method_entry_t *me;
+    NODE *cref = rb_vm_cref();
+    VALUE omod = Qnil;
 
     if (NIL_P(klass)) {
 	rb_raise(rb_eTypeError, "no class to undef method");
@@ -674,7 +676,10 @@ rb_undef(VALUE klass, ID id)
 	rb_warn("undefining `%s' may cause serious problems", rb_id2name(id));
     }
 
-    me = search_method(klass, id, Qnil, 0);
+    if (cref && !NIL_P(cref->nd_omod)) {
+	omod = cref->nd_omod;
+    }
+    me = search_method(klass, id, omod, 0);
 
     if (UNDEFINED_METHOD_ENTRY_P(me)) {
 	const char *s0 = " class";
@@ -697,6 +702,16 @@ rb_undef(VALUE klass, ID id)
 		      rb_id2name(id), s0, rb_class2name(c));
     }
 
+    if (!RTEST(rb_class_inherited_p(klass, me->klass))) {
+	if (FL_TEST(me->klass, RMODULE_HAS_NESTED_METHODS)) {
+	    klass = me->klass;
+	}
+	else {
+	    VALUE mod = rb_module_new();
+	    rb_overlay_module(cref, klass, mod);
+	    klass = mod;
+	}
+    }
     rb_add_method(klass, id, VM_METHOD_TYPE_UNDEF, 0, NOEX_PUBLIC);
 
     CALL_METHOD_HOOK(klass, undefined, id);
