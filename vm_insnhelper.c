@@ -1113,7 +1113,7 @@ vm_cref_push(rb_thread_t *th, VALUE klass, int noex, rb_block_t *blockptr)
     /* TODO: why cref->nd_next is 1? */
     if (cref->nd_next && cref->nd_next != (void *) 1 &&
 	!NIL_P(cref->nd_next->nd_omod)) {
-	cref->nd_omod = rb_hash_dup(cref->nd_next->nd_omod);
+	COPY_CREF_OMOD(cref, cref->nd_next);
     }
 
     return cref;

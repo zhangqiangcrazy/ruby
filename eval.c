@@ -981,8 +981,14 @@ rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 	cref->nd_omod = rb_hash_new();
 	rb_funcall(cref->nd_omod, rb_intern("compare_by_identity"), 0);
     }
-    else if (!NIL_P(c = rb_hash_lookup(cref->nd_omod, klass))) {
-	superclass = c;
+    else {
+	if (cref->flags & NODE_FL_CREF_OMOD_SHARED) {
+	    cref->nd_omod = rb_hash_dup(cref->nd_omod);
+	    cref->flags &= ~NODE_FL_CREF_OMOD_SHARED;
+	}
+	if (!NIL_P(c = rb_hash_lookup(cref->nd_omod, klass))) {
+	    superclass = c;
+	}
     }
     c = iclass = rb_include_class_new(module, superclass);
     module = RCLASS_SUPER(module);
