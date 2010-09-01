@@ -70,7 +70,7 @@ static inline VALUE
 rb_vm_set_finish_env(rb_thread_t * th)
 {
     vm_push_frame(th, 0, VM_FRAME_MAGIC_FINISH,
-		  Qnil, rb_cObject, th->cfp->lfp[0], 0,
+		  Qnil, Qnil, th->cfp->lfp[0], 0,
 		  th->cfp->sp, 0, 1);
     th->cfp->pc = (VALUE *)&finish_insn_seq[0];
     return Qtrue;
@@ -1784,7 +1784,7 @@ th_init2(rb_thread_t *th, VALUE self)
 
     th->cfp = (void *)(th->stack + th->stack_size);
 
-    vm_push_frame(th, 0, VM_FRAME_MAGIC_TOP, Qnil, rb_cObject, 0, 0,
+    vm_push_frame(th, 0, VM_FRAME_MAGIC_TOP, Qnil, Qnil, 0, 0,
 		  th->stack, 0, 1);
 
     th->status = THREAD_RUNNABLE;

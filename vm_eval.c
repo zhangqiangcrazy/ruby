@@ -163,7 +163,7 @@ vm_call_super(rb_thread_t *th, int argc, const VALUE *argv)
     rb_method_entry_t *me;
     rb_control_frame_t *cfp = th->cfp;
 
-    if (!cfp->iseq) {
+    if (!cfp->iseq && !NIL_P(cfp->klass)) {
 	klass = RCLASS_SUPER(cfp->klass);
 
 	if (klass == 0) {

@@ -66,7 +66,13 @@ vm_push_frame(rb_thread_t * th, const rb_iseq_t * iseq,
 	cfp->klass = klass;
     }
     else {
-	cfp->klass = RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp)->klass;
+	rb_control_frame_t *prev_cfp = RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp);
+	if (RUBY_VM_CONTROL_FRAME_STACK_OVERFLOW_P(th, prev_cfp)) {
+	    cfp->klass = Qnil;
+	}
+	else {
+	    cfp->klass = prev_cfp->klass;
+	}
     }
 
 #define COLLECT_PROFILE 0
