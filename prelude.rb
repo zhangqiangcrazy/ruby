@@ -65,12 +65,6 @@ class Classbox
   end
 end
 
-def classbox(name, &block)
-  klassbox = Classbox.new
-  Object.const_set(name, klassbox)
-  klassbox.module_eval(&block)
-end
-
 def import(klassbox)
   klassbox.import_to(binding(1))
 end
