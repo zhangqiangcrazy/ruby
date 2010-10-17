@@ -38,6 +38,6 @@ def classbox(name, &block)
   klassbox.module_eval(&block)
 end
 
-def import_classbox(klassbox)
+def import(klassbox)
   klassbox.import_to(binding(1))
 end
