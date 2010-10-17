@@ -627,6 +627,7 @@ static void token_info_pop(struct parser_params*, const char *token);
 %*/
 	keyword_class
 	keyword_module
+	keyword_classbox
 	keyword_def
 	keyword_undef
 	keyword_begin
@@ -1864,7 +1865,8 @@ op		: '|'		{ ifndef_ripper($$ = '|'); }
 reswords	: keyword__LINE__ | keyword__FILE__ | keyword__ENCODING__
 		| keyword_BEGIN | keyword_END
 		| keyword_alias | keyword_and | keyword_begin
-		| keyword_break | keyword_case | keyword_class | keyword_def
+		| keyword_break | keyword_case
+		| keyword_class | keyword_classbox | keyword_def
 		| keyword_defined | keyword_do | keyword_else | keyword_elsif
 		| keyword_end | keyword_ensure | keyword_false
 		| keyword_for | keyword_in | keyword_module | keyword_next
@@ -2951,6 +2953,27 @@ primary		: literal
 		    %*/
 			local_pop();
 		    }
+		| k_classbox cpath
+		    {
+			if (in_def || in_single)
+			    yyerror("module definition in method body");
+			local_push(0);
+		    /*%%%*/
+			$<num>$ = ruby_sourceline;
+		    /*%
+		    %*/
+		    }
+		  bodystmt
+		  k_end
+		    {
+		    /*%%%*/
+			$$ = NEW_CLASSBOX($2, $4);
+			nd_set_line($$, $<num>3);
+		    /*%
+			$$ = dispatch2(module, $2, $4);
+		    %*/
+			local_pop();
+		    }
 		| k_def fname
 		    {
 			$<id>$ = cur_mid;
@@ -3094,6 +3117,12 @@ k_class		: keyword_class
 k_module	: keyword_module
 		    {
 			token_info_push("module");
+		    }
+		;
+
+k_classbox	: keyword_classbox
+		    {
+			token_info_push("classbox");
 		    }
 		;
 

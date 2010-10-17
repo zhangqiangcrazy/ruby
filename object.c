@@ -26,6 +26,7 @@ VALUE rb_mKernel;
 VALUE rb_cObject;
 VALUE rb_cModule;
 VALUE rb_cClass;
+VALUE rb_cClassbox;
 VALUE rb_cData;
 
 VALUE rb_cNilClass;
@@ -2659,6 +2660,10 @@ Init_Object(void)
     rb_define_alloc_func(rb_cClass, rb_class_s_alloc);
     rb_undef_method(rb_cClass, "extend_object");
     rb_undef_method(rb_cClass, "append_features");
+
+    rb_cClassbox = rb_define_class("Classbox", rb_cModule);
+    rb_undef_method(rb_cClassbox, "extend_object");
+    rb_undef_method(rb_cClassbox, "append_features");
 
     rb_cData = rb_define_class("Data", rb_cObject);
     rb_undef_alloc_func(rb_cData);

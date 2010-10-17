@@ -956,6 +956,27 @@ defineclass
 	    rb_const_set(cbase, id, klass);
 	}
 	break;
+      case 3:
+	/* val is dummy.  classdef returns class scope value */
+	/* super is dummy */
+
+	vm_check_if_namespace(cbase);
+
+	/* find klass */
+#if 0
+	if (rb_const_defined_at(cbase, id)) {
+	    klass = rb_const_get_at(cbase, id);
+	    rb_raise(rb_eNameError, "%s is not a module", rb_id2name(id));
+	}
+	else
+#endif
+	{
+	    /* new module declaration */
+	    klass = rb_define_classbox_id(id);
+	    rb_set_class_path_string(klass, cbase, rb_id2str(id));
+	    rb_const_set(cbase, id, klass);
+	}
+	break;
       default:
 	rb_bug("unknown defineclass type: %d", (int)define_type);
     }

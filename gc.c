@@ -1615,6 +1615,7 @@ gc_mark_children(rb_objspace_t *objspace, VALUE ptr, int lev)
 	  case NODE_OP_ASGN_OR:
 	  case NODE_OP_ASGN_AND:
 	  case NODE_MODULE:
+	  case NODE_CLASSBOX:
 	  case NODE_ALIAS:
 	  case NODE_VALIAS:
 	  case NODE_ARGSCAT:

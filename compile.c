@@ -4686,6 +4686,21 @@ iseq_compile_each(rb_iseq_t *iseq, LINK_ANCHOR *ret, NODE * node, int poped)
 	}
 	break;
       }
+      case NODE_CLASSBOX:{
+	VALUE iseqval = NEW_CHILD_ISEQVAL(
+	    node->nd_body,
+	    rb_sprintf("<module:%s>", rb_id2name(node->nd_cpath->nd_mid)),
+	    ISEQ_TYPE_CLASS, nd_line(node));
+
+	compile_cpath(ret, iseq, node->nd_cpath);
+	ADD_INSN (ret, nd_line(node), putnil); /* dummy */
+	ADD_INSN3(ret, nd_line(node), defineclass,
+		  ID2SYM(node->nd_cpath->nd_mid), iseqval, INT2FIX(3));
+	if (poped) {
+	    ADD_INSN(ret, nd_line(node), pop);
+	}
+	break;
+      }
       case NODE_COLON2:{
 	if (rb_is_const_id(node->nd_mid)) {
 	    /* constant */
