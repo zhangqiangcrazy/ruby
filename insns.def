@@ -963,14 +963,15 @@ defineclass
 	vm_check_if_namespace(cbase);
 
 	/* find klass */
-#if 0
 	if (rb_const_defined_at(cbase, id)) {
 	    klass = rb_const_get_at(cbase, id);
-	    rb_raise(rb_eNameError, "%s is not a module", rb_id2name(id));
+	    /* already exist */
+	    if (TYPE(klass) != T_MODULE ||
+		!rb_obj_is_kind_of(klass, rb_cClassbox)) {
+		rb_raise(rb_eTypeError, "%s is not a classbox", rb_id2name(id));
+	    }
 	}
-	else
-#endif
-	{
+	else {
 	    /* new module declaration */
 	    klass = rb_define_classbox_id(id);
 	    rb_set_class_path_string(klass, cbase, rb_id2str(id));
@@ -988,6 +989,7 @@ defineclass
 		  VM_FRAME_MAGIC_CLASS, klass, 0, (VALUE) GET_BLOCK_PTR(),
 		  class_iseq->iseq_encoded, GET_SP(), 0,
 		  class_iseq->local_size);
+    rb_mod_opened(klass);
     RESTORE_REGS();
 
     INC_VM_STATE_VERSION();

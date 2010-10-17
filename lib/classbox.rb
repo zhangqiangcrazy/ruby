@@ -1,5 +1,6 @@
 class Classbox
   def import_to(binding)
+    return unless @__overlayed_modules__
     @__overlayed_modules__.each do |klass, modules|
       modules.each do |mod|
         overlay_module(klass, mod, binding)
@@ -40,4 +41,37 @@ end
 
 def import(klassbox)
   klassbox.import_to(binding(1))
+end
+
+class Module
+  def import(klassbox)
+    @__imported_classboxes__ ||= {}
+    @__imported_classboxes__[klassbox] = true
+    klassbox.import_to(binding(1))
+  end
+
+  def __opened__(b = binding(1))
+    return unless @__imported_classboxes__
+    @__imported_classboxes__.each_key do |klassbox|
+      klassbox.import_to(b)
+    end
+  end
+end
+
+class Class
+  def __opened__
+    unless @__imported_classboxes__
+      @__imported_classboxes__ =
+        self.superclass.instance_variable_get(:@__imported_classboxes__)
+    end
+    super(binding(1))
+  end
+end
+
+class Classbox
+  def __opened__
+    b = binding(1)
+    import_to(b)
+    super(b)
+  end
 end

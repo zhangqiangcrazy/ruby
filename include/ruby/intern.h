@@ -164,6 +164,7 @@ void rb_singleton_class_attached(VALUE,VALUE);
 VALUE rb_make_metaclass(VALUE, VALUE);
 void rb_check_inheritable(VALUE);
 VALUE rb_class_inherited(VALUE, VALUE);
+VALUE rb_mod_opened(VALUE);
 VALUE rb_define_class_id(ID, VALUE);
 VALUE rb_define_class_id_under(VALUE, ID, VALUE);
 VALUE rb_module_new(void);

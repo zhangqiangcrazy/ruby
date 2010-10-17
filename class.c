@@ -418,6 +418,14 @@ rb_define_class_id(ID id, VALUE super)
     return klass;
 }
 
+VALUE
+rb_mod_opened(VALUE mod)
+{
+    ID opened;
+    CONST_ID(opened, "__opened__");
+    return rb_funcall(mod, opened, 0);
+}
+
 
 /*!
  * Calls Class#inherited.
