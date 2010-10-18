@@ -1,5 +1,9 @@
+Wed Oct 20 21:05:17 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* include/ruby/vm.h: MVM the next generation.
+
 Local variables:
-mode: ChangeLog
+mode: change-log
 add-log-time-format: (lambda ()
   (let* ((time (current-time))
 	 (system-time-locale "C")
