@@ -1750,12 +1750,12 @@ vm_import_classboxes(NODE *cref, VALUE klass, int define_type)
     VALUE imported_classboxes;
 
     CONST_ID(id_imported_classboxes, "__imported_classboxes__");
-    imported_classboxes = rb_ivar_get(klass, id_imported_classboxes);
+    imported_classboxes = rb_attr_get(klass, id_imported_classboxes);
     switch (define_type) {
     case 0:
 	if (NIL_P(imported_classboxes)) {
 	    VALUE super = rb_class_real(RCLASS_SUPER(klass));
-	    imported_classboxes = rb_ivar_get(super, id_imported_classboxes);
+	    imported_classboxes = rb_attr_get(super, id_imported_classboxes);
 	    if (!NIL_P(imported_classboxes)) {
 		imported_classboxes = rb_hash_dup(imported_classboxes);
 		rb_ivar_set(klass, id_imported_classboxes, imported_classboxes);

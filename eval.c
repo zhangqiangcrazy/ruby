@@ -907,7 +907,7 @@ rb_import_classbox(NODE *cref, VALUE classbox)
     VALUE overlayed_modules;
 
     CONST_ID(id_overlayed_modules, "__overlayed_modules__");
-    overlayed_modules = rb_ivar_get(classbox, id_overlayed_modules);
+    overlayed_modules = rb_attr_get(classbox, id_overlayed_modules);
     if (NIL_P(overlayed_modules)) return;
     rb_hash_foreach(overlayed_modules, import_classbox_i, (VALUE) cref);
 }
@@ -927,7 +927,7 @@ rb_mod_import(VALUE module, VALUE classbox)
     VALUE imported_classboxes;
 
     CONST_ID(id_imported_classboxes, "__imported_classboxes__");
-    imported_classboxes = rb_ivar_get(module, id_imported_classboxes);
+    imported_classboxes = rb_attr_get(module, id_imported_classboxes);
     if (NIL_P(imported_classboxes)) {
 	imported_classboxes = rb_hash_new();
 	rb_funcall(imported_classboxes, rb_intern("compare_by_identity"), 0);
@@ -968,7 +968,7 @@ rb_classbox_refine(VALUE classbox, VALUE klass)
     VALUE overlayed_modules, modules;
 
     CONST_ID(id_overlayed_modules, "__overlayed_modules__");
-    overlayed_modules = rb_ivar_get(classbox, id_overlayed_modules);
+    overlayed_modules = rb_attr_get(classbox, id_overlayed_modules);
     if (NIL_P(overlayed_modules)) {
 	overlayed_modules = rb_hash_new();
 	rb_funcall(overlayed_modules, rb_intern("compare_by_identity"), 0);
