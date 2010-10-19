@@ -972,7 +972,7 @@ defineclass
 	    }
 	}
 	else {
-	    /* new module declaration */
+	    /* new classbox declaration */
 	    klass = rb_define_classbox_id(id);
 	    rb_set_class_path_string(klass, cbase, rb_id2str(id));
 	    rb_const_set(cbase, id, klass);
@@ -989,7 +989,7 @@ defineclass
 		  VM_FRAME_MAGIC_CLASS, klass, 0, (VALUE) GET_BLOCK_PTR(),
 		  class_iseq->iseq_encoded, GET_SP(), 0,
 		  class_iseq->local_size);
-    rb_mod_opened(klass);
+    vm_import_classboxes(class_iseq->cref_stack, klass, define_type);
     RESTORE_REGS();
 
     INC_VM_STATE_VERSION();

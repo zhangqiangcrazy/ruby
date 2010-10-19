@@ -1732,3 +1732,43 @@ opt_eq_func(VALUE recv, VALUE obj, IC ic)
     return Qundef;
 }
 
+void rb_import_classbox(NODE *cref, VALUE classbox);
+
+static int
+vm_import_classbox_i(VALUE classbox, VALUE value, VALUE arg)
+{
+    NODE *cref = (NODE *) arg;
+
+    rb_import_classbox(cref, classbox);
+    return ST_CONTINUE;
+}
+
+static void
+vm_import_classboxes(NODE *cref, VALUE klass, int define_type)
+{
+    ID id_imported_classboxes;
+    VALUE imported_classboxes;
+
+    CONST_ID(id_imported_classboxes, "__imported_classboxes__");
+    imported_classboxes = rb_ivar_get(klass, id_imported_classboxes);
+    switch (define_type) {
+    case 0:
+	if (NIL_P(imported_classboxes)) {
+	    VALUE super = rb_class_real(RCLASS_SUPER(klass));
+	    imported_classboxes = rb_ivar_get(super, id_imported_classboxes);
+	    if (!NIL_P(imported_classboxes)) {
+		imported_classboxes = rb_hash_dup(imported_classboxes);
+		rb_ivar_set(klass, id_imported_classboxes, imported_classboxes);
+	    }
+	}
+	break;
+    case 3:
+	rb_import_classbox(cref, klass);
+	break;
+    }
+    if (!NIL_P(imported_classboxes)) {
+	rb_hash_foreach(imported_classboxes, vm_import_classbox_i,
+		       	(VALUE) cref);
+    }
+}
+

@@ -418,14 +418,6 @@ rb_define_class_id(ID id, VALUE super)
     return klass;
 }
 
-VALUE
-rb_mod_opened(VALUE mod)
-{
-    ID opened;
-    CONST_ID(opened, "__opened__");
-    return rb_funcall(mod, opened, 0);
-}
-
 
 /*!
  * Calls Class#inherited.
@@ -1543,11 +1535,11 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 VALUE
 rb_classbox_new(void)
 {
-    VALUE mdl = class_alloc(T_MODULE, rb_cClassbox);
+    VALUE classbox = class_alloc(T_MODULE, rb_cClassbox);
 
-    RCLASS_M_TBL(mdl) = st_init_numtable();
+    RCLASS_M_TBL(classbox) = st_init_numtable();
 
-    return (VALUE)mdl;
+    return (VALUE) classbox;
 }
 
 VALUE

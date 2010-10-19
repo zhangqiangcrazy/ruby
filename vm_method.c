@@ -1347,6 +1347,20 @@ obj_respond_to_missing(VALUE obj, VALUE priv)
 }
 
 void
+rb_redefine_opt_method(VALUE klass, ID mid)
+{
+    st_data_t key, data;
+    rb_method_entry_t *me = 0;
+
+    if (!st_lookup(RCLASS_M_TBL(klass), mid, &data) ||
+	!(me = (rb_method_entry_t *)data) ||
+	(!me->def || me->def->type == VM_METHOD_TYPE_UNDEF)) {
+	return;
+    }
+    rb_vm_check_redefinition_opt_method(me);
+}
+
+void
 Init_eval_method(void)
 {
 #undef rb_intern

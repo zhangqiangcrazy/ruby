@@ -860,6 +860,136 @@ rb_mod_include(int argc, VALUE *argv, VALUE module)
 }
 
 void
+rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
+{
+    VALUE iclass, c, superclass = klass;
+
+    Check_Type(module, T_MODULE);
+    if (NIL_P(cref->nd_omod)) {
+	cref->nd_omod = rb_hash_new();
+	rb_funcall(cref->nd_omod, rb_intern("compare_by_identity"), 0);
+    }
+    else {
+	if (cref->flags & NODE_FL_CREF_OMOD_SHARED) {
+	    cref->nd_omod = rb_hash_dup(cref->nd_omod);
+	    cref->flags &= ~NODE_FL_CREF_OMOD_SHARED;
+	}
+	if (!NIL_P(c = rb_hash_lookup(cref->nd_omod, klass))) {
+	    superclass = c;
+	}
+    }
+    c = iclass = rb_include_class_new(module, superclass);
+    module = RCLASS_SUPER(module);
+    while (module) {
+	c = RCLASS_SUPER(c) = rb_include_class_new(module, RCLASS_SUPER(c));
+	module = RCLASS_SUPER(module);
+    }
+    rb_hash_aset(cref->nd_omod, klass, iclass);
+    rb_clear_cache_by_class(klass);
+}
+
+static int
+import_classbox_i(VALUE klass, VALUE modules, VALUE arg)
+{
+    NODE *cref = (NODE *) arg;
+    int i;
+
+    for (i = 0; i < RARRAY_LEN(modules); i++) {
+	rb_overlay_module(cref, klass, RARRAY_PTR(modules)[i]);
+    }
+    return ST_CONTINUE;
+}
+
+void
+rb_import_classbox(NODE *cref, VALUE classbox)
+{
+    ID id_overlayed_modules;
+    VALUE overlayed_modules;
+
+    CONST_ID(id_overlayed_modules, "__overlayed_modules__");
+    overlayed_modules = rb_ivar_get(classbox, id_overlayed_modules);
+    if (NIL_P(overlayed_modules)) return;
+    rb_hash_foreach(overlayed_modules, import_classbox_i, (VALUE) cref);
+}
+
+/*
+ *  call-seq:
+ *     import(classbox)    -> self
+ *
+ *  Import <i>classbox</i> into the receiver.
+ */
+
+static VALUE
+rb_mod_import(VALUE module, VALUE classbox)
+{
+    NODE *cref = rb_vm_cref();
+    ID id_imported_classboxes;
+    VALUE imported_classboxes;
+
+    CONST_ID(id_imported_classboxes, "__imported_classboxes__");
+    imported_classboxes = rb_ivar_get(module, id_imported_classboxes);
+    if (NIL_P(imported_classboxes)) {
+	imported_classboxes = rb_hash_new();
+	rb_funcall(imported_classboxes, rb_intern("compare_by_identity"), 0);
+	rb_ivar_set(module, id_imported_classboxes, imported_classboxes);
+    }
+    rb_hash_aset(imported_classboxes, classbox, Qtrue);
+    rb_import_classbox(cref, classbox);
+    return module;
+}
+
+void rb_redefine_opt_method(VALUE, ID);
+
+static VALUE
+classbox_module_method_added(VALUE mod, VALUE mid)
+{
+    ID id = SYM2ID(mid);
+    ID id_refined_class;
+    VALUE klass;
+
+    CONST_ID(id_refined_class, "__refined_class__");
+    klass = rb_ivar_get(mod, id_refined_class);
+    rb_redefine_opt_method(klass, id);
+}
+
+/*
+ *  call-seq:
+ *     refine(klass) { block }   -> self
+ *
+ *  Refine <i>klass</i> in the receiver classbox.
+ */
+
+static VALUE
+rb_classbox_refine(VALUE classbox, VALUE klass)
+{
+    NODE *cref = rb_vm_cref();
+    VALUE mod = rb_module_new();
+    ID id_overlayed_modules, id_refined_class;
+    VALUE overlayed_modules, modules;
+
+    CONST_ID(id_overlayed_modules, "__overlayed_modules__");
+    overlayed_modules = rb_ivar_get(classbox, id_overlayed_modules);
+    if (NIL_P(overlayed_modules)) {
+	overlayed_modules = rb_hash_new();
+	rb_funcall(overlayed_modules, rb_intern("compare_by_identity"), 0);
+	rb_ivar_set(classbox, id_overlayed_modules, overlayed_modules);
+    }
+    modules = rb_hash_aref(overlayed_modules, klass);
+    if (NIL_P(modules)) {
+	modules = rb_ary_new();
+	rb_hash_aset(overlayed_modules, klass, modules);
+    }
+    rb_ary_push(modules, mod);
+    CONST_ID(id_refined_class, "__refined_class__");
+    rb_ivar_set(mod, id_refined_class, klass);
+    rb_define_singleton_method(mod, "method_added",
+			       classbox_module_method_added, 1);
+    rb_overlay_module(cref, klass, mod);
+    rb_mod_module_eval(0, NULL, mod);
+    return Qnil;
+}
+
+void
 rb_obj_call_init(VALUE obj, int argc, VALUE *argv)
 {
     PASS_PASSED_BLOCK();
@@ -971,35 +1101,6 @@ top_include(int argc, VALUE *argv, VALUE self)
     return rb_mod_include(argc, argv, rb_cObject);
 }
 
-void
-rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
-{
-    VALUE iclass, c, superclass = klass;
-
-    Check_Type(module, T_MODULE);
-    if (NIL_P(cref->nd_omod)) {
-	cref->nd_omod = rb_hash_new();
-	rb_funcall(cref->nd_omod, rb_intern("compare_by_identity"), 0);
-    }
-    else {
-	if (cref->flags & NODE_FL_CREF_OMOD_SHARED) {
-	    cref->nd_omod = rb_hash_dup(cref->nd_omod);
-	    cref->flags &= ~NODE_FL_CREF_OMOD_SHARED;
-	}
-	if (!NIL_P(c = rb_hash_lookup(cref->nd_omod, klass))) {
-	    superclass = c;
-	}
-    }
-    c = iclass = rb_include_class_new(module, superclass);
-    module = RCLASS_SUPER(module);
-    while (module) {
-	c = RCLASS_SUPER(c) = rb_include_class_new(module, RCLASS_SUPER(c));
-	module = RCLASS_SUPER(module);
-    }
-    rb_hash_aset(cref->nd_omod, klass, iclass);
-    rb_clear_cache_by_class(klass);
-}
-
 /*
  *  call-seq:
  *     overlay_module(klass, mod [, binding])
@@ -1033,6 +1134,22 @@ f_overlay_module(int argc, VALUE *argv, VALUE self)
     }
     rb_overlay_module(cref, klass, module);
     return Qnil;
+}
+
+/*
+ *  call-seq:
+ *     import(classbox)    -> self
+ *
+ *  Import <i>classbox</i> into the scope where <code>import</code> is called.
+ */
+
+static VALUE
+f_import(VALUE self, VALUE classbox)
+{
+    NODE *cref = rb_vm_cref();
+
+    rb_import_classbox(cref, classbox);
+    return self;
 }
 
 VALUE rb_f_trace_var();
@@ -1187,6 +1304,8 @@ Init_eval(void)
     rb_define_private_method(rb_cModule, "append_features", rb_mod_append_features, 1);
     rb_define_private_method(rb_cModule, "extend_object", rb_mod_extend_object, 1);
     rb_define_private_method(rb_cModule, "include", rb_mod_include, -1);
+    rb_define_private_method(rb_cModule, "import", rb_mod_import, 1);
+    rb_define_private_method(rb_cClassbox, "refine", rb_classbox_refine, 1);
 
     rb_undef_method(rb_cClass, "module_function");
 
@@ -1203,6 +1322,7 @@ Init_eval(void)
     rb_define_singleton_method(rb_vm_top_self(), "include", top_include, -1);
 
     rb_define_global_function("overlay_module", f_overlay_module, -1);
+    rb_define_global_function("import", f_import, 1);
 
     rb_define_method(rb_mKernel, "extend", rb_obj_extend, -1);
 
