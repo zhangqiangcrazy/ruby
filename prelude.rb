@@ -89,6 +89,7 @@ class Class
     unless @__imported_classboxes__
       @__imported_classboxes__ =
         self.superclass.instance_variable_get(:@__imported_classboxes__)
+      @__imported_classboxes__ &&= @__imported_classboxes__.dup
     end
     super(binding(1))
   end
