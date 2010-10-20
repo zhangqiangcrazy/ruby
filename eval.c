@@ -906,6 +906,12 @@ rb_import_classbox(NODE *cref, VALUE classbox)
     ID id_overlayed_modules;
     VALUE overlayed_modules;
 
+    if (TYPE(classbox) != T_MODULE ||
+	!rb_obj_is_kind_of(classbox, rb_cClassbox)) {
+	rb_raise(rb_eTypeError, "wrong argument type %s (expected Classbox)",
+		 rb_obj_classname(classbox));
+    }
+
     CONST_ID(id_overlayed_modules, "__overlayed_modules__");
     overlayed_modules = rb_attr_get(classbox, id_overlayed_modules);
     if (NIL_P(overlayed_modules)) return;
