@@ -1743,16 +1743,15 @@ vm_import_classbox_i(VALUE classbox, VALUE value, VALUE arg)
     return ST_CONTINUE;
 }
 
-static void
-vm_import_classboxes(NODE *cref, VALUE klass, int define_type)
+void
+rb_vm_import_classboxes(NODE *cref, VALUE klass)
 {
     ID id_imported_classboxes;
     VALUE imported_classboxes;
 
     CONST_ID(id_imported_classboxes, "__imported_classboxes__");
     imported_classboxes = rb_attr_get(klass, id_imported_classboxes);
-    switch (define_type) {
-    case 0:
+    if (TYPE(klass) == T_CLASS) {
 	if (NIL_P(imported_classboxes)) {
 	    VALUE super = rb_class_real(RCLASS_SUPER(klass));
 	    imported_classboxes = rb_attr_get(super, id_imported_classboxes);
@@ -1761,10 +1760,9 @@ vm_import_classboxes(NODE *cref, VALUE klass, int define_type)
 		rb_ivar_set(klass, id_imported_classboxes, imported_classboxes);
 	    }
 	}
-	break;
-    case 3:
+    }
+    else if (rb_obj_is_kind_of(klass, rb_cClassbox)) {
 	rb_import_classbox(cref, klass);
-	break;
     }
     if (!NIL_P(imported_classboxes)) {
 	rb_hash_foreach(imported_classboxes, vm_import_classbox_i,
