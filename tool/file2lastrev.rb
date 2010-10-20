@@ -83,10 +83,13 @@ class VCS
 
     def self.get_revisions(path)
       logcmd = %Q[git log -n1 --grep="^ *git-svn-id: .*@[0-9][0-9]* "]
-      idpat = /git-svn-id: .*?@(\d+) \S+\Z/
+      idpat = /git-svn-id: .*?@(\d+) \S+/
       last = `#{logcmd}`[idpat, 1]
       changed = path ? `#{logcmd} "#{path}"`[idpat, 1] : last
-      [last, changed]
+      gitshort = `git log -1 --pretty=%h`.chomp
+      gitlong = `git log -1 --pretty=%H`.chomp
+      gitref = `git log -1 --pretty=%d`.chomp
+      [last, changed, gitshort, gitlong, gitref]
     end
   end
 end
@@ -127,7 +130,7 @@ rescue VCS::NotFoundError => e
   abort "#{Program.basename}: #{e.message}" unless @suppress_not_found
 else
   begin
-    last, changed = vcs.get_revisions(ARGV.shift)
+    last, changed, *rest = vcs.get_revisions(ARGV.shift)
   rescue => e
     abort "#{Program.basename}: #{e.message}" unless @suppress_not_found
     exit false
@@ -138,7 +141,14 @@ case @output
 when :changed, nil
   puts changed
 when :revision_h
-  puts "#define RUBY_REVISION #{changed.to_i}"
+  if rest.empty?
+    puts "#define RUBY_REVISION #{changed.to_i}"
+  else
+    short, long, ref = *rest
+    puts "#define RUBY_BRANCH_NAME \"#{ref[2..-2]}\"" unless ref.empty?
+    puts "#define RUBY_REVISION #{short.to_i(16)}"
+    puts "#define RUBY_GITCOMMITID \"#{long}\""
+  end
 when :doxygen
   puts "r#{changed}/r#{last}"
 else
