@@ -864,11 +864,7 @@ rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 {
     VALUE iclass, c, superclass = klass;
 
-    if (TYPE(klass) != T_CLASS && TYPE(klass) != T_MODULE) {
-	rb_raise(rb_eTypeError,
-		 "wrong argument type %s (expected Class or Module)",
-		 rb_obj_classname(klass));
-    }
+    Check_Type(module, T_CLASS);
     Check_Type(module, T_MODULE);
     if (NIL_P(cref->nd_omod)) {
 	cref->nd_omod = rb_hash_new();
@@ -978,6 +974,7 @@ rb_classbox_refine(VALUE classbox, VALUE klass)
     ID id_overlayed_modules, id_refined_class;
     VALUE overlayed_modules, modules;
 
+    Check_Type(klass, T_CLASS);
     CONST_ID(id_overlayed_modules, "__overlayed_modules__");
     overlayed_modules = rb_attr_get(classbox, id_overlayed_modules);
     if (NIL_P(overlayed_modules)) {
