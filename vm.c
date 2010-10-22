@@ -1877,11 +1877,18 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval, VALUE nested,
     }
 
     if (is_nested && th->cfp->lfp == th->cfp->dfp) {
-	target = find_module_for_nested_methods(cref, klass);
+	VALUE c;
+       	if (TYPE(klass) == T_MODULE) {
+	    c = rb_obj_class(th->cfp->self);
+	}
+	else {
+	    c = klass;
+	}
+	target = find_module_for_nested_methods(cref, c);
 	if (NIL_P(target)) {
 	    target = rb_module_new();
 	    FL_SET(target, RMODULE_HAS_NESTED_METHODS);
-	    rb_overlay_module(cref, klass, target);
+	    rb_overlay_module(cref, c, target);
 	}
 	else {
 	    me = search_method(target, id, Qnil, &defined_class);
