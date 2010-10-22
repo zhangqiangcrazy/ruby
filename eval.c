@@ -864,7 +864,7 @@ rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 {
     VALUE iclass, c, superclass = klass;
 
-    Check_Type(module, T_CLASS);
+    Check_Type(klass, T_CLASS);
     Check_Type(module, T_MODULE);
     if (NIL_P(cref->nd_omod)) {
 	cref->nd_omod = rb_hash_new();
