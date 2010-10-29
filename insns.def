@@ -1064,12 +1064,11 @@ invokesuper
     while (ip && !ip->klass) {
 	ip = ip->parent_iseq;
     }
-  again:
     me = rb_method_entry(klass, id, &klass);
     if (me && me->def->type == VM_METHOD_TYPE_ISEQ &&
 	me->def->body.iseq == ip) {
 	klass = RCLASS_SUPER(klass);
-	goto again;
+	me = rb_method_entry_get_with_omod(Qnil, klass, id, &klass);
     }
 
     CALL_METHOD(num, blockptr, flag, id, me, recv, klass);

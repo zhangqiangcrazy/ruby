@@ -877,6 +877,13 @@ rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 	}
 	if (!NIL_P(c = rb_hash_lookup(cref->nd_omod, klass))) {
 	    superclass = c;
+	    while (c && TYPE(c) == T_ICLASS) {
+		if (RBASIC(c)->klass == module) {
+		    /* already overlayed module */
+		    return;
+		}
+		c = RCLASS_SUPER(c);
+	    }
 	}
     }
     FL_SET(module, RMODULE_IS_OVERLAYED);

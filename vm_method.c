@@ -461,15 +461,10 @@ rb_method_entry_get_without_cache(VALUE klass, VALUE omod, ID id, VALUE *defined
 }
 
 rb_method_entry_t *
-rb_method_entry(VALUE klass, ID id, VALUE *defined_class_ptr)
+rb_method_entry_get_with_omod(VALUE omod, VALUE klass, ID id,
+			      VALUE *defined_class_ptr)
 {
     struct cache_entry *ent;
-    NODE *cref = rb_vm_cref();
-    VALUE omod = Qnil;
-
-    if (cref && !NIL_P(cref->nd_omod)) {
-	omod = cref->nd_omod;
-    }
 
     ent = cache + EXPR1(klass, omod, id);
     if (ent->mid == id && ent->klass == klass && ent->omod == omod) {
@@ -480,6 +475,19 @@ rb_method_entry(VALUE klass, ID id, VALUE *defined_class_ptr)
 
     return rb_method_entry_get_without_cache(klass, omod, id,
 					     defined_class_ptr);
+}
+
+rb_method_entry_t *
+rb_method_entry(VALUE klass, ID id, VALUE *defined_class_ptr)
+{
+    struct cache_entry *ent;
+    NODE *cref = rb_vm_cref();
+    VALUE omod = Qnil;
+
+    if (cref && !NIL_P(cref->nd_omod)) {
+	omod = cref->nd_omod;
+    }
+    return rb_method_entry_get_with_omod(omod, klass, id, defined_class_ptr);
 }
 
 static void
