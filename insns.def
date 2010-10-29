@@ -956,28 +956,6 @@ defineclass
 	    rb_const_set(cbase, id, klass);
 	}
 	break;
-      case 3:
-	/* val is dummy.  classdef returns class scope value */
-	/* super is dummy */
-
-	vm_check_if_namespace(cbase);
-
-	/* find klass */
-	if (rb_const_defined_at(cbase, id)) {
-	    klass = rb_const_get_at(cbase, id);
-	    /* already exist */
-	    if (TYPE(klass) != T_MODULE ||
-		!rb_obj_is_kind_of(klass, rb_cClassbox)) {
-		rb_raise(rb_eTypeError, "%s is not a classbox", rb_id2name(id));
-	    }
-	}
-	else {
-	    /* new classbox declaration */
-	    klass = rb_define_classbox_id(id);
-	    rb_set_class_path_string(klass, cbase, rb_id2str(id));
-	    rb_const_set(cbase, id, klass);
-	}
-	break;
       default:
 	rb_bug("unknown defineclass type: %d", (int)define_type);
     }
@@ -989,7 +967,7 @@ defineclass
 		  VM_FRAME_MAGIC_CLASS, klass, 0, (VALUE) GET_BLOCK_PTR(),
 		  class_iseq->iseq_encoded, GET_SP(), 0,
 		  class_iseq->local_size);
-    rb_vm_import_classboxes(class_iseq->cref_stack, klass);
+    rb_vm_use_modules(class_iseq->cref_stack, klass);
     RESTORE_REGS();
 
     INC_VM_STATE_VERSION();

@@ -1532,27 +1532,6 @@ rb_scan_args(int argc, const VALUE *argv, const char *fmt, ...)
 		 argc, n_mand, f_var ? "+" : "");
 }
 
-VALUE
-rb_classbox_new(void)
-{
-    VALUE classbox = class_alloc(T_MODULE, rb_cClassbox);
-
-    RCLASS_M_TBL(classbox) = st_init_numtable();
-
-    return (VALUE) classbox;
-}
-
-VALUE
-rb_define_classbox_id(ID id)
-{
-    VALUE mdl;
-
-    mdl = rb_classbox_new();
-    rb_name_class(mdl, id);
-
-    return mdl;
-}
-
 /*!
  * \}
  */

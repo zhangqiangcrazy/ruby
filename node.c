@@ -696,15 +696,6 @@ dump_node(VALUE buf, VALUE indent, int comment, NODE *node)
 	F_NODE(nd_body, "singleton class definition");
 	break;
 
-      case NODE_CLASSBOX:
-	ANN("classbox definition");
-	ANN("format: classbox [nd_cpath]; [nd_body]; end");
-	ANN("example: classbox M; ..; end");
-	F_NODE(nd_cpath, "classbox path");
-	LAST_NODE;
-	F_NODE(nd_body, "classbox definition");
-	break;
-
       case NODE_COLON2:
 	ANN("scoped constant reference");
 	ANN("format: [nd_head]::[nd_mid]");

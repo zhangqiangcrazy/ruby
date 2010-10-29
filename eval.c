@@ -899,7 +899,7 @@ rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 }
 
 static int
-import_classbox_i(VALUE klass, VALUE modules, VALUE arg)
+use_module_i(VALUE klass, VALUE modules, VALUE arg)
 {
     NODE *cref = (NODE *) arg;
     int i;
@@ -911,53 +911,49 @@ import_classbox_i(VALUE klass, VALUE modules, VALUE arg)
 }
 
 void
-rb_import_classbox(NODE *cref, VALUE classbox)
+rb_use_module(NODE *cref, VALUE module)
 {
     ID id_overlayed_modules;
     VALUE overlayed_modules;
 
-    if (TYPE(classbox) != T_MODULE ||
-	!rb_obj_is_kind_of(classbox, rb_cClassbox)) {
-	rb_raise(rb_eTypeError, "wrong argument type %s (expected Classbox)",
-		 rb_obj_classname(classbox));
-    }
-
+    Check_Type(module, T_MODULE);
     CONST_ID(id_overlayed_modules, "__overlayed_modules__");
-    overlayed_modules = rb_attr_get(classbox, id_overlayed_modules);
+    overlayed_modules = rb_attr_get(module, id_overlayed_modules);
     if (NIL_P(overlayed_modules)) return;
-    rb_hash_foreach(overlayed_modules, import_classbox_i, (VALUE) cref);
+    rb_hash_foreach(overlayed_modules, use_module_i, (VALUE) cref);
 }
 
 /*
  *  call-seq:
- *     import(classbox)    -> self
+ *     use(module)    -> self
  *
- *  Import <i>classbox</i> into the receiver.
+ *  Import class refinements from <i>module</i> into the receiver.
  */
 
 static VALUE
-rb_mod_import(VALUE module, VALUE classbox)
+rb_mod_use(VALUE self, VALUE module)
 {
     NODE *cref = rb_vm_cref();
-    ID id_imported_classboxes;
-    VALUE imported_classboxes;
+    ID id_used_modules;
+    VALUE used_modules;
 
-    CONST_ID(id_imported_classboxes, "__imported_classboxes__");
-    imported_classboxes = rb_attr_get(module, id_imported_classboxes);
-    if (NIL_P(imported_classboxes)) {
-	imported_classboxes = rb_hash_new();
-	rb_funcall(imported_classboxes, rb_intern("compare_by_identity"), 0);
-	rb_ivar_set(module, id_imported_classboxes, imported_classboxes);
+    CONST_ID(id_used_modules, "__used_modules__");
+    used_modules = rb_attr_get(self, id_used_modules);
+    if (NIL_P(used_modules)) {
+	used_modules = rb_hash_new();
+	rb_funcall(used_modules, rb_intern("compare_by_identity"), 0);
+	rb_ivar_set(self, id_used_modules, used_modules);
     }
-    rb_hash_aset(imported_classboxes, classbox, Qtrue);
-    rb_import_classbox(cref, classbox);
-    return module;
+    rb_hash_aset(used_modules, module, Qtrue);
+    rb_use_module(cref, module);
+    rb_funcall(module, rb_intern("used"), 1, self);
+    return self;
 }
 
 void rb_redefine_opt_method(VALUE, ID);
 
 static VALUE
-classbox_module_method_added(VALUE mod, VALUE mid)
+refinement_module_method_added(VALUE mod, VALUE mid)
 {
     ID id = SYM2ID(mid);
     ID id_refined_class;
@@ -972,11 +968,11 @@ classbox_module_method_added(VALUE mod, VALUE mid)
  *  call-seq:
  *     refine(klass) { block }   -> self
  *
- *  Refine <i>klass</i> in the receiver classbox.
+ *  Refine <i>klass</i> in the receiver.
  */
 
 static VALUE
-rb_classbox_refine(VALUE classbox, VALUE klass)
+rb_mod_refine(VALUE module, VALUE klass)
 {
     NODE *cref = rb_vm_cref();
     VALUE mod = rb_module_new();
@@ -985,11 +981,11 @@ rb_classbox_refine(VALUE classbox, VALUE klass)
 
     Check_Type(klass, T_CLASS);
     CONST_ID(id_overlayed_modules, "__overlayed_modules__");
-    overlayed_modules = rb_attr_get(classbox, id_overlayed_modules);
+    overlayed_modules = rb_attr_get(module, id_overlayed_modules);
     if (NIL_P(overlayed_modules)) {
 	overlayed_modules = rb_hash_new();
 	rb_funcall(overlayed_modules, rb_intern("compare_by_identity"), 0);
-	rb_ivar_set(classbox, id_overlayed_modules, overlayed_modules);
+	rb_ivar_set(module, id_overlayed_modules, overlayed_modules);
     }
     modules = rb_hash_aref(overlayed_modules, klass);
     if (NIL_P(modules)) {
@@ -1000,7 +996,7 @@ rb_classbox_refine(VALUE classbox, VALUE klass)
     CONST_ID(id_refined_class, "__refined_class__");
     rb_ivar_set(mod, id_refined_class, klass);
     rb_define_singleton_method(mod, "method_added",
-			       classbox_module_method_added, 1);
+			       refinement_module_method_added, 1);
     rb_overlay_module(cref, klass, mod);
     rb_mod_module_eval(0, NULL, mod);
     return Qnil;
@@ -1155,17 +1151,17 @@ f_overlay_module(int argc, VALUE *argv, VALUE self)
 
 /*
  *  call-seq:
- *     import(classbox)    -> self
+ *     use(module)    -> self
  *
- *  Import <i>classbox</i> into the scope where <code>import</code> is called.
+ *  Import class refinements from <i>module</i> into the scope where <code>use</code> is called.
  */
 
 static VALUE
-f_import(VALUE self, VALUE classbox)
+f_use(VALUE self, VALUE module)
 {
     NODE *cref = rb_vm_cref();
 
-    rb_import_classbox(cref, classbox);
+    rb_use_module(cref, module);
     return self;
 }
 
@@ -1321,8 +1317,8 @@ Init_eval(void)
     rb_define_private_method(rb_cModule, "append_features", rb_mod_append_features, 1);
     rb_define_private_method(rb_cModule, "extend_object", rb_mod_extend_object, 1);
     rb_define_private_method(rb_cModule, "include", rb_mod_include, -1);
-    rb_define_private_method(rb_cModule, "import", rb_mod_import, 1);
-    rb_define_private_method(rb_cClassbox, "refine", rb_classbox_refine, 1);
+    rb_define_private_method(rb_cModule, "use", rb_mod_use, 1);
+    rb_define_private_method(rb_cModule, "refine", rb_mod_refine, 1);
 
     rb_undef_method(rb_cClass, "module_function");
 
@@ -1339,7 +1335,7 @@ Init_eval(void)
     rb_define_singleton_method(rb_vm_top_self(), "include", top_include, -1);
 
     rb_define_global_function("overlay_module", f_overlay_module, -1);
-    rb_define_global_function("import", f_import, 1);
+    rb_define_global_function("use", f_use, 1);
 
     rb_define_method(rb_mKernel, "extend", rb_obj_extend, -1);
 

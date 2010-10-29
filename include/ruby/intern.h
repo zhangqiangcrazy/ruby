@@ -186,8 +186,6 @@ void rb_define_protected_method(VALUE, const char*, VALUE (*)(ANYARGS), int);
 void rb_define_private_method(VALUE, const char*, VALUE (*)(ANYARGS), int);
 void rb_define_singleton_method(VALUE, const char*, VALUE(*)(ANYARGS), int);
 VALUE rb_singleton_class(VALUE);
-VALUE rb_classbox_new(void);
-VALUE rb_define_classbox_id(ID);
 /* compar.c */
 int rb_cmpint(VALUE, VALUE, VALUE);
 NORETURN(void rb_cmperr(VALUE, VALUE));

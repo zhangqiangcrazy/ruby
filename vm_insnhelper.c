@@ -1746,40 +1746,42 @@ opt_eq_func(VALUE recv, VALUE obj, IC ic)
     return Qundef;
 }
 
-void rb_import_classbox(NODE *cref, VALUE classbox);
+void rb_use_module(NODE *cref, VALUE module);
 
 static int
-vm_import_classbox_i(VALUE classbox, VALUE value, VALUE arg)
+vm_use_module_i(VALUE module, VALUE value, VALUE arg)
 {
     NODE *cref = (NODE *) arg;
 
-    rb_import_classbox(cref, classbox);
+    rb_use_module(cref, module);
     return ST_CONTINUE;
 }
 
-void
-rb_vm_import_classboxes(NODE *cref, VALUE klass)
+static void
+rb_vm_use_modules(NODE *cref, VALUE klass)
 {
-    ID id_imported_classboxes;
-    VALUE imported_classboxes;
+    ID id_used_modules;
+    VALUE used_modules;
 
-    CONST_ID(id_imported_classboxes, "__imported_classboxes__");
-    imported_classboxes = rb_attr_get(klass, id_imported_classboxes);
-    if (TYPE(klass) == T_CLASS) {
-	if (NIL_P(imported_classboxes)) {
+    CONST_ID(id_used_modules, "__used_modules__");
+    used_modules = rb_attr_get(klass, id_used_modules);
+    switch (TYPE(klass)) {
+    case T_CLASS:
+	if (NIL_P(used_modules)) {
 	    VALUE super = rb_class_real(RCLASS_SUPER(klass));
-	    imported_classboxes = rb_attr_get(super, id_imported_classboxes);
-	    if (!NIL_P(imported_classboxes)) {
-		imported_classboxes = rb_hash_dup(imported_classboxes);
-		rb_ivar_set(klass, id_imported_classboxes, imported_classboxes);
+	    used_modules = rb_attr_get(super, id_used_modules);
+	    if (!NIL_P(used_modules)) {
+		used_modules = rb_hash_dup(used_modules);
+		rb_ivar_set(klass, id_used_modules, used_modules);
 	    }
 	}
+	break;
+    case T_MODULE:
+	rb_use_module(cref, klass);
+	break;
     }
-    else if (rb_obj_is_kind_of(klass, rb_cClassbox)) {
-	rb_import_classbox(cref, klass);
-    }
-    if (!NIL_P(imported_classboxes)) {
-	rb_hash_foreach(imported_classboxes, vm_import_classbox_i,
+    if (!NIL_P(used_modules)) {
+	rb_hash_foreach(used_modules, vm_use_module_i,
 		       	(VALUE) cref);
     }
 }
