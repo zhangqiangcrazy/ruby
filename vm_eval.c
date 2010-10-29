@@ -1783,10 +1783,10 @@ Init_vm_eval(void)
 
     rb_define_method(rb_cModule, "module_exec", rb_mod_module_exec, -1);
     rb_define_method(rb_cModule, "class_exec", rb_mod_module_exec, -1);
-    rb_define_method(rb_cModule, "classbox_exec", rb_mod_module_exec, -1);
+    rb_define_method(rb_cModule, "refinement_exec", rb_mod_module_exec, -1);
     rb_define_method(rb_cModule, "module_eval", rb_mod_module_eval, -1);
     rb_define_method(rb_cModule, "class_eval", rb_mod_module_eval, -1);
-    rb_define_method(rb_cModule, "classbox_eval", rb_mod_module_eval, -1);
+    rb_define_method(rb_cModule, "refinement_eval", rb_mod_module_eval, -1);
 
     rb_define_global_function("caller", rb_f_caller, -1);
 }

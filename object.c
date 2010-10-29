@@ -2661,7 +2661,7 @@ Init_Object(void)
     rb_undef_method(rb_cClass, "extend_object");
     rb_undef_method(rb_cClass, "append_features");
 
-    rb_cClassbox = rb_define_class("Classbox", rb_cModule);
+    rb_cClassbox = rb_define_class("Refinement", rb_cModule);
     rb_undef_method(rb_cClassbox, "extend_object");
     rb_undef_method(rb_cClassbox, "append_features");
 
