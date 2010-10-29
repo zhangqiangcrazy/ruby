@@ -879,9 +879,11 @@ rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 	    superclass = c;
 	}
     }
+    FL_SET(module, RMODULE_IS_OVERLAYED);
     c = iclass = rb_include_class_new(module, superclass);
     module = RCLASS_SUPER(module);
     while (module) {
+	FL_SET(module, RMODULE_IS_OVERLAYED);
 	c = RCLASS_SUPER(c) = rb_include_class_new(module, RCLASS_SUPER(c));
 	module = RCLASS_SUPER(module);
     }

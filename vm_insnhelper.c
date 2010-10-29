@@ -1172,6 +1172,20 @@ vm_check_if_namespace(VALUE klass)
 }
 
 static inline VALUE
+vm_get_iclass(rb_control_frame_t *cfp, VALUE klass)
+{
+    if (TYPE(klass) == T_MODULE &&
+	FL_TEST(klass, RMODULE_IS_OVERLAYED) &&
+	TYPE(cfp->klass) == T_ICLASS &&
+	RBASIC(cfp->klass)->klass == klass) {
+	return cfp->klass;
+    }
+    else {
+	return klass;
+    }
+}
+
+static inline VALUE
 vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 		VALUE orig_klass, ID id, int is_defined)
 {
@@ -1218,7 +1232,7 @@ vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 
 	/* search self */
 	if (root_cref && !NIL_P(root_cref->nd_clss)) {
-	    klass = root_cref->nd_clss;
+	    klass = vm_get_iclass(th->cfp, root_cref->nd_clss);
 	}
 	else {
 	    klass = CLASS_OF(th->cfp->self);
@@ -1243,7 +1257,7 @@ vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 }
 
 static inline VALUE
-vm_get_cvar_base(NODE *cref)
+vm_get_cvar_base(NODE *cref, rb_control_frame_t *cfp)
 {
     VALUE klass;
 
@@ -1257,7 +1271,7 @@ vm_get_cvar_base(NODE *cref)
 	}
     }
 
-    klass = cref->nd_clss;
+    klass = vm_get_iclass(cfp, cref->nd_clss);
 
     if (NIL_P(klass)) {
 	rb_raise(rb_eTypeError, "no class variables available");

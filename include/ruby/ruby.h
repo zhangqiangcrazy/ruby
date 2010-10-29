@@ -630,6 +630,7 @@ struct RClass {
 #define RMODULE_M_TBL(m) RCLASS_M_TBL(m)
 #define RMODULE_SUPER(m) RCLASS_SUPER(m)
 #define RMODULE_HAS_NESTED_METHODS FL_USER2
+#define RMODULE_IS_OVERLAYED FL_USER3
 
 struct RFloat {
     struct RBasic basic;
