@@ -11,10 +11,15 @@
 
 #undef RUBY_EXPORT
 
+#include "ruby/ruby.h"
 #include "ruby/vm.h"
 
 #ifdef HAVE_LOCALE_H
 #include <locale.h>
+#endif
+#ifdef RUBY_DEBUG_ENV
+#include <stdlib.h>
+#include "debug.h"
 #endif
 
 RUBY_GLOBAL_SETUP
