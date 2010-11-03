@@ -709,7 +709,7 @@ typedef struct {
 /* inline cache */
 typedef struct iseq_inline_cache_entry *IC;
 
-extern VALUE ruby_vm_global_state_version;
+#define ruby_vm_global_state_version (GET_VM()->global_state_version)
 
 #define GET_VM_STATE_VERSION() (ruby_vm_global_state_version)
 #define INC_VM_STATE_VERSION() \

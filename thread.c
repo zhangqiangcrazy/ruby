@@ -2912,7 +2912,7 @@ void
 rb_threadptr_check_signal(rb_thread_t *mth)
 {
     void *sig;
-    while (rb_queue_shift(&mth->queue.signal, &sig)) {
+    while (rb_queue_shift(&mth->vm->queue.signal, &sig)) {
         ruby_vm_send_signal(mth->vm, (int)(VALUE)(sig));
     }
 }

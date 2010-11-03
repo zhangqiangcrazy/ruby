@@ -2881,6 +2881,8 @@ rb_home_dir(const char *user, VALUE result)
 
 #define is_absolute_path(path) ruby_absolute_path_p(path)
 
+__attribute__((__alias__("ruby_absolute_path_p"))) int rb_is_absolute_path(const char*);
+
 static VALUE
 file_expand_path(VALUE fname, VALUE dname, int abs_mode, VALUE result)
 {

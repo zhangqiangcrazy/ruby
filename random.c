@@ -60,6 +60,8 @@ The original copyright notice follows.
 */
 
 #include "ruby/ruby.h"
+#include "ruby/vm.h"
+#include "vm_core.h"
 
 #include <limits.h>
 #ifdef HAVE_UNISTD_H
@@ -241,7 +243,7 @@ default_mt(void)
 }
 
 static int vmkey_default_mt;
-#define default_rand (*(rb_random_t *)DATA_PTR(*rb_vm_specific_ptr(vmkey_default_mt)))
+#define default_rand (*(rb_random_t *)RTYPEDDATA_DATA(*rb_vm_specific_ptr(vmkey_default_mt)))
 
 unsigned int
 rb_genrand_int32(void)
@@ -1166,27 +1168,6 @@ void
 Init_RandomSeed(void)
 {
     vmkey_default_mt = rb_vm_key_create();
-    rb_random_t *r = &default_rand;
-    unsigned int initial[DEFAULT_SEED_CNT];
-    struct MT *mt = &r->mt;
-    VALUE seed = init_randomseed(mt, initial);
-
-    hashseed = genrand_int32(mt);
-#if SIZEOF_ST_INDEX_T*CHAR_BIT > 4*8
-    hashseed <<= 32;
-    hashseed |= genrand_int32(mt);
-#endif
-#if SIZEOF_ST_INDEX_T*CHAR_BIT > 8*8
-    hashseed <<= 32;
-    hashseed |= genrand_int32(mt);
-#endif
-#if SIZEOF_ST_INDEX_T*CHAR_BIT > 12*8
-    hashseed <<= 32;
-    hashseed |= genrand_int32(mt);
-#endif
-
-    rb_global_variable(&r->seed);
-    r->seed = seed;
 }
 
 st_index_t
@@ -1203,11 +1184,6 @@ InitVM_RandomSeed(void)
 static void
 InitVM_RandomSeed2(void)
 {
-    VALUE seed = default_rand.seed;
-
-    if (RB_TYPE_P(seed, T_BIGNUM)) {
-	RBASIC(seed)->klass = rb_cBignum;
-    }
 }
 
 void
@@ -1248,4 +1224,6 @@ InitVM_Random(void)
     rb_define_singleton_method(rb_cRandom, "new_seed", random_seed, 0);
     rb_define_private_method(CLASS_OF(rb_cRandom), "state", random_s_state, 0);
     rb_define_private_method(CLASS_OF(rb_cRandom), "left", random_s_left, 0);
+
+    *(VALUE *)ruby_vm_specific_ptr(GET_VM(), vmkey_default_mt) = rb_funcall(rb_cRandom, rb_intern("new"), 0);
 }

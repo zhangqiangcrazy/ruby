@@ -19,6 +19,8 @@ extern "C" {
 #endif
 #endif
 
+#include <stddef.h>
+
 #define HAVE_MVM 1
 
 /* VM type declaration */

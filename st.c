@@ -519,8 +519,9 @@ st_insert2(register st_table *table, register st_data_t key, st_data_t value,
     FIND_ENTRY(table, ptr, hash_val, bin_pos);
 
     if (ptr == 0) {
+	int result;
 	key = (*func)(key);
-	ADD_DIRECT(table, key, value, hash_val, bin_pos);
+	ADD_DIRECT(table, key, value, hash_val, bin_pos, result);
 	return 0;
     }
     else {

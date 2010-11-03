@@ -79,7 +79,7 @@ ruby_vm_init(rb_vm_t *vm)
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
-	rb_vm_call_inits(vm);
+	rb_vm_call_inits();
 	ruby_vm_prog_init(vm);
     }
     POP_TAG();
@@ -114,8 +114,9 @@ vm_parse_options(rb_vm_t *vm)
 }
 
 static int
-th_exec_iseq(rb_thread_t *th, VALUE iseq)
+th_exec_iseq(rb_thread_t *th, void* n)
 {
+    VALUE iseq = (VALUE)n;
     int state;
 
     if (!iseq) return 0;
@@ -276,7 +277,7 @@ ruby_executable_node(void *n, int *status)
     return FALSE;
 }
 
-#define ruby_vm_exec_internal(vm, n) ruby_exec_internal((vm)->main_thread, n)
+#define ruby_vm_exec_internal(vm, n) th_exec_iseq((vm)->main_thread, n)
 
 int
 ruby_vm_exit_status(rb_vm_t *vm)
@@ -304,7 +305,7 @@ vm_run_call(void *p)
     int *result = p;
 
     *result = 0;
-    *result = ruby_vm_start(vm, *result = ruby_vm_init(vm));
+    *result = ruby_vmptr_start(vm, *result = ruby_vm_init(vm));
 }
 
 int
@@ -325,7 +326,7 @@ ruby_vmptr_start(rb_vm_t *vm, int status)
     if (status != 0) {
 	return ruby_vm_cleanup(vm, status);
     }
-    n = ruby_vm_parse_options(vm);
+    n = (void *)vm_parse_options(vm);
     if (!ruby_executable_node(n, &status)) {
 	ruby_vm_cleanup(vm, 0);
 	return status;

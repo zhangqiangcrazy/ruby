@@ -131,5 +131,10 @@ rb_check_safe_str(VALUE x)
 void
 Init_safe(void)
 {
+}
+
+void
+InitVM_safe(void)
+{
     rb_define_virtual_variable("$SAFE", safe_getter, safe_setter);
 }

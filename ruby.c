@@ -1891,17 +1891,6 @@ ruby_vm_prog_init(rb_vm_t *vm)
 void
 ruby_prog_init(void)
 {
-    ruby_vm_prog_init(GET_VM());
-    rb_global_variable(&rb_argv0);
-
-#ifdef MSDOS
-    /*
-     * There is no way we can refer to them from ruby, so close them to save
-     * space.
-     */
-    (void)fclose(stdaux);
-    (void)fclose(stdprn);
-#endif
 }
 
 static void

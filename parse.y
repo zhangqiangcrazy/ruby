@@ -9416,7 +9416,7 @@ ivar2_cmp(struct ivar2_key *key1, struct ivar2_key *key2)
     return 1;
 }
 
-static int
+static st_index_t
 ivar2_hash(struct ivar2_key *key)
 {
     return (key->id << 8) ^ (key->klass >> 2);

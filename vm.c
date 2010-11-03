@@ -9,6 +9,7 @@
 **********************************************************************/
 
 #include "ruby/ruby.h"
+#include "ruby/vm.h"
 #include "ruby/st.h"
 #include "ruby/encoding.h"
 
@@ -1611,6 +1612,7 @@ vm_init2(rb_vm_t *vm)
     MEMZERO(vm->specific_storage.ptr, VALUE, vm->specific_storage.len);
     vm->cache = rb_objspace_xmalloc2(vm->objspace, CACHE_SIZE, sizeof(struct cache_entry));
     vm->living_threads = st_init_numtable();
+    MEMZERO(vm->cache, struct cache_entry, CACHE_SIZE);
 }
 
 /* Thread */
@@ -1818,6 +1820,8 @@ thread_alloc(VALUE klass)
 static void
 th_init(rb_thread_t *th, VALUE self)
 {
+    MEMZERO(th, rb_thread_t, 1);
+
     th->self = self;
 
     /* allocate thread stack */
@@ -2693,8 +2697,9 @@ vm_thread_new(rb_vm_t *vm)
 
     th = rb_objspace_xmalloc(vm->objspace, sizeof(*th));
     MEMZERO(th, rb_thread_t, 1);
-    th->vm = vm;
     th_init(th, 0);
+    th->vm = vm;
+    vm->main_thread = th;
     ruby_threadptr_init(th);
     ruby_thread_set_native(th);
 

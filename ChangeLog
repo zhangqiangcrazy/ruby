@@ -1,3 +1,10 @@
+Thu Nov  4 07:02:36 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* eval.c, file.c, inits.c, random.c, ruby.c, safe.c, thread.c,
+	  vm.c, vm.h, vm_core.h: modernization reform.  Without this
+	  the souce would not compile.  Even with this it wouldn't
+	  pass make test.
+
 Mon Nov  1 21:25:57 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* main.c: <stdlib.h> is needed, to introduce the getenv(3)

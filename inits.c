@@ -15,7 +15,7 @@
 #define INIT_FOR_VM 1
 #include "inits.c"
 #define CALL(n) {void Init_##n(void); Init_##n();}
-#define rb_call_inits() rb_call_inits(void)
+#define rb_call_inits(void) rb_call_inits(void)
 #else
 #define CALL(n) {void InitVM_##n(void); InitVM_##n();}
 #define rb_call_inits(void) rb_vm_call_inits(void)
