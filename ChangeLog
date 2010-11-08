@@ -1,3 +1,15 @@
+Mon Nov  8 10:16:31 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* gc.c (rb_objspace_xmalloc, rb_objspace_xrealloc): Do not
+	  invoke a garbage collection.  This is because: 1) these days
+	  our GC tend to sweep lazily over an object space, so an
+	  invocation of garbage_collect() will not immediately result
+	  in a free memory at the moment, and 2) xmalloc() might be
+	  invoked during a VM initialization.  On such situations GC
+	  cannot work, because a GC context thread is not yet made up
+	  properly.  In short doing GC on xmalloc-family routines is
+	  anachronic, problematic.
+
 Thu Nov  4 07:02:36 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* eval.c, file.c, inits.c, random.c, ruby.c, safe.c, thread.c,

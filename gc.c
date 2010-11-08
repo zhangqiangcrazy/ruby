@@ -650,18 +650,9 @@ rb_objspace_xmalloc(rb_objspace_t *objspace, size_t size)
     size += sizeof(size_t);
 #endif
 
-    if ((ruby_gc_stress && !ruby_disable_gc_stress) ||
-	(malloc_increase+size) > malloc_limit) {
-	garbage_collect_with_gvl(objspace);
-    }
     mem = malloc(size);
     if (!mem) {
-	if (garbage_collect_with_gvl(objspace)) {
-	    mem = malloc(size);
-	}
-	if (!mem) {
-	    ruby_memerror();
-	}
+        ruby_memerror();
     }
     malloc_increase += size;
 
@@ -699,12 +690,7 @@ rb_objspace_xrealloc(rb_objspace_t *objspace, void *ptr, size_t size)
 
     mem = realloc(ptr, size);
     if (!mem) {
-	if (garbage_collect_with_gvl(objspace)) {
-	    mem = realloc(ptr, size);
-	}
-	if (!mem) {
-	    ruby_memerror();
-        }
+        ruby_memerror();
     }
     malloc_increase += size;
 
