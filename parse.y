@@ -9604,6 +9604,9 @@ sym_str_new(const char *name, long len, rb_encoding *enc)
     RSTRING(str)->basic.flags = T_STRING;
     RSTRING(str)->basic.klass = 0;
     rb_enc_associate(str, enc);
+    if (GET_THREAD())
+	if (rb_safe_level() >= 3)
+	    OBJ_UNTRUST(str);
     rb_str_cat(str, name, len);
     OBJ_FREEZE(str);
     return str;

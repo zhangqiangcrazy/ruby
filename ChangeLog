@@ -1,3 +1,12 @@
+Mon Nov  8 14:11:34 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y (sym_str_new): Need to untrust here. Not sure if we
+	  should, though.  Without this modification a symbol creation
+	  on higher safe levels causes SecurityError, which, infact,
+	  seems to be as intended. c.f. [ruby-dev:39624].  But our
+	  test does have codes which implyes those creation to be
+	  legal.  So to pass them, I hereby insert this code.
+
 Mon Nov  8 10:16:31 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* gc.c (rb_objspace_xmalloc, rb_objspace_xrealloc): Do not
@@ -20,14 +29,14 @@ Thu Nov  4 07:02:36 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 Mon Nov  1 21:25:57 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* main.c: <stdlib.h> is needed, to introduce the getenv(3)
-          prototype declaration.  Without it a C compiler shall infer
-          the getenv type as "int getenv(...);", but this is totally
-          wrong, especially when your machine's sizeof(int) and
-          sizeof(char*) differs.  On such environment a return value
-          of getenv(3), which is in fact a char*, might first casted
-          into a int (loses data here), and then casted back to char*
-          by automatic integral promotion fo fit to the prototype of
-          ruby_set_debug_option().
+	  prototype declaration.  Without it a C compiler shall infer
+	  the getenv type as "int getenv(...);", but this is totally
+	  wrong, especially when your machine's sizeof(int) and
+	  sizeof(char*) differs.  On such environment a return value
+	  of getenv(3), which is in fact a char*, might first casted
+	  into a int (loses data here), and then casted back to char*
+	  by automatic integral promotion fo fit to the prototype of
+	  ruby_set_debug_option().
 
 Thu Mar 18 20:36:14 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
