@@ -925,13 +925,13 @@ rb_use_module(NODE *cref, VALUE module)
 
 /*
  *  call-seq:
- *     use(module)    -> self
+ *     using(module)    -> self
  *
  *  Import class refinements from <i>module</i> into the receiver.
  */
 
 static VALUE
-rb_mod_use(VALUE self, VALUE module)
+rb_mod_using(VALUE self, VALUE module)
 {
     NODE *cref = rb_vm_cref();
     ID id_used_modules;
@@ -1151,13 +1151,13 @@ f_overlay_module(int argc, VALUE *argv, VALUE self)
 
 /*
  *  call-seq:
- *     use(module)    -> self
+ *     using(module)    -> self
  *
  *  Import class refinements from <i>module</i> into the scope where <code>use</code> is called.
  */
 
 static VALUE
-f_use(VALUE self, VALUE module)
+f_using(VALUE self, VALUE module)
 {
     NODE *cref = rb_vm_cref();
 
@@ -1317,7 +1317,7 @@ Init_eval(void)
     rb_define_private_method(rb_cModule, "append_features", rb_mod_append_features, 1);
     rb_define_private_method(rb_cModule, "extend_object", rb_mod_extend_object, 1);
     rb_define_private_method(rb_cModule, "include", rb_mod_include, -1);
-    rb_define_private_method(rb_cModule, "use", rb_mod_use, 1);
+    rb_define_private_method(rb_cModule, "using", rb_mod_using, 1);
     rb_define_private_method(rb_cModule, "refine", rb_mod_refine, 1);
 
     rb_undef_method(rb_cClass, "module_function");
@@ -1335,7 +1335,7 @@ Init_eval(void)
     rb_define_singleton_method(rb_vm_top_self(), "include", top_include, -1);
 
     rb_define_global_function("overlay_module", f_overlay_module, -1);
-    rb_define_global_function("use", f_use, 1);
+    rb_define_global_function("using", f_using, 1);
 
     rb_define_method(rb_mKernel, "extend", rb_obj_extend, -1);
 
