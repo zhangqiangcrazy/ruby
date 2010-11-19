@@ -20,7 +20,7 @@
 #define numberof(array) (int)(sizeof(array) / sizeof((array)[0]))
 
 VALUE proc_invoke(VALUE, VALUE, VALUE, VALUE);
-VALUE rb_binding_new(int);
+VALUE rb_binding_new(void);
 NORETURN(void rb_raise_jump(VALUE));
 
 NODE *rb_vm_get_cref(const rb_iseq_t *, const VALUE *, const VALUE *);
