@@ -1884,7 +1884,12 @@ vm_define_method(rb_thread_t *th, VALUE obj, ID id, VALUE iseqval, VALUE nested,
 	else {
 	    c = klass;
 	}
-	target = find_module_for_nested_methods(cref, c);
+	if (cref->flags & NODE_FL_CREF_OMOD_SHARED) {
+	    target = Qnil;
+	}
+	else {
+	    target = find_module_for_nested_methods(cref, c);
+	}
 	if (NIL_P(target)) {
 	    target = rb_module_new();
 	    FL_SET(target, RMODULE_HAS_NESTED_METHODS);
