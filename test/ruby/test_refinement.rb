@@ -175,30 +175,4 @@ class TestRefinement < Test::Unit::TestCase
     assert_equal(Rational(1, 2), m.module_eval { 1 / 2 })
     assert_equal(0, 1 / 2)
   end
-
-  def call_nested_method
-    def foo
-      return "foo"
-    end
-
-    return foo
-  end
-
-  def test_nested_method
-    assert_equal("foo", call_nested_method)
-    assert_raise(NoMethodError) { foo() }
-  end
-
-  def test_doubly_nested_method
-    def call_doubly_nested_method
-      def foo
-        return "foo"
-      end
-
-      return foo
-    end
-
-    assert_equal("foo", call_doubly_nested_method)
-    assert_raise(NoMethodError) { foo() }
-  end
 end
