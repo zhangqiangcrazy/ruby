@@ -967,7 +967,7 @@ defineclass
 		  VM_FRAME_MAGIC_CLASS, klass, 0, (VALUE) GET_BLOCK_PTR(),
 		  class_iseq->iseq_encoded, GET_SP(), 0,
 		  class_iseq->local_size);
-    rb_vm_use_modules(class_iseq->cref_stack, klass);
+    rb_vm_using_modules(class_iseq->cref_stack, klass);
     RESTORE_REGS();
 
     INC_VM_STATE_VERSION();

@@ -1746,42 +1746,42 @@ opt_eq_func(VALUE recv, VALUE obj, IC ic)
     return Qundef;
 }
 
-void rb_use_module(NODE *cref, VALUE module);
+void rb_using_module(NODE *cref, VALUE module);
 
 static int
-vm_use_module_i(VALUE module, VALUE value, VALUE arg)
+vm_using_module_i(VALUE module, VALUE value, VALUE arg)
 {
     NODE *cref = (NODE *) arg;
 
-    rb_use_module(cref, module);
+    rb_using_module(cref, module);
     return ST_CONTINUE;
 }
 
 static void
-rb_vm_use_modules(NODE *cref, VALUE klass)
+rb_vm_using_modules(NODE *cref, VALUE klass)
 {
-    ID id_used_modules;
-    VALUE used_modules;
+    ID id_using_modules;
+    VALUE using_modules;
 
-    CONST_ID(id_used_modules, "__used_modules__");
-    used_modules = rb_attr_get(klass, id_used_modules);
+    CONST_ID(id_using_modules, "__using_modules__");
+    using_modules = rb_attr_get(klass, id_using_modules);
     switch (TYPE(klass)) {
     case T_CLASS:
-	if (NIL_P(used_modules)) {
+	if (NIL_P(using_modules)) {
 	    VALUE super = rb_class_real(RCLASS_SUPER(klass));
-	    used_modules = rb_attr_get(super, id_used_modules);
-	    if (!NIL_P(used_modules)) {
-		used_modules = rb_hash_dup(used_modules);
-		rb_ivar_set(klass, id_used_modules, used_modules);
+	    using_modules = rb_attr_get(super, id_using_modules);
+	    if (!NIL_P(using_modules)) {
+		using_modules = rb_hash_dup(using_modules);
+		rb_ivar_set(klass, id_using_modules, using_modules);
 	    }
 	}
 	break;
     case T_MODULE:
-	rb_use_module(cref, klass);
+	rb_using_module(cref, klass);
 	break;
     }
-    if (!NIL_P(used_modules)) {
-	rb_hash_foreach(used_modules, vm_use_module_i,
+    if (!NIL_P(using_modules)) {
+	rb_hash_foreach(using_modules, vm_using_module_i,
 		       	(VALUE) cref);
     }
 }

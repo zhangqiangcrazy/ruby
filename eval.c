@@ -899,7 +899,7 @@ rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 }
 
 static int
-use_module_i(VALUE klass, VALUE module, VALUE arg)
+using_module_i(VALUE klass, VALUE module, VALUE arg)
 {
     NODE *cref = (NODE *) arg;
     int i;
@@ -909,7 +909,7 @@ use_module_i(VALUE klass, VALUE module, VALUE arg)
 }
 
 void
-rb_use_module(NODE *cref, VALUE module)
+rb_using_module(NODE *cref, VALUE module)
 {
     ID id_overlayed_modules;
     VALUE overlayed_modules;
@@ -918,7 +918,7 @@ rb_use_module(NODE *cref, VALUE module)
     CONST_ID(id_overlayed_modules, "__overlayed_modules__");
     overlayed_modules = rb_attr_get(module, id_overlayed_modules);
     if (NIL_P(overlayed_modules)) return;
-    rb_hash_foreach(overlayed_modules, use_module_i, (VALUE) cref);
+    rb_hash_foreach(overlayed_modules, using_module_i, (VALUE) cref);
 }
 
 /*
@@ -932,18 +932,18 @@ static VALUE
 rb_mod_using(VALUE self, VALUE module)
 {
     NODE *cref = rb_vm_cref();
-    ID id_used_modules;
-    VALUE used_modules;
+    ID id_using_modules;
+    VALUE using_modules;
 
-    CONST_ID(id_used_modules, "__used_modules__");
-    used_modules = rb_attr_get(self, id_used_modules);
-    if (NIL_P(used_modules)) {
-	used_modules = rb_hash_new();
-	rb_funcall(used_modules, rb_intern("compare_by_identity"), 0);
-	rb_ivar_set(self, id_used_modules, used_modules);
+    CONST_ID(id_using_modules, "__using_modules__");
+    using_modules = rb_attr_get(self, id_using_modules);
+    if (NIL_P(using_modules)) {
+	using_modules = rb_hash_new();
+	rb_funcall(using_modules, rb_intern("compare_by_identity"), 0);
+	rb_ivar_set(self, id_using_modules, using_modules);
     }
-    rb_hash_aset(used_modules, module, Qtrue);
-    rb_use_module(cref, module);
+    rb_hash_aset(using_modules, module, Qtrue);
+    rb_using_module(cref, module);
     rb_funcall(module, rb_intern("used"), 1, self);
     return self;
 }
@@ -1123,7 +1123,7 @@ f_using(VALUE self, VALUE module)
 {
     NODE *cref = rb_vm_cref();
 
-    rb_use_module(cref, module);
+    rb_using_module(cref, module);
     return self;
 }
 
