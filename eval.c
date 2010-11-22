@@ -899,14 +899,12 @@ rb_overlay_module(NODE *cref, VALUE klass, VALUE module)
 }
 
 static int
-use_module_i(VALUE klass, VALUE modules, VALUE arg)
+use_module_i(VALUE klass, VALUE module, VALUE arg)
 {
     NODE *cref = (NODE *) arg;
     int i;
 
-    for (i = 0; i < RARRAY_LEN(modules); i++) {
-	rb_overlay_module(cref, klass, RARRAY_PTR(modules)[i]);
-    }
+    rb_overlay_module(cref, klass, module);
     return ST_CONTINUE;
 }
 
@@ -975,7 +973,7 @@ static VALUE
 rb_mod_refine(VALUE module, VALUE klass)
 {
     NODE *cref = rb_vm_cref();
-    VALUE mod = rb_module_new();
+    VALUE mod;
     ID id_overlayed_modules, id_refined_class;
     VALUE overlayed_modules, modules;
 
@@ -987,17 +985,16 @@ rb_mod_refine(VALUE module, VALUE klass)
 	rb_funcall(overlayed_modules, rb_intern("compare_by_identity"), 0);
 	rb_ivar_set(module, id_overlayed_modules, overlayed_modules);
     }
-    modules = rb_hash_aref(overlayed_modules, klass);
-    if (NIL_P(modules)) {
-	modules = rb_ary_new();
-	rb_hash_aset(overlayed_modules, klass, modules);
+    mod = rb_hash_aref(overlayed_modules, klass);
+    if (NIL_P(mod)) {
+	mod = rb_module_new();
+	CONST_ID(id_refined_class, "__refined_class__");
+	rb_ivar_set(mod, id_refined_class, klass);
+	rb_define_singleton_method(mod, "method_added",
+				   refinement_module_method_added, 1);
+	rb_overlay_module(cref, klass, mod);
+	rb_hash_aset(overlayed_modules, klass, mod);
     }
-    rb_ary_push(modules, mod);
-    CONST_ID(id_refined_class, "__refined_class__");
-    rb_ivar_set(mod, id_refined_class, klass);
-    rb_define_singleton_method(mod, "method_added",
-			       refinement_module_method_added, 1);
-    rb_overlay_module(cref, klass, mod);
     rb_mod_module_eval(0, NULL, mod);
     return mod;
 }

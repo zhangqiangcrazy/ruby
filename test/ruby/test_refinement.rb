@@ -180,10 +180,31 @@ class TestRefinement < Test::Unit::TestCase
     mod = nil
     result = nil
     m = Module.new {
-      result = refine Object do
+      result = refine(Object) {
         mod = self
-      end
+      }
     }
     assert_equal mod, result
+  end
+
+  def test_refine_same_class_twice
+    result1 = nil
+    result2 = nil
+    result3 = nil
+    m = Module.new {
+      result1 = refine(Fixnum) {
+        def foo; return "foo" end
+      }
+      result2 = refine(Fixnum) {
+        def bar; return "bar" end
+      }
+      result3 = refine(String) {
+        def baz; return "baz" end
+      }
+    }
+    assert_equal("foo", m.module_eval { 1.foo })
+    assert_equal("bar", m.module_eval { 1.bar })
+    assert_equal(result1, result2)
+    assert_not_equal(result1, result3)
   end
 end
