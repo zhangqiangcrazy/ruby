@@ -1,3 +1,7 @@
+Tue Nov 23 07:22:54 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ChangeLog (change-log-indent-text): hunging indent.
+
 Wed Nov 24 20:09:36 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (rb_vm_start): ruby_threadptr_init will not create a
@@ -592,4 +596,5 @@ add-log-time-format: (lambda ()
   (format-time-string "%a %b %e %H:%M:%S %Y" (list hi lo) t)))
 indent-tabs-mode: t
 tab-width: 8
+change-log-indent-text: 2
 end:
