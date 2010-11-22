@@ -175,4 +175,15 @@ class TestRefinement < Test::Unit::TestCase
     assert_equal(Rational(1, 2), m.module_eval { 1 / 2 })
     assert_equal(0, 1 / 2)
   end
+
+  def test_return_value_of_refine
+    mod = nil
+    result = nil
+    m = Module.new {
+      result = refine Object do
+        mod = self
+      end
+    }
+    assert_equal mod, result
+  end
 end

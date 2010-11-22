@@ -999,7 +999,7 @@ rb_mod_refine(VALUE module, VALUE klass)
 			       refinement_module_method_added, 1);
     rb_overlay_module(cref, klass, mod);
     rb_mod_module_eval(0, NULL, mod);
-    return Qnil;
+    return mod;
 }
 
 void
