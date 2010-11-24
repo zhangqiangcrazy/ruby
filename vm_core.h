@@ -842,6 +842,7 @@ enum ruby_vm_interrupted_bits {
 void rb_threadptr_signal_raise(rb_thread_t *th, int sig);
 void rb_threadptr_signal_exit(rb_thread_t *th);
 void rb_threadptr_execute_interrupts(rb_thread_t *);
+int ruby_threadptr_create(rb_thread_t *);
 void ruby_threadptr_init(rb_thread_t *);
 void ruby_threadptr_cleanup(rb_thread_t *);
 

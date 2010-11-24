@@ -1,3 +1,13 @@
+Wed Nov 24 20:09:36 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (rb_vm_start): ruby_threadptr_init will not create a
+	  native thread.  Instead ruby_threadptr_create shall be
+	  called here.
+
+	* vm_core.h (ruby_threadptr_create): externed.
+
+	* thread.c (ruby_threadptr_create): ditto.
+
 Mon Nov  8 14:11:34 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* parse.y (sym_str_new): Need to untrust here. Not sure if we

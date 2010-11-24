@@ -438,7 +438,7 @@ ruby_threadptr_init(rb_thread_t *th)
     native_mutex_initialize(&th->interrupt_lock);
 }
 
-static int
+int
 ruby_threadptr_create(rb_thread_t *th)
 {
     ruby_threadptr_init(th);

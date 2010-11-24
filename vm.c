@@ -2163,7 +2163,7 @@ rb_vm_start(VALUE self)
     args.lock = &GET_VM()->global_vm_lock;
     ruby_native_cond_initialize(&args.waiting);
 
-    ruby_threadptr_init(th);
+    ruby_threadptr_create(th);
     ruby_native_thread_unlock(&vm->global_vm_lock);
 
     while (!args.initialized) {
