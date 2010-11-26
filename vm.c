@@ -1542,6 +1542,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
 	    ruby_native_cond_signal(&vm->global_vm_waiting);
 	}
     }
+    if (vm->parent) ((rb_vm_t*)RTYPEDDATA_DATA(vm->parent))->ref_count --;
     if (!--vm->ref_count) {
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
 	struct rb_objspace *objspace = vm->objspace;
@@ -1595,7 +1596,7 @@ static void
 vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
-    vm->ref_count = 1;
+    vm->ref_count = 0;
     vm->argc = -1;
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
     ruby_native_thread_lock(&vm->global_vm_lock);
@@ -2123,7 +2124,6 @@ vm_create(void *arg)
     rb_vm_t *vm = args->vm;
     int status;
 
-    vm->ref_count++;
     ruby_native_thread_unlock(&vm->global_vm_lock);
     status = ruby_vm_init(vm);
     ruby_native_thread_lock(args->lock);

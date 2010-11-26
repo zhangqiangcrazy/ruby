@@ -1,3 +1,18 @@
+Fri Nov 26 20:07:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (vm_init2): Reference count should start from zero.
+	  Otherwise a if statement can never examine if a vm has no
+	  reference.
+
+	* vm.c (vm_create): It turned out that vm->ref_count is
+	  incremented twice per a VM creation, thus it never reaches to
+	  zero again.  This is definitely a bug.
+
+	* vm.c (ruby_vmptr_destruct): Likewise a vm->parent->ref_count
+	  will never been decremented and hence a ref_count of a vm
+	  experiencing a child creation can never reache to zero.  Also a
+	  bug.
+
 Fri Nov 26 18:37:49 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (rb_vm_initialize): Rewrite argv passage mechanism using
