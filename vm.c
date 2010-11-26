@@ -2048,27 +2048,22 @@ rb_vm_initialize(int argc, VALUE *argv, VALUE self)
     }
     if ((vm->argc = argc) > 0) {
 	int i;
-	char **args, *argp;
-	VALUE argsval = 0;
-	size_t len = rb_long2int((argc + 1) * sizeof(char *));
-	for (i = 0; i < argc; ++i) {
-	    StringValue(argv[i]);
-	    argv[i] = rb_str_new_frozen(argv[i]);
-	    rb_long2int(len += RSTRING_LEN(argv[i]) + 1);
+	long j;
+	VALUE ary, str;
+	size_t sizeof_argv = sizeof vm->argv[0] * (argc + 1);
+	for (i=0; i<argc; i++) StringValue(argv[i]);
+	ary = rb_ary_new4(argc, argv);
+	rb_ary_unshift(ary, rb_str_tmp_new(sizeof_argv));
+	str = rb_ary_join(ary, rb_str_new("\0", 1));
+	RBASIC(str)->klass = 0;
+	j = sizeof_argv + 1;
+	for (i=0; i<argc; i++) {
+	    char **newargv = (char **)RSTRING_PTR(str);
+	    newargv[i] = &RSTRING_PTR(str)[j];
+	    j += RSTRING_LEN(argv[i]) + 1; /* +1 for '\0' */
 	}
-	args = rb_objspace_xmalloc(vm->objspace, len);
-	argsval = rb_str_wrap((char *)args, len);
-	RBASIC(argsval)->klass = 0;
-	argp = (char *)(args + argc);
-	vm->argv = args;
-	for (i = 0; i < argc; ++i) {
-	    long n = RSTRING_LEN(argv[i]);
-	    args[i] = argp;
-	    memcpy(argp, RSTRING_PTR(argv[i]), n);
-	    argp += n;
-	    *argp++ = '\0';
-	}
-	args[argc] = 0;
+	rb_ivar_set(self, rb_intern("argv"), str);
+	vm->argv = (char**)RSTRING_PTR(str);
     }
     return self;
 }

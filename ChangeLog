@@ -1,3 +1,17 @@
+Fri Nov 26 18:37:49 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (rb_vm_initialize): Rewrite argv passage mechanism using
+	  ruby's normal array/string APIs.  This is because vm->argv, when
+	  created here, shall be freed _after_ the VM itself has been shut
+	  down.  But a sad thing is vm->argv in general does not always
+	  need to, because the argv passed to the process itself is out of
+	  its scope.  Detecting whether a argv memory region is under
+	  control of process-intermal memory manager is not easy (i.e. not
+	  portable), so instead of managing argv by hand, I decided to
+	  leave it to GC.  The key part is rb_ivar_set call, which enables
+	  our GC engine to detect a relationship between a VM and its
+	  argv.
+
 Tue Nov 23 07:22:54 2010  Nobuyoshi Nakada  <nobu@ruby-lang.org>
 
 	* ChangeLog (change-log-indent-text): hunging indent.
