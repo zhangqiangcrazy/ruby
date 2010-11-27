@@ -240,6 +240,8 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     vm->exit_status.signal = state;
     vm->exit_status.code = ex;
 
+    ruby_native_thread_unlock(&vm->global_vm_lock);
+    ruby_native_cond_signal(&vm->global_vm_waiting);
     return ex;
 }
 

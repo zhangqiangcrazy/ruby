@@ -1,3 +1,8 @@
+Sun Nov 28 05:01:06 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* eval.c (ruby_vm_cleanup): Not sure, but it seems
+	  global_vm_waiting should also signaled here.  Maybe not.
+
 Fri Nov 26 20:07:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (vm_init2): Reference count should start from zero.

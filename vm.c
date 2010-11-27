@@ -1596,7 +1596,7 @@ static void
 vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
-    vm->ref_count = 0;
+    vm->ref_count = 1;
     vm->argc = -1;
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
     ruby_native_thread_lock(&vm->global_vm_lock);
