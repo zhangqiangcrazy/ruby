@@ -1,6 +1,16 @@
+Mon Nov 29 19:22:08 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* eval.c (ruby_vm_cleanup): According to Ko1, timer thread is per
+	  process, not per VM.  So a cleanup of a VM cannot blindly stop
+	  the timer thread.  However, there can be discussions whether the
+	  timer thread belongs to the main VM.  A child VM might live
+	  longer than a parent VM (design choice; that mdoel can be) and
+	  on such situation, the timer thread should not finish with the
+	  main VM.  So this part is subject to change.
+
 Mon Nov 29 15:37:49 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
-	* README: memo.
+	* README: memorandum.
 
 Mon Nov 29 09:55:40 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 

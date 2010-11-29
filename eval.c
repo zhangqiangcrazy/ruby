@@ -202,7 +202,9 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     ex = error_handle(ex);
     ruby_finalize_1(vm);
     POP_TAG();
-    rb_thread_stop_timer_thread();
+    if (ruby_vm_main_p(vm)) {
+	rb_thread_stop_timer_thread();
+    }
 
     state = 0;
     for (nerr = 0; nerr < numberof(errs); ++nerr) {
