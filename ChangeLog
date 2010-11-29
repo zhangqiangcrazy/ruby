@@ -1,3 +1,7 @@
+Mon Nov 29 15:37:49 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* README: memo.
+
 Mon Nov 29 09:55:40 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm_core.h (rb_vm_specific_ptr_for_specific_vm): added.

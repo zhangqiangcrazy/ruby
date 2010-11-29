@@ -1,0 +1,105 @@
+Ruby MVM memo by @shyouhei
+
+Extension libs, including stdlibs, are divided into 2 versions:
+
+* MVM-ready extensions
+* others
+
+How to make an extension MVM-ready
+
+(1) Overall policy
+
+* All use of global variables, no matter static or extern, are
+  strictly prohibited.
+* Instead you can store datum onto VM-specific storage (see below).
+* VMs might be created and disposed again and again.  Just do not leak
+  anything.
+
+(2) Some examples
+
+(2-1) Hello world
+
+This extension defines a VM-specific function called hello.
+
+VALUE
+rb_f_hello(self)
+    VALUE self;
+{
+    return rb_usascii_str_new_cstr("Hello world");
+}
+
+void
+Init_hello(void)
+{
+    
+}
+
+void
+InitVM_hello(void)
+{
+    rb_define_global_function("hello", rb_f_hello, 0);
+}
+
+The hello world looks very familiar to an experienced Rubyist.  Only
+new bit is InitVM_hello(), which is (as you can imagine) called when a
+VM is created.  Ordinary Init_hello() can still exist, but acts no
+role on this specific example.
+
+(2-2) VM specific storage
+
+For instance you happen to need a place to store something, say, to
+cache your calculation.  You can use VM specific storage.
+
+static int key = 0;
+
+VALUE
+rb_f_fib(self, n)
+    VALUE self, n;
+{
+    VALUE cache = *ruby_vm_specific_ptr(key);
+    VALUE x, y, z = rb_hash_aref(cache, n);
+    if (!RTEST(z)) {
+        x = rb_f_fib(self, rb_funcall(n, rb_intern("-"), INT2FIX(1)));
+        y = rb_f_fib(self, rb_funcall(n, rb_intern("-"), INT2FIX(2)));
+	z = rb_funcall(x, rb_intern("+"), y);
+        rb_hash_aset(cache, n, z);
+    }
+    return z;
+}
+
+void
+Init_fib(void)
+{
+    key = rb_vm_key_create();
+}
+
+void
+Final_fib(void)
+{
+    rb_gc_force_recycle(*ruby_vm_specific_ptr(key));
+}
+
+void
+InitVM_fib(void)
+{
+    *ruby_vm_specific_ptr(key) = rb_hash_new();
+    rb_define_global_function("fib", rb_f_fib, 1);
+    ruby_vm_at_exit(Final_fib);
+}
+
+The use of static variable is the only exception which can exist on an
+extension library, and acts as a key to a VM specific storage.
+Function Init_fib, if any, will be called exactly at once, before any
+calls to InitVM_fib might occur.  A return value of rb_vm_key_create
+can and should be used among several VMs.  So its typical usage is to
+create one in Init_fib and use it everywhere else.  Function
+ruby_vm_specific_ptr returns a pointer to a VM specific storage and
+can be used for your purpose.
+
+The most important part of above example is ruby_vm_at_exit, which
+demonstrates how you can finish a VM-specific data.  Do not forget it.
+Every time a VM shuts down, registered at_exit functions are triggered
+in reverse-order of registration (just like END {} does).  When you
+have allocated any resources for your extension, they must be
+deallocated properly, otherwise a VM leaks it.  And for most
+situations ruby process live longer than a VM.
