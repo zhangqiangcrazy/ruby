@@ -20,6 +20,7 @@ extern "C" {
 #endif
 
 #include <stddef.h>
+#include <ruby/ruby.h>
 
 #define HAVE_MVM 1
 
@@ -59,7 +60,7 @@ int ruby_vm_init_stderr(ruby_vm_t *vm, int fd);
 
 /* other API */
 void ruby_vm_foreach(int (*)(ruby_vm_t *, void *), void *); /* returning false stops iteration */
-void *ruby_vm_specific_ptr(ruby_vm_t *, int);
+VALUE *ruby_vm_specific_ptr(int);
 
 /* system level initializer */
 

@@ -1225,5 +1225,5 @@ InitVM_Random(void)
     rb_define_private_method(CLASS_OF(rb_cRandom), "state", random_s_state, 0);
     rb_define_private_method(CLASS_OF(rb_cRandom), "left", random_s_left, 0);
 
-    *(VALUE *)ruby_vm_specific_ptr(GET_VM(), vmkey_default_mt) = rb_funcall(rb_cRandom, rb_intern("new"), 0);
+    *(VALUE *)ruby_vm_specific_ptr(vmkey_default_mt) = rb_funcall(rb_cRandom, rb_intern("new"), 0);
 }

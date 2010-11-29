@@ -9,7 +9,6 @@
 
 **********************************************************************/
 
-#include "ruby/vm.h"
 #include "ruby/ruby.h"
 #include "ruby/vm.h"
 #include "vm_core.h"
@@ -238,8 +237,8 @@ rb_vm_key_create(void)
     return key;
 }
 
-void *
-ruby_vm_specific_ptr(rb_vm_t *vm, int key)
+VALUE *
+rb_vm_specific_ptr_for_specific_vm(rb_vm_t *vm, int key)
 {
     VALUE *ptr;
     long len;
@@ -261,9 +260,14 @@ rb_vm_specific_ptr(int key)
 {
     rb_vm_t *vm = GET_VM();
     if (!vm) return 0;
-    return ruby_vm_specific_ptr(vm, key);
+    return rb_vm_specific_ptr_for_specific_vm(vm, key);
 }
 
+VALUE *
+ruby_vm_specific_ptr(int key)
+{
+    return rb_vm_specific_ptr(key);
+}
 /* VM management */
 
 static struct {

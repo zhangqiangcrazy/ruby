@@ -48,6 +48,8 @@
 
 #include "ruby/util.h"
 
+#include "vm_core.h"
+
 #ifndef HAVE_STDLIB_H
 char *getenv();
 #endif
@@ -727,7 +729,7 @@ set_option_encoding_once(const char *type, VALUE *name, const char *e, long elen
     set_option_encoding_once("source", &opt->src.enc.name, e, elen)
 
 #define RUBY_VM_OBJECT(vm, name) \
-  (*((VALUE *)ruby_vm_specific_ptr(vm, rb_vmkey_##name)))
+  (*rb_vm_specific_ptr_for_specific_vm(vm, rb_vmkey_##name))
 
 static long
 proc_options(rb_vm_t *vm, long argc, char **argv, struct rb_vm_options *opt, int envopt)

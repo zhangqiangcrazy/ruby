@@ -155,7 +155,7 @@ static rb_thread_lock_t max_file_descriptor_lock;
     } while (0)
 
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
-#define ruby_vm_argf(vm) (*((VALUE *)ruby_vm_specific_ptr(vm, rb_vmkey_argf)))
+#define ruby_vm_argf(vm) (*rb_vm_specific_ptr_for_specific_vm(vm, rb_vmkey_argf))
 #define rb_vm_argf() ruby_vm_argf(GET_VM())
 #define ARGF argf_of(rb_vm_argf())
 
