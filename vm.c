@@ -1547,6 +1547,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
 	struct rb_objspace *objspace = vm->objspace;
 #endif
+	ruby_native_thread_unlock(&vm->global_vm_lock);
 	ruby_native_thread_lock_destroy(&vm->global_vm_lock);
 	ruby_native_cond_destroy(&vm->global_vm_waiting);
 	rb_queue_destroy(&vm->queue.message);
@@ -1596,7 +1597,7 @@ static void
 vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
-    vm->ref_count = 1;
+    vm->ref_count = 0;
     vm->argc = -1;
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
     ruby_native_thread_lock(&vm->global_vm_lock);

@@ -1,3 +1,17 @@
+Tue Nov 30 16:47:50 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): When reaching to this condition this
+	  mutex is locked, and a locked mutex cannot be destroyed.
+	  Personal impression: it is pthread's fault that a locked mutex
+	  cannot be destroyed.  Instead I believe a mutex should be
+	  destroyed under a lock.  Because when not locked another thread
+	  might lock that mutex.  So for instance after this change,
+	  another thread can gain a lock between those
+	  native_thread_unlock() and native_thread_lock_destroy() calls,
+	  and result in a broken behaviour.  If it were designed to need a
+	  lock before a destruction that wont happen, because only one
+	  thread can lock a specific mutex.
+
 Tue Nov 30 16:11:00 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* mvm.c (vm_join): avoid breaking inside of a macro.
@@ -15,7 +29,7 @@ Mon Nov 29 19:22:08 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 	  process, not per VM.  So a cleanup of a VM cannot blindly stop
 	  the timer thread.  However, there can be discussions whether the
 	  timer thread belongs to the main VM.  A child VM might live
-	  longer than a parent VM (design choice; that mdoel can be) and
+	  longer than a parent VM (design choice; that model can be) and
 	  on such situation, the timer thread should not finish with the
 	  main VM.  So this part is subject to change.
 
