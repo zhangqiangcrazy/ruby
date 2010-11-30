@@ -378,13 +378,16 @@ vm_join(rb_vm_t *vm)
     st_table *living_threads = vm->living_threads;
 
     if (!living_threads) return 0;
-    MVM_CRITICAL(vm_manager.lock, do {
+    MVM_CRITICAL(vm_manager.lock, {
 	struct vm_list_struct *entry = vm_manager.list;
 	while (entry && entry->vm != vm) {
 	    entry = entry->next;
 	}
-	if (!entry) break;
-	ruby_native_cond_wait(&vm->global_vm_waiting, &vm_manager.lock);
-    } while (vm->living_threads));
+	if (entry) {
+	    while (vm->living_threads) {
+		ruby_native_cond_wait(&vm->global_vm_waiting, &vm_manager.lock);
+	    }
+	}
+    });
     return 0;
 }
