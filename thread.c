@@ -465,6 +465,7 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
     int state;
     VALUE args = th->first_args;
     rb_proc_t *proc;
+    rb_vm_t *vm = th->vm;
 
     ruby_thread_set_native(th);
 
@@ -474,9 +475,10 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
 #endif
     thread_debug("thread start: %p\n", (void *)th);
 
-    native_mutex_lock(&th->vm->global_vm_lock);
+    native_mutex_lock(&vm->global_vm_lock);
     {
-	thread_debug("thread start (get lock): %p %p\n", (void *)th, th->vm);
+
+	thread_debug("thread start (get lock): %p %p\n", (void *)th, vm);
 	rb_thread_set_current(th);
 
 	TH_PUSH_TAG(th);
@@ -495,21 +497,24 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
 		}
 	    });
 	}
+
 	thread_terminated_1(th, state);
 	TH_POP_TAG();
+	thread_terminated_2(th, state);
+
+	if (vm->main_thread == th) {
+	    int signo = 0;
+	    ruby_vm_cleanup(vm, state);
+	    if (ruby_vm_main_p(vm)) signo = ruby_vm_exit_signal(vm);
+	    ruby_vm_destruct(vm);
+	    if (signo) ruby_default_signal(signo);
+	    native_cond_signal(&vm->global_vm_waiting);
+	}
+	else {
+	    thread_cleanup_func(th);
+	}
     }
-    thread_terminated_2(th, state);
-    if (th->vm->main_thread == th) {
-	int signo = 0;
-	ruby_vm_cleanup(th->vm, state);
-	if (ruby_vm_main_p(th->vm)) signo = ruby_vm_exit_signal(th->vm);
-	ruby_vm_destruct(th->vm);
-	if (signo) ruby_default_signal(signo);
-    }
-    else {
-	thread_cleanup_func(th);
-	native_mutex_unlock(&th->vm->global_vm_lock);
-    }
+    native_mutex_unlock(&vm->global_vm_lock);
     return 0;
 }
 

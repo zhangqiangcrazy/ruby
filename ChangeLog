@@ -1,3 +1,10 @@
+Tue Nov 30 15:42:11 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* eval.c (ruby_vm_cleanup): It was mistake to signal this cond
+	  after all.
+
+	* thread.c (thread_start_func_2): Instead signaling here.
+
 Mon Nov 29 19:22:08 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* eval.c (ruby_vm_cleanup): According to Ko1, timer thread is per
