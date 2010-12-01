@@ -1,11 +1,18 @@
+Thu Dec  2 00:31:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* eval.c (ruby_vm_cleanup): Perhaps it would be more appropriate
+	  for at_ext functions be called here,
+
+	* vm.c (ruby_vmptr_destruct): than here.
+
 Thu Dec  2 00:10:04 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (vm_free): A VM can not always be killed only because an
 	  objspace has no reference to it; a VM can be seen "outside" of
-	  itself.  Namely a VM's itself anf its parent are not suitable
+	  itself.  Namely a VM's itself and its parent are not suitable
 	  here to be freed.  Note however, that this criteria is a
 	  heuristic given a VM "lives" in other VM's objspace and do not
-	  move across a homeground VM i.e.  VMs holds parent-child
+	  move across a home ground VM i.e.  VMs holds parent-child
 	  relationships.  If this is broken -- when a child lives longer
 	  than a parent -- the situation gets much complex.
 

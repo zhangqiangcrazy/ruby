@@ -171,6 +171,8 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     int nerr;
     void rb_threadptr_interrupt(rb_thread_t *th);
     void rb_threadptr_check_signal(rb_thread_t *mth);
+    int i;
+    VALUE ary = (VALUE)&vm->at_exit;
 
     rb_threadptr_interrupt(th);
     rb_threadptr_check_signal(th);
@@ -189,6 +191,13 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
 	SAVE_ROOT_JMPBUF(th, ruby_finalize_0(vm));
     }
     POP_TAG();
+
+    /* at_exit functions called here; any other place more apropriate
+     * for this purpose? let me know if any. */
+    for (i=0; i<RARRAY_LEN(ary); i++) {
+	((void(*)(rb_vm_t*))RARRAY_PTR(ary)[i])(vm);
+    }
+    rb_ary_clear(ary);
 
     errs[0] = th->errinfo;
     PUSH_TAG();

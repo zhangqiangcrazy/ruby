@@ -1526,14 +1526,6 @@ ruby_vmptr_destruct(rb_vm_t *vm)
 
     if (th && vm == th->vm) {
 	if (vm->self) {
-            /* at_exit functions called here; any other place more
-             * apropriate for this purpose? let me know if any. */
-            int i;
-            VALUE ary = (VALUE)&vm->at_exit;
-            for (i=0; i<RARRAY_LEN(ary); i++) {
-                ((void(*)(rb_vm_t*))RARRAY_PTR(ary)[i])(vm);
-            }
-            rb_ary_clear(ary);
 	    vm->self = 0;
 	}
 	else {
