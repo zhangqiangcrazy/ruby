@@ -1574,7 +1574,22 @@ static void
 vm_free(void *ptr)
 {
     rb_vm_t *vm = ptr;
+    rb_vm_t *current_vm = GET_VM();
+    rb_vm_t *parent_vm;
+    rb_vm_t *self_vm;
 
+    if (current_vm->self) {
+        GetVMPtr(current_vm->self, self_vm);
+        if (self_vm == vm) {
+            return;
+        }
+    }
+    if (current_vm->parent) {
+        GetVMPtr(current_vm->parent, parent_vm);
+        if (parent_vm == vm) {
+            return;
+        }
+    }
     RUBY_FREE_ENTER("vm");
     ruby_vm_destruct(vm);
     RUBY_FREE_LEAVE("vm");
