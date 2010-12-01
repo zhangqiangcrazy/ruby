@@ -423,6 +423,10 @@ typedef struct rb_vm_struct {
 
     VALUE const_missing_count;
     struct rb_vm_options *init_options;
+
+    /* @shyouhei note that this is not for storing Ruby objects so do
+     * NOT mark this using GC. */
+    struct RArray at_exit;
 } rb_vm_t;
 
 typedef struct {

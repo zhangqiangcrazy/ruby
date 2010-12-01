@@ -61,6 +61,17 @@ int ruby_vm_init_stderr(ruby_vm_t *vm, int fd);
 /* other API */
 void ruby_vm_foreach(int (*)(ruby_vm_t *, void *), void *); /* returning false stops iteration */
 VALUE *ruby_vm_specific_ptr(int);
+/**
+   ruby_vm_at_exit registers a function _func_ to be invoked when a VM
+   passed away.  Functions registered this way runs in reverse
+   order of registeration, just like END {} block does.  The
+   difference is its timing to be triggerd. ruby_vm_at_exit functions
+   runs when a VM _passed_ _away_, while END {} blocks runs just
+   _before_ a VM _is_ _passing_ _away_.
+
+   @param[in] func the function to register.
+ */
+void ruby_vm_at_exit(void(*func)(ruby_vm_t *));
 
 /* system level initializer */
 

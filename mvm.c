@@ -268,6 +268,15 @@ ruby_vm_specific_ptr(int key)
 {
     return rb_vm_specific_ptr(key);
 }
+
+/* at exit */
+
+void
+ruby_vm_at_exit(void (*func)(rb_vm_t *vm))
+{
+    rb_ary_push((VALUE)&GET_VM()->at_exit, (VALUE)func);
+}
+
 /* VM management */
 
 static struct {

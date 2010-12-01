@@ -1,3 +1,15 @@
+Tue Nov 30 21:29:51 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* include/ruby/vm.h (ruby_vm_at_exit): new method.
+
+	* mvm.c (ruby_vm_at_exit): new method.
+
+	* vm_core.h (rb_vm_struct): new field.
+
+	* vm.c (vm_init2): initialize the new field.
+
+	* vm.c (ruby_vmptr_destruct): kick the functions.
+
 Tue Nov 30 16:47:50 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): When reaching to this condition this
