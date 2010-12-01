@@ -384,9 +384,20 @@ rb_objspace_alloc(void)
     return objspace;
 }
 
+static void gc_sweep(rb_objspace_t *objspace);
+
 void
 rb_objspace_free(rb_objspace_t *objspace)
 {
+    if (heaps) {
+        int i, j;
+        for (i=0; i<heaps_used; i++) {
+            for (j=0; j<heaps[i].limit; j++) {
+                heaps[i].slot[j].as.basic.flags &= ~FL_MARK;
+            }
+        }
+    }
+    gc_sweep(objspace);
     if (objspace->profile.record) {
 	free(objspace->profile.record);
 	objspace->profile.record = 0;

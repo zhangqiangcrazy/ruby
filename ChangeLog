@@ -1,3 +1,11 @@
+Wed Dec  1 19:35:54 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* gc.c (rb_objspace_free): Ensure to free objects.  Before this
+	  there has been no chance for a object to be freed when a VM
+	  shuts down, which led to memory leaks.  I'm still not sure if
+	  rb_objspace_free is the right place to deallocate those as-yet
+	  living objects so if someone thinks it isn't, please tell me.
+
 Tue Nov 30 21:29:51 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* include/ruby/vm.h (ruby_vm_at_exit): new method.
