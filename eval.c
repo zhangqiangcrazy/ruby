@@ -192,13 +192,6 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     }
     POP_TAG();
 
-    /* at_exit functions called here; any other place more apropriate
-     * for this purpose? let me know if any. */
-    for (i=0; i<RARRAY_LEN(ary); i++) {
-	((void(*)(rb_vm_t*))RARRAY_PTR(ary)[i])(vm);
-    }
-    rb_ary_clear(ary);
-
     errs[0] = th->errinfo;
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
@@ -214,6 +207,13 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     if (ruby_vm_main_p(vm)) {
 	rb_thread_stop_timer_thread();
     }
+
+    /* at_exit functions called here; any other place more apropriate
+     * for this purpose? let me know if any. */
+    for (i=RARRAY_LEN(ary) - 1; i>=0; i--) {
+	((void(*)(rb_vm_t*))RARRAY_PTR(ary)[i])(vm);
+    }
+    rb_ary_clear(ary);
 
     state = 0;
     for (nerr = 0; nerr < numberof(errs); ++nerr) {
