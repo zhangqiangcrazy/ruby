@@ -1,3 +1,18 @@
+Mon Dec  6 16:21:12 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y (Final_sym): New function.  Once upon a time when we had
+	  only one VM per a process, a Symbol had a chance to pass away
+	  when its process terminates itself, because the objspace a
+	  Symbol was in was actually the single process-global objspace so
+	  a objspace termination and process termination are 1 to 1
+	  relationship.  Now that we have multiple VMs (thus multiple
+	  objspaces), VM termination is no longer connected to process
+	  termination so we have lost our chance to finalize global
+	  objects, namely Symbols.
+
+	* parse.y (Init_sym): Register Final_sym to be kicked when process
+	  finishes.
+
 Fri Dec  3 04:08:59 2010  NARUSE, Yui  <naruse@ruby-lang.org>
 
 	* encoding.c (enc_alias_internal): use st_insert2 and change return

@@ -9427,6 +9427,12 @@ static const struct st_hash_type ivar2_hash_type = {
     ivar2_hash,
 };
 
+static void
+Final_sym(void)
+{
+    rb_objspace_free(global_symbols.objspace);
+}
+
 void
 Init_sym(void)
 {
@@ -9437,6 +9443,7 @@ Init_sym(void)
     global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
     global_symbols.id_str = st_init_numtable_with_size(1000);
     Init_id();
+    atexit(Final_sym);
     ruby_native_thread_unlock(&global_symbols.lock);
 }
 
