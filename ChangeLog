@@ -1,3 +1,9 @@
+Tue Dec  7 19:24:33 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* variable.c (FinalVM_var_table): vm->global_symbol shall be freed
+
+	* variable.c (InitVM_var_tables): register FinalVM_var_table
+
 Tue Dec  7 18:57:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): they are forgot to be freed.

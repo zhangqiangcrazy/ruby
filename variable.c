@@ -35,12 +35,19 @@ Init_var_tables(void)
     CONST_ID(classid, "__classid__");
 }
 
+static void
+FinalVM_var_table(rb_vm_t *vm)
+{
+    st_free_table(vm->global_tbl);
+}
+
 void
 InitVM_var_tables(void)
 {
     rb_vm_t *vm = GET_VM();
     vm->mark_object_ary = rb_ary_new();
     vm->global_tbl = st_init_numtable();
+    ruby_vm_at_exit(FinalVM_var_table);
 }
 
 struct fc_result {
