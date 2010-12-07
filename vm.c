@@ -965,12 +965,19 @@ add_opt_method(VALUE klass, ID mid, VALUE bop)
 }
 
 static void
+FinalVM_redefined_flag(rb_vm_t* vm)
+{
+    st_free_table(vm->opt_method_table);
+}
+
+static void
 vm_init_redefined_flag(rb_vm_t *vm)
 {
     ID mid;
     VALUE bop;
 
     vm->opt_method_table = st_init_numtable();
+    ruby_vm_at_exit(FinalVM_redefined_flag);
 
 #define OP(mid_, bop_) (mid = id##mid_, bop = BOP_##bop_, ruby_vm_redefined_flag[bop] = 0)
 #define C(k) add_opt_method(rb_c##k, mid, bop)
@@ -1565,9 +1572,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
 	rb_queue_destroy(&vm->queue.signal);
         rb_objspace_xfree(vm->objspace, vm->cache);
         rb_objspace_xfree(vm->objspace, vm->specific_storage.ptr);
-	if (vm->objspace) {
-	    rb_objspace_free(vm->objspace);
-	}
+        rb_objspace_free(vm->objspace);
 	return TRUE;
     }
 }

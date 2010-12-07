@@ -1,3 +1,9 @@
+Tue Dec  7 21:36:36 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (FinalVM_redefined_flag): vm->opt_method_table shall be freed.
+
+	* vm.c (vm_init_redefined_flag): revister FinalVM_redefined_flag
+
 Tue Dec  7 19:24:33 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* variable.c (FinalVM_var_table): vm->global_symbol shall be freed
