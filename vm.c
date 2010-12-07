@@ -1517,49 +1517,57 @@ rb_vm_mark(void *ptr)
     RUBY_MARK_LEAVE("vm");
 }
 
+/*
+ * @shyouhei notes that the tricky part of this function is it just
+ * leaves the thread resouces; they are left to be collected via GC.
+ */
+static int
+vm_knockin_on_the_heavens_door(st_data_t key, st_data_t value, st_data_t outer)
+{
+    VALUE thval = (VALUE)key;
+    rb_thread_t* th = RTYPEDDATA_DATA(thval);
+    rb_thread_t *tnow = (rb_thread_t *)outer;
+    if (th != tnow) {
+        ruby_native_thread_choke(th);
+    }
+    return ST_CONTINUE;
+}
+
+/*
+ * @shyouhei notes that this function is to acutually destruct a VM.
+ * Thus you cannot expect a VM to survive after this function.  In
+ * particular, no other native threads, except the thread which called
+ * this function, shall hold any VM locks that is inside of the
+ * argument VM at the very beginning of this function.
+ */
 int
 ruby_vmptr_destruct(rb_vm_t *vm)
 {
-    rb_thread_t *th = GET_THREAD();
+    rb_thread_t *th;
 
-    if (!vm) return FALSE;
-
-    if (th && vm == th->vm) {
-	if (vm->self) {
-	    vm->self = 0;
-	}
-	else {
-	    rb_thread_t *th = vm->main_thread;
-	    vm->main_thread = 0;
-	    if (th) {
-		thread_free(th);
-	    }
-	    if (vm->living_threads) {
-		st_free_table(vm->living_threads);
-		vm->living_threads = 0;
-	    }
-	    ruby_native_thread_unlock(&vm->global_vm_lock);
-	    ruby_native_cond_signal(&vm->global_vm_waiting);
-	}
+    if (!vm) {
+        return FALSE;
     }
-    if (vm->parent) ((rb_vm_t*)RTYPEDDATA_DATA(vm->parent))->ref_count --;
-    if (!--vm->ref_count) {
-#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
-	struct rb_objspace *objspace = vm->objspace;
-#endif
-	ruby_native_thread_unlock(&vm->global_vm_lock);
+    else if ((th = GET_THREAD())->vm != vm) {
+        abort();                /* ping ping. */
+    }
+    else {
+        if (vm->living_threads) {
+            st_foreach(vm->living_threads, vm_knockin_on_the_heavens_door, (st_data_t)vm->main_thread);
+            st_free_table(vm->living_threads);
+        }
+        ruby_native_thread_unlock(&vm->global_vm_lock);
+        ruby_native_cond_signal(&vm->global_vm_waiting);
+        if (vm->parent) ((rb_vm_t*)RTYPEDDATA_DATA(vm->parent))->ref_count --;
 	ruby_native_thread_lock_destroy(&vm->global_vm_lock);
 	ruby_native_cond_destroy(&vm->global_vm_waiting);
 	rb_queue_destroy(&vm->queue.message);
 	rb_queue_destroy(&vm->queue.signal);
-#if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
-	if (objspace) {
-	    rb_objspace_free(objspace);
+	if (vm->objspace) {
+	    rb_objspace_free(vm->objspace);
 	}
-#endif
 	return TRUE;
     }
-    return FALSE;
 }
 
 static void

@@ -221,6 +221,7 @@ void ruby_native_thread_lock_destroy(rb_thread_lock_t *lock);
 void ruby_native_thread_lock(rb_thread_lock_t *lock);
 void ruby_native_thread_unlock(rb_thread_lock_t *lock);
 void ruby_native_thread_yield(void);
+void ruby_native_thread_choke(rb_thread_t *);
 void ruby_native_cond_signal(rb_thread_cond_t *cond);
 void ruby_native_cond_broadcast(rb_thread_cond_t *cond);
 void ruby_native_cond_wait(rb_thread_cond_t *cond, rb_thread_lock_t *mutex);

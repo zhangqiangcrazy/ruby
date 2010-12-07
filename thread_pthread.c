@@ -138,6 +138,20 @@ ruby_native_thread_yield(void)
     sched_yield();
 }
 
+void
+ruby_native_thread_choke(rb_thread_t *th)
+{
+    int e = 0;
+    pthread_t t = th->thread_id;
+    if ((e = pthread_cancel(t)) != 0) {
+	rb_raise(rb_eThreadError, "native_thread_choke() failed (%d)", e);
+    }
+    else if ((e = pthread_join(t, 0)) != 0) {
+	rb_raise(rb_eThreadError, "native_thread_choke() failed (%d)", e);
+    }
+
+}
+
 #ifndef __CYGWIN__
 static void add_signal_thread_list(rb_thread_t *th);
 #endif

@@ -1,3 +1,20 @@
+Tue Dec  7 18:52:14 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* thread_pthread.c (ruby_native_thread_choke): New function.  Once
+	  upon a time when we has only one VM per a process, a thread was
+	  terminated by a process termination.  This is because by
+	  definition a VM exits when its entry point function exits, and
+	  that was (almost) equivalent to when a process exits.  Now that
+	  we have multiple VMs, VM termination is no longer connected to
+	  process termination so we have lost our chance to finish
+	  threads.
+
+	* eval_intern.h: ditto.
+
+	* vm.c (vm_knockin_on_the_heavens_door): GOTTA KNOCK A LI'L HARDER
+
+	* vm.c (ruby_vmptr_destruct): Ensure threads termination.
+
 Mon Dec  6 16:21:12 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* parse.y (Final_sym): New function.  Once upon a time when we had
