@@ -1,3 +1,7 @@
+Tue Dec  7 18:57:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): they are forgot to be freed.
+
 Tue Dec  7 18:52:14 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* thread_pthread.c (ruby_native_thread_choke): New function.  Once
