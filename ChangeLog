@@ -1,3 +1,7 @@
+Tue Dec  7 22:00:59 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* thread_pthread.c (native_thread_destroy): th->altstack shall be freed.
+
 Tue Dec  7 21:36:36 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (FinalVM_redefined_flag): vm->opt_method_table shall be freed.

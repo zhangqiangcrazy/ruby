@@ -207,6 +207,9 @@ native_thread_destroy(rb_thread_t *th)
 {
     pthread_mutex_destroy(&th->interrupt_lock);
     pthread_cond_destroy(&th->native_thread_data.sleep_cond);
+#ifdef USE_ALTSTACK
+    free(th->altstack);
+#endif
 }
 
 #define USE_THREAD_CACHE 0
