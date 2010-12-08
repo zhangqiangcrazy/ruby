@@ -36,7 +36,7 @@ static void generic_iv_free(void* ptr);
 void
 FinalVM_generic_iv_tbl(rb_vm_t *vm)
 {
-    st_table *ptr = *ruby_vm_specific_ptr(rb_vmkey_generic_iv_tbl);
+    st_table *ptr = *rb_vm_specific_ptr_for_specific_vm(vm, rb_vmkey_generic_iv_tbl);
     if (ptr)
         generic_iv_free(ptr);
 }

@@ -60,6 +60,21 @@ int ruby_vm_init_stderr(ruby_vm_t *vm, int fd);
 /* other API */
 void ruby_vm_foreach(int (*)(ruby_vm_t *, void *), void *); /* returning false stops iteration */
 void **ruby_vm_specific_ptr(int);
+
+#ifdef __GNUC__
+__attribute__((__pure__, __warn_unused_result__))
+#endif
+/**
+   Get a pointer to a VM specific storage for VM _vm_.  A key shall be
+   initialized using rb_vm_key_create() beforehand.
+
+   @param[in] vm where to seek a pointer.  Touches its internals when
+       a key is new to this vm (storage created then).
+   @param[in] key  which storage.
+   @returns a pointer to a VM specific storage.
+ */
+void **rb_vm_specific_ptr_for_specific_vm(ruby_vm_t *vm, int key);
+
 /**
    ruby_vm_at_exit registers a function _func_ to be invoked when a VM
    passed away.  Functions registered this way runs in reverse

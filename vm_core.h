@@ -800,18 +800,6 @@ void ruby_objspace_xfree(struct rb_objspace *objspace, void *ptr);
 int ruby_vmptr_start(rb_vm_t *vm, int status);
 int ruby_vmptr_destruct(rb_vm_t *vm);
 
-__attribute__((__pure__, __warn_unused_result__))
-/**
-   Get a pointer to a VM specific storage for VM _vm_.  A key shall be
-   initialized using rb_vm_key_create() beforehand.
-
-   @param[in] vm where to seek a pointer.  Touches its internals when
-       a key is new to this vm (storage created then).
-   @param[in] key  which storage.
-   @returns a pointer to a VM specific storage.
- */
-void **rb_vm_specific_ptr_for_specific_vm(rb_vm_t *vm, int key);
-
 #define sysstack_error rb_errSysStack
 
 VALUE rb_str_resurrect(VALUE str);

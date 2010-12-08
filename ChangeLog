@@ -1,3 +1,8 @@
+Thu Dec  9 08:33:17 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* variable.c (FinalVM_generic_iv_tbl): at_exit function shall use
+	  rb_vm_specific_ptr_for_specific_vm instead.
+
 Thu Dec  9 07:26:51 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (rb_vm_initialize): this temporary string should be
