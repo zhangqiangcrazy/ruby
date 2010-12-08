@@ -27,7 +27,7 @@ void rb_vm_inc_const_missing_count(void);
 static ID autoload, classpath, tmp_classpath, classid;
 
 void
-Init_global_iv_tbl(void)
+Init_generic_iv_tbl(void)
 {
 }
 
@@ -36,11 +36,13 @@ static void generic_iv_free(void* ptr);
 void
 FinalVM_generic_iv_tbl(rb_vm_t *vm)
 {
-    generic_iv_free(*ruby_vm_specific_ptr(rb_vmkey_generic_iv_tbl));
+    st_table *ptr = *ruby_vm_specific_ptr(rb_vmkey_generic_iv_tbl);
+    if (ptr)
+        generic_iv_free(ptr);
 }
 
 void
-InitVM_global_iv_tbl(void)
+InitVM_generic_iv_tbl(void)
 {
     *ruby_vm_specific_ptr(rb_vmkey_generic_iv_tbl) = st_init_numtable();
 }

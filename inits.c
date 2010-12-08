@@ -25,7 +25,7 @@ void
 rb_call_inits(void)
 {
     CALL(RandomSeed);
-    CALL(global_iv_tbl);
+    CALL(generic_iv_tbl);
     CALL(sym);
     CALL(var_tables);
     CALL(Object);
