@@ -1570,10 +1570,13 @@ ruby_vmptr_destruct(rb_vm_t *vm)
 	ruby_native_cond_destroy(&vm->global_vm_waiting);
 	rb_queue_destroy(&vm->queue.message);
 	rb_queue_destroy(&vm->queue.signal);
-        rb_objspace_xfree(vm->objspace, vm->cache);
         rb_objspace_xfree(vm->objspace, vm->specific_storage.ptr);
         rb_ary_clear(vm->mark_object_ary);
         rb_objspace_free(vm->objspace);
+#ifdef CALC_EXACT_MALLOC_SIZE
+        vm->cache = ((size_t *)vm->cache) - 1;
+#endif
+        free(vm->cache);
         free(vm->init_options);
 	return TRUE;
     }

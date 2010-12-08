@@ -1,3 +1,9 @@
+Wed Dec  8 21:18:12 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): vm->cache needed when
+	  rb_objspace_free runs, but after rb_objspace_free finished,
+	  rb_objspace_xfree no longer possible.
+
 Wed Dec  8 20:59:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): vm->mark_object_ary shall be flushed
