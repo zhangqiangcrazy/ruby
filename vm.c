@@ -1575,6 +1575,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
 	rb_queue_destroy(&vm->queue.signal);
         vm->mark_object_ary = Qundef;
         rb_objspace_free(vm->objspace);
+        FinalVM_generic_iv_tbl(vm);
 #ifdef CALC_EXACT_MALLOC_SIZE
         vm->specific_storage.ptr = ((size_t *)vm->specific_storage.ptr) - 1;
         vm->cache = ((size_t *)vm->cache) - 1;

@@ -887,4 +887,6 @@ rb_threadptr_exec_event_hooks(rb_thread_t *th, rb_event_flag_t flag, VALUE self,
     } \
 } while (0)
 
+extern void FinalVM_generic_iv_tbl(rb_vm_t *);
+
 #endif /* RUBY_VM_CORE_H */

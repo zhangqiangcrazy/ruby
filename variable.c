@@ -43,7 +43,6 @@ void
 InitVM_global_iv_tbl(void)
 {
     *ruby_vm_specific_ptr(rb_vmkey_generic_iv_tbl) = st_init_numtable();
-    ruby_vm_at_exit(FinalVM_generic_iv_tbl);
 }
 
 void
