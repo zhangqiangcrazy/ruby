@@ -1171,7 +1171,7 @@ __attribute__((__always_inline__, __warn_unused_result__))
 static inline VALUE *
 rb_vm_specific_ptr(int key)
 {
-    return ruby_vm_specific_ptr(key);
+    return (VALUE *)ruby_vm_specific_ptr(key);
 }
 
 #include "ruby/public_object.h"

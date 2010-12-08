@@ -237,7 +237,7 @@ rb_vm_key_create(void)
     return key;
 }
 
-void *
+void **
 rb_vm_specific_ptr_for_specific_vm(rb_vm_t *vm, int key)
 {
     void **ptr;
@@ -255,7 +255,7 @@ rb_vm_specific_ptr_for_specific_vm(rb_vm_t *vm, int key)
     return &ptr[key];
 }
 
-void *
+void **
 ruby_vm_specific_ptr(int key)
 {
     rb_vm_t *vm = GET_VM();
