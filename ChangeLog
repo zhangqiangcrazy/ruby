@@ -1,3 +1,8 @@
+Wed Dec  8 19:43:15 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_make_bare_vm): This malloc generates an immediate
+	  memory leak.  Might be a merge mistake.
+
 Tue Dec  7 22:00:59 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* thread_pthread.c (native_thread_destroy): th->altstack shall be freed.

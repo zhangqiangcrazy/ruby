@@ -2690,11 +2690,10 @@ ruby_make_bare_vm(void)
 {
     /* VM bootstrap: phase 1 */
     rb_vm_t *vm = malloc(sizeof(*vm));
-    rb_thread_t *th = malloc(sizeof(*th));
+    rb_thread_t *th;
 
-    if (!vm || !th) {
+    if (!vm) {
 	if (vm) free(vm);
-	if (th) free(th);
 	return 0;
     }
 
