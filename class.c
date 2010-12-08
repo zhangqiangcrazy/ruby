@@ -164,7 +164,6 @@ rb_mod_init_copy(VALUE clone, VALUE orig)
 	struct clone_method_data data;
 
 	if (RCLASS_M_TBL(clone)) {
-	    extern void rb_free_m_table(st_table *tbl);
 	    rb_free_m_table(RCLASS_M_TBL(clone));
 	}
 	data.tbl = RCLASS_M_TBL(clone) = st_init_numtable();

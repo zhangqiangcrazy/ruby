@@ -84,4 +84,5 @@ struct st_table;
 void rb_objspace_mark_tbl(struct rb_objspace *objspace, struct st_table *tbl);
 void rb_objspace_mark_locations(struct rb_objspace *objspace, VALUE *start, VALUE *end);
 
+void rb_free_m_table(st_table *tbl);
 #endif /* RUBY_GC_H */

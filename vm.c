@@ -2577,6 +2577,8 @@ InitVM_VM(void)
     /* ::VM::FrozenCore */
     fcore = rb_class_new(rb_cBasicObject);
     RBASIC(fcore)->flags = T_ICLASS;
+    rb_free_m_table(RCLASS_M_TBL(fcore));
+    RCLASS_M_TBL(fcore) = 0;
     klass = rb_singleton_class(fcore);
     rb_define_method_id(klass, id_core_set_method_alias, m_core_set_method_alias, 3);
     rb_define_method_id(klass, id_core_set_variable_alias, m_core_set_variable_alias, 2);

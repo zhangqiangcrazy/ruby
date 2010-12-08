@@ -1,3 +1,9 @@
+Thu Dec  9 07:02:05 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (InitVM_VM): rb_class_new creates a m_tbl, but a T_ICLASS
+	  normally do not have one, so obj_free will leak it.  It is
+	  unused anyway.
+
 Thu Dec  9 06:46:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): vm->loading_table shall be freed.
