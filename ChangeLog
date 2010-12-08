@@ -1,3 +1,10 @@
+Thu Dec  9 04:55:10 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* variable.c (InitVM_global_iv_tbl): Well, prior to this change
+	  rb_generic_iv_tbl was created using Data_Wrap_Struct, but this
+	  was wrong, because that needs an object allocation, an object
+	  allocation needs GC, and GC needs rb_generic_iv_tbl itself.
+
 Thu Dec  9 04:16:39 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* parse.y (sym_str_new): rb_str_cat was also wrong idea, because

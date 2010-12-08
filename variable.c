@@ -27,6 +27,26 @@ void rb_vm_inc_const_missing_count(void);
 static ID autoload, classpath, tmp_classpath, classid;
 
 void
+Init_global_iv_tbl(void)
+{
+}
+
+static void generic_iv_free(void* ptr);
+
+void
+FinalVM_generic_iv_tbl(rb_vm_t *vm)
+{
+    generic_iv_free(*ruby_vm_specific_ptr(rb_vmkey_generic_iv_tbl));
+}
+
+void
+InitVM_global_iv_tbl(void)
+{
+    *ruby_vm_specific_ptr(rb_vmkey_generic_iv_tbl) = st_init_numtable();
+    ruby_vm_at_exit(FinalVM_generic_iv_tbl);
+}
+
+void
 Init_var_tables(void)
 {
     CONST_ID(autoload, "__autoload__");
@@ -936,24 +956,7 @@ generic_iv_free(void *ptr)
 
 
 
-/* @shyouhei hack */
-#ifdef __GUNC__
-__attribute__((__always_inline__, __pure__, __warn_unused_results__))
-#endif
-static inline st_table* obtain_generic_iv_tbl(void);
-
-st_table*
-obtain_generic_iv_tbl(void)
-{
-    VALUE *tbl = rb_vm_specific_ptr(rb_vmkey_generic_iv_tbl);
-    if (!*tbl) {
-	return 0;
-    }
-    else {
-        return DATA_PTR(*tbl);
-    }
-}
-#define generic_iv_tbl (obtain_generic_iv_tbl())
+#define generic_iv_tbl ((st_table *)*ruby_vm_specific_ptr(rb_vmkey_generic_iv_tbl))
 
 st_table*
 rb_generic_ivar_table(VALUE obj)
@@ -992,10 +995,6 @@ generic_ivar_set(VALUE obj, ID id, VALUE val)
 
     if (rb_special_const_p(obj)) {
 	if (rb_obj_frozen_p(obj)) rb_error_frozen("object");
-    }
-    if (!generic_iv_tbl) {
-	* rb_vm_specific_ptr(rb_vmkey_generic_iv_tbl) =
-	    Data_Wrap_Struct(0, generic_iv_mark, generic_iv_free, st_init_numtable());
     }
     if (!st_lookup(generic_iv_tbl, (st_data_t)obj, &data)) {
 	FL_SET(obj, FL_EXIVAR);
