@@ -9606,17 +9606,33 @@ rb_enc_symname2_p(const char *name, long len, rb_encoding *enc)
 static VALUE
 sym_str_new(const char *name, long len, rb_encoding *enc)
 {
-    VALUE str = rb_newobj_from_heap(global_symbols.objspace);
+    size_t n = len + 1;		/* +1 for '\0' */
 
-    RSTRING(str)->basic.flags = T_STRING;
-    RSTRING(str)->basic.klass = 0;
-    rb_enc_associate(str, enc);
-    if (GET_THREAD())
-	if (rb_safe_level() >= 3)
-	    OBJ_UNTRUST(str);
-    rb_str_cat(str, name, len);
-    OBJ_FREEZE(str);
-    return str;
+    if (n <= len) {
+	rb_raise(rb_eArgError, "integer overflow");
+    }
+    else {
+	VALUE str = rb_newobj_from_heap(global_symbols.objspace);
+	RSTRING(str)->basic.flags = T_STRING;
+	RSTRING(str)->basic.klass = 0;
+	rb_enc_associate(str, enc);
+	if (GET_THREAD())
+	    if (rb_safe_level() >= 3)
+		OBJ_UNTRUST(str);
+	if (len > RSTRING_EMBED_LEN_MAX) {
+	    RSTRING(str)->as.heap.ptr = rb_objspace_xmalloc(global_symbols.objspace, n);
+	    RSTRING(str)->as.heap.len = len;
+	    RSTRING(str)->as.heap.aux.capa = n;
+	    FL_SET(str, RSTRING_NOEMBED);
+	}
+	else {
+	    RSTRING(str)->basic.flags |= len << RSTRING_EMBED_LEN_SHIFT;
+	}
+	memcpy(RSTRING_PTR(str), name, len);
+	RSTRING_PTR(str)[len] = '\0';
+	OBJ_FREEZE(str);
+	return str;
+    }
 }
 
 static ID

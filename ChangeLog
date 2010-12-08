@@ -1,3 +1,9 @@
+Thu Dec  9 04:16:39 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y (sym_str_new): rb_str_cat was also wrong idea, because
+	  it can call xrealloc. symbols are handled in a dedicated
+	  objspace so allocations should also happen inside of it.
+
 Thu Dec  9 02:58:55 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm_core.h: type mismatch.
