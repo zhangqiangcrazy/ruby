@@ -1572,6 +1572,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
 	rb_queue_destroy(&vm->queue.signal);
         rb_objspace_xfree(vm->objspace, vm->cache);
         rb_objspace_xfree(vm->objspace, vm->specific_storage.ptr);
+        rb_ary_clear(vm->mark_object_ary);
         rb_objspace_free(vm->objspace);
         free(vm->init_options);
 	return TRUE;

@@ -1,3 +1,8 @@
+Wed Dec  8 20:59:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): vm->mark_object_ary shall be flushed
+	  prior to rb_objspace_free, otherwise objects might remain alive.
+
 Wed Dec  8 20:29:44 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* marshal.c (free_compat_allocator_tbl): New function.  In the
