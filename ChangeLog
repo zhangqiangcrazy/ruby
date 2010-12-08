@@ -1,3 +1,8 @@
+Thu Dec  9 07:26:51 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (rb_vm_initialize): this temporary string should be
+	  zero-filled to prevent exception by non-ascii garbage.
+
 Thu Dec  9 07:18:53 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (vm_data_type): might be a merge miss.  dfree shall be specified.

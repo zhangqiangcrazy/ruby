@@ -1566,9 +1566,6 @@ ruby_vmptr_destruct(rb_vm_t *vm)
     if (!vm) {
         return FALSE;
     }
-    else if ((th = GET_THREAD())->vm != vm) {
-        abort();                /* ping ping. */
-    }
     else {
         if (vm->living_threads) {
             st_foreach(vm->living_threads, vm_knockin_on_the_heavens_door, (st_data_t)vm->main_thread);
@@ -2108,11 +2105,13 @@ rb_vm_initialize(int argc, VALUE *argv, VALUE self)
     if ((vm->argc = argc) > 0) {
 	int i;
 	long j;
-	VALUE ary, str;
+	VALUE ary, str, tmp;
 	size_t sizeof_argv = sizeof vm->argv[0] * (argc + 1);
 	for (i=0; i<argc; i++) StringValue(argv[i]);
 	ary = rb_ary_new4(argc, argv);
-	rb_ary_unshift(ary, rb_str_tmp_new(sizeof_argv));
+        tmp = rb_str_tmp_new(sizeof_argv);
+        MEMZERO(RSTRING_PTR(tmp), char, sizeof_argv);
+	rb_ary_unshift(ary, tmp);
 	str = rb_ary_join(ary, rb_str_new("\0", 1));
 	RBASIC(str)->klass = 0;
 	j = sizeof_argv + 1;
