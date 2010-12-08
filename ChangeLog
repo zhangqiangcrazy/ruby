@@ -1,3 +1,10 @@
+Wed Dec  8 22:31:15 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* marshal.c (final_free_marshal_compat): marshal_compat_t
+	  variables shall be freed.
+
+	* variable.c (unref_global_variable): typo fix
+
 Wed Dec  8 22:06:40 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* variable.c (final_free_global_entry): global entries have

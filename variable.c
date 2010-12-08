@@ -378,7 +378,7 @@ struct global_variable {
 #define readonly_setter rb_gvar_readonly_setter
 
 static inline void
-unref_global_variable(strut global_variable *var)
+unref_global_variable(struct global_variable *var)
 {
     if (--var->counter == 0) {
         struct trace_var *trace = var->trace;
@@ -395,7 +395,7 @@ int
 final_free_global_entry(st_data_t key, st_data_t value, st_data_t ignore)
 {
     struct global_entry *ent = (void*)value;
-    unref_globa;_variable(ent->var);
+    unref_global_variable(ent->var);
     xfree(ent);
     return ST_DELETE;
 }

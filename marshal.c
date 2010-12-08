@@ -1926,9 +1926,16 @@ Init_marshal(void)
     s_binmode = rb_intern("binmode");
 }
 
+static int
+final_free_marshal_compat(st_data_t key, st_data_t value, st_data_t ignore)
+{
+    free((void*)value);
+}
+
 void
 free_compat_allocator_tbl(void* ptr)
 {
+    st_foreach(ptr, final_free_marshal_compat, 0);
     st_free_table(ptr);
 }
 
