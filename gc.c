@@ -385,6 +385,7 @@ rb_objspace_alloc(void)
 }
 
 static void gc_sweep(rb_objspace_t *objspace);
+static void gc_finalize_deferred(rb_objspace_t *objspace);
 
 void
 rb_objspace_free(rb_objspace_t *objspace)
@@ -398,6 +399,7 @@ rb_objspace_free(rb_objspace_t *objspace)
         }
     }
     gc_sweep(objspace);
+    gc_finalize_deferred(objspace);
     if (objspace->profile.record) {
 	free(objspace->profile.record);
 	objspace->profile.record = 0;

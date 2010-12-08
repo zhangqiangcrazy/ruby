@@ -1,3 +1,7 @@
+Thu Dec  9 05:39:32 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* gc.c (rb_objspace_free): deferred finalizers shall be called here.
+
 Thu Dec  9 04:55:10 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* variable.c (InitVM_global_iv_tbl): Well, prior to this change
