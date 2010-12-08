@@ -555,11 +555,12 @@ rb_define_hooked_variable(
 
     if (var) {
 	rb_vm_t *vm = GET_VM();
+        void **ptr = (void **)var;
 	if (vm->specific_storage.ptr &&
-	    vm->specific_storage.ptr <= var &&
-	    var < vm->specific_storage.ptr + vm->specific_storage.len &&
-	    ((char *)var - (char *)vm->specific_storage.ptr) % sizeof(VALUE) == 0) {
-	    vmkey = var - vm->specific_storage.ptr;
+	    vm->specific_storage.ptr <= ptr &&
+	    ptr < vm->specific_storage.ptr + vm->specific_storage.len &&
+	    ((char *)ptr - (char *)vm->specific_storage.ptr) % sizeof(void **) == 0) {
+	    vmkey = ptr - vm->specific_storage.ptr;
 	}
 	else {
 	    tmp = *var;

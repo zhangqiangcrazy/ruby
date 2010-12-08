@@ -237,36 +237,30 @@ rb_vm_key_create(void)
     return key;
 }
 
-VALUE *
+void *
 rb_vm_specific_ptr_for_specific_vm(rb_vm_t *vm, int key)
 {
-    VALUE *ptr;
+    void **ptr;
     long len;
 
     ptr = vm->specific_storage.ptr;
     len = vm->specific_storage.len;
     if (!ptr || len <= key) {
 	long newlen = (key + 8) & ~7;
-	ptr = realloc(ptr, sizeof(VALUE) * newlen);
+	ptr = realloc(ptr, sizeof(void *) * newlen);
 	vm->specific_storage.ptr = ptr;
 	vm->specific_storage.len = newlen;
-	MEMZERO(ptr + len, VALUE, newlen - len);
+	MEMZERO(&ptr[len], void *, newlen - len);
     }
     return &ptr[key];
 }
 
-VALUE *
-rb_vm_specific_ptr(int key)
+void *
+ruby_vm_specific_ptr(int key)
 {
     rb_vm_t *vm = GET_VM();
     if (!vm) return 0;
     return rb_vm_specific_ptr_for_specific_vm(vm, key);
-}
-
-VALUE *
-ruby_vm_specific_ptr(int key)
-{
-    return rb_vm_specific_ptr(key);
 }
 
 /* at exit */

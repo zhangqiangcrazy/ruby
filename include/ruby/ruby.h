@@ -28,6 +28,8 @@ extern "C" {
 #endif
 #endif
 
+#include <ruby/vm.h>
+
 #define NORETURN_STYLE_NEW 1
 #ifndef NORETURN
 # define NORETURN(x) x
@@ -1161,6 +1163,16 @@ VALUE rb_require(const char*);
 void *ruby_options(int, char**);
 int ruby_run_node(void *);
 int ruby_exec_node(void *);
+
+/* for reductiion of key punching */
+#ifdef __GNUC__
+__attribute__((__always_inline__, __warn_unused_result__))
+#endif
+static inline VALUE *
+rb_vm_specific_ptr(int key)
+{
+    return ruby_vm_specific_ptr(key);
+}
 
 #include "ruby/public_object.h"
 

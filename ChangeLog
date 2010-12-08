@@ -1,3 +1,18 @@
+Thu Dec  9 00:09:58 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* include/ruby/vm.h: I believe this function can now handle
+	  arbitrary pointers.
+
+	* include/ruby/ruby.h: ditto.
+
+	* mvm.c (ruby_vm_specific_ptr): ditto.
+
+	* vm_core.h (rb_vm_struct): ditto.
+
+	* ruby.c (proc_options): ditto.
+
+	* io.c (ruby_vm_argf): ditto.
+
 Wed Dec  8 22:31:15 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* marshal.c (final_free_marshal_compat): marshal_compat_t

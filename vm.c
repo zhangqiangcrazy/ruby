@@ -1492,6 +1492,7 @@ rb_vm_mark(void *ptr)
     RUBY_MARK_ENTER("vm");
     RUBY_GC_INFO("-------------------------------------------------\n");
     if (vm && vm == GET_VM()) {
+        VALUE *start, *end;
 	if (vm->living_threads) {
 	    st_foreach(vm->living_threads, vm_mark_each_thread_func, 0);
 	}
@@ -1502,7 +1503,9 @@ rb_vm_mark(void *ptr)
 	RUBY_MARK_UNLESS_NULL(vm->loaded_features);
 	RUBY_MARK_UNLESS_NULL(vm->top_self);
 	RUBY_MARK_UNLESS_NULL(vm->coverages);
-	rb_gc_mark_locations(vm->specific_storage.ptr, vm->specific_storage.ptr + vm->specific_storage.len - 1);
+        start = (VALUE *)vm->specific_storage.ptr;
+        end = (VALUE *)(vm->specific_storage.ptr + vm->specific_storage.len - 1);
+	rb_gc_mark_locations(start, end);
 
 	if (vm->loading_table) {
 	    rb_mark_tbl(vm->loading_table);

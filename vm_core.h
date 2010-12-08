@@ -370,7 +370,7 @@ typedef struct rb_vm_struct {
     st_table *global_tbl;
 
     struct {
-	VALUE *ptr;
+	void **ptr;
 	long len;
     } specific_storage;
 
@@ -810,7 +810,7 @@ __attribute__((__pure__, __warn_unused_result__))
    @param[in] key  which storage.
    @returns a pointer to a VM specific storage.
  */
-VALUE *rb_vm_specific_ptr_for_specific_vm(rb_vm_t *vm, int key);
+void *rb_vm_specific_ptr_for_specific_vm(rb_vm_t *vm, int key);
 
 #define sysstack_error rb_errSysStack
 

@@ -20,7 +20,6 @@ extern "C" {
 #endif
 
 #include <stddef.h>
-#include <ruby/ruby.h>
 
 #define HAVE_MVM 1
 
@@ -60,7 +59,7 @@ int ruby_vm_init_stderr(ruby_vm_t *vm, int fd);
 
 /* other API */
 void ruby_vm_foreach(int (*)(ruby_vm_t *, void *), void *); /* returning false stops iteration */
-VALUE *ruby_vm_specific_ptr(int);
+void *ruby_vm_specific_ptr(int);
 /**
    ruby_vm_at_exit registers a function _func_ to be invoked when a VM
    passed away.  Functions registered this way runs in reverse

@@ -155,9 +155,8 @@ static rb_thread_lock_t max_file_descriptor_lock;
     } while (0)
 
 #define argf_of(obj) (*(struct argf *)DATA_PTR(obj))
-#define ruby_vm_argf(vm) (*rb_vm_specific_ptr_for_specific_vm(vm, rb_vmkey_argf))
-#define rb_vm_argf() ruby_vm_argf(GET_VM())
-#define ARGF argf_of(rb_vm_argf())
+#define ruby_vm_argf(vm) (*(VALUE *)rb_vm_specific_ptr_for_specific_vm(vm, rb_vmkey_argf))
+#define ARGF argf_of(rb_argf)
 
 #ifdef _STDIO_USES_IOSTREAM  /* GNU libc */
 #  ifdef _IO_fpos_t
@@ -7025,7 +7024,7 @@ static VALUE argf_gets(int, VALUE *, VALUE);
 static VALUE
 rb_f_gets(int argc, VALUE *argv, VALUE recv)
 {
-    VALUE argf = ruby_vm_argf(GET_VM());
+    VALUE argf = rb_argf;
     if (recv == argf) {
 	return argf_gets(argc, argv, argf);
     }
@@ -7062,7 +7061,7 @@ VALUE
 rb_gets(void)
 {
     VALUE line;
-    VALUE argf = ruby_vm_argf(GET_VM());
+    VALUE argf = rb_argf;
 
     if (rb_rs != rb_default_rs) {
 	return rb_f_gets(0, 0, argf);
@@ -7100,7 +7099,7 @@ static VALUE argf_readline(int, VALUE *, VALUE);
 static VALUE
 rb_f_readline(int argc, VALUE *argv, VALUE recv)
 {
-    VALUE argf = ruby_vm_argf(GET_VM());
+    VALUE argf = rb_argf;
     if (recv == argf) {
 	return argf_readline(argc, argv, argf);
     }
@@ -7154,7 +7153,7 @@ static VALUE argf_readlines(int, VALUE *, VALUE);
 static VALUE
 rb_f_readlines(int argc, VALUE *argv, VALUE recv)
 {
-    VALUE argf = ruby_vm_argf(GET_VM());
+    VALUE argf = rb_argf;
     if (recv == argf) {
 	return argf_readlines(argc, argv, argf);
     }
@@ -8523,7 +8522,7 @@ copy_stream_body(VALUE arg)
     VALUE src_io, dst_io;
     rb_io_t *src_fptr = 0, *dst_fptr = 0;
     int src_fd, dst_fd;
-    VALUE argf = ruby_vm_argf(GET_VM());
+    VALUE argf = rb_argf;
 
     stp->th = rb_thread_current();
 
@@ -9974,7 +9973,7 @@ InitVM_IO(void)
     int fd;
     const int *stdfds;
     VALUE rb_cARGF;
-    VALUE *argfp = &ruby_vm_argf(GET_VM());
+    VALUE *argfp = &rb_argf;
 #ifdef __CYGWIN__
 #include <sys/cygwin.h>
     static struct __cygwin_perfile pf[] =

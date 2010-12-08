@@ -1,8 +1,6 @@
 #ifndef RUBY_PUBLIC_OBJECT_H
 #define RUBY_PUBLIC_OBJECT_H 1
 
-VALUE *rb_vm_specific_ptr(int key);
-
 enum ruby_public_object_vmkey {
     rb_vmkey_mKernel,
 #define rb_mKernel (*rb_vm_specific_ptr(rb_vmkey_mKernel))
@@ -183,7 +181,7 @@ enum ruby_public_object_vmkey {
     rb_vmkey_debug,
 #define ruby_debug (*rb_vm_specific_ptr(rb_vmkey_debug))
     rb_vmkey_progname,
-
+#define rb_progname (*rb_vm_specific_ptr(rb_vmkey_progname))
     rb_vmkey_fs,
 #define rb_fs (*rb_vm_specific_ptr(rb_vmkey_fs))
     rb_vmkey_output_fs,
