@@ -1,3 +1,7 @@
+Wed Dec  8 19:48:31 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): vm->init_options shall be freed.
+
 Wed Dec  8 19:43:15 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_make_bare_vm): This malloc generates an immediate

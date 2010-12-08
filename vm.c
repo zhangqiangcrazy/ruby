@@ -1573,6 +1573,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
         rb_objspace_xfree(vm->objspace, vm->cache);
         rb_objspace_xfree(vm->objspace, vm->specific_storage.ptr);
         rb_objspace_free(vm->objspace);
+        free(vm->init_options);
 	return TRUE;
     }
 }
