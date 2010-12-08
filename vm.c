@@ -1641,7 +1641,7 @@ vm_memsize(const void *ptr)
 
 static const rb_data_type_t vm_data_type = {
     "VM",
-    rb_vm_mark, 0, vm_memsize,
+    rb_vm_mark, vm_free, vm_memsize,
 };
 
 #if defined(ENABLE_VM_OBJSPACE) && ENABLE_VM_OBJSPACE
