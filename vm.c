@@ -1573,6 +1573,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
 	ruby_native_cond_destroy(&vm->global_vm_waiting);
 	rb_queue_destroy(&vm->queue.message);
 	rb_queue_destroy(&vm->queue.signal);
+        rb_sweep_method_entry(vm);
         vm->mark_object_ary = Qundef;
         rb_objspace_free(vm->objspace);
         FinalVM_generic_iv_tbl(vm);
