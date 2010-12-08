@@ -1,3 +1,18 @@
+Wed Dec  8 20:29:44 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* marshal.c (free_compat_allocator_tbl): New function.  In the
+	  first place, thie compat_allocator_tbl has been leaked ever
+	  since it has been introduced.  I double-checked this on my
+	  repo's annotation.  Once upon a time when we has only one VM per
+	  a process, the leak was not a problem, because the hash table
+	  survives entire process lifetime.  Now that we have multiple
+	  VMs, VM termination is no longer connected to process
+	  termination, and this hash is per VM, not per problem.  So the
+	  leak is now a real problem.
+
+	* marshal.c (InitVM_marshal): Register free_compat_allocator_tbl
+	  to be kicked when this object is freed.
+
 Wed Dec  8 19:48:31 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): vm->init_options shall be freed.

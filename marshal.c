@@ -1927,6 +1927,12 @@ Init_marshal(void)
 }
 
 void
+free_compat_allocator_tbl(void* ptr)
+{
+    st_free_table(ptr);
+}
+
+void
 InitVM_marshal(void)
 {
     VALUE rb_mMarshal = rb_define_module("Marshal");
@@ -1939,7 +1945,7 @@ InitVM_marshal(void)
     rb_define_const(rb_mMarshal, "MINOR_VERSION", INT2FIX(MARSHAL_MINOR));
 
     rb_compat_allocator_tbl =
-	Data_Wrap_Struct(rb_cData, mark_marshal_compat_t, 0, st_init_numtable());
+	Data_Wrap_Struct(rb_cData, mark_marshal_compat_t, free_compat_allocator_tbl, st_init_numtable());
     rb_gc_register_mark_object(rb_compat_allocator_tbl);
 }
 
