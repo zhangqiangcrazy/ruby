@@ -1543,6 +1543,14 @@ vm_knockin_on_the_heavens_door(st_data_t key, st_data_t value, st_data_t outer)
     return ST_CONTINUE;
 }
 
+static int
+vm_free_locks(st_data_t file, st_data_t barrier, st_data_t ignore)
+{
+    xfree((char*)file);
+    rb_barrier_destroy((VALUE)barrier);
+    return ST_CONTINUE;
+}
+
 /*
  * @shyouhei notes that this function is to acutually destruct a VM.
  * Thus you cannot expect a VM to survive after this function.  In
@@ -1565,6 +1573,12 @@ ruby_vmptr_destruct(rb_vm_t *vm)
         if (vm->living_threads) {
             st_foreach(vm->living_threads, vm_knockin_on_the_heavens_door, (st_data_t)vm->main_thread);
             st_free_table(vm->living_threads);
+        }
+        if (vm->loading_table) {
+            /* @shyouhei is not sure if a loading lock should be per
+             * VM...  shouldn't it be process global? */
+            st_foreach(vm->loading_table, vm_free_locks, 0);
+            st_free_table(vm->loading_table);
         }
         ruby_native_thread_unlock(&vm->global_vm_lock);
         ruby_native_cond_signal(&vm->global_vm_waiting);
