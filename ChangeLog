@@ -1,3 +1,13 @@
+Wed Dec  8 22:06:40 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* variable.c (final_free_global_entry): global entries have
+	  indirect references to other memory regions, which also shall be
+	  freed.
+
+	* variable.c (unref_global_variable): pulled up as a function.
+
+	* variable.c (rb_alias_variable): use unref_global_variable.
+
 Wed Dec  8 21:18:12 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): vm->cache needed when

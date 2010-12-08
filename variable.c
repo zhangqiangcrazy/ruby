@@ -35,9 +35,12 @@ Init_var_tables(void)
     CONST_ID(classid, "__classid__");
 }
 
+static int final_free_global_entry(st_data_t key, st_data_t value, st_data_t ignore);
+
 static void
 FinalVM_var_table(rb_vm_t *vm)
 {
+    st_foreach(vm->global_tbl, final_free_global_entry, 0);
     st_free_table(vm->global_tbl);
 }
 
@@ -373,6 +376,29 @@ struct global_variable {
 #define var_marker	rb_gvar_var_marker
 
 #define readonly_setter rb_gvar_readonly_setter
+
+static inline void
+unref_global_variable(strut global_variable *var)
+{
+    if (--var->counter == 0) {
+        struct trace_var *trace = var->trace;
+        while (trace) {
+            struct trace_var *next = trace->next;
+            xfree(trace);
+            trace = next;
+        }
+        xfree(var);
+    }
+}
+
+int
+final_free_global_entry(st_data_t key, st_data_t value, st_data_t ignore)
+{
+    struct global_entry *ent = (void*)value;
+    unref_globa;_variable(ent->var);
+    xfree(ent);
+    return ST_DELETE;
+}
 
 struct global_entry*
 rb_global_entry(ID id)
@@ -871,16 +897,7 @@ rb_alias_variable(ID name1, ID name2)
 	if (var->block_trace) {
 	    rb_raise(rb_eRuntimeError, "can't alias in tracer");
 	}
-	var->counter--;
-	if (var->counter == 0) {
-	    struct trace_var *trace = var->trace;
-	    while (trace) {
-		struct trace_var *next = trace->next;
-		xfree(trace);
-		trace = next;
-	    }
-	    xfree(var);
-	}
+        unref_global_variable(var);
     }
     else {
 	return;
