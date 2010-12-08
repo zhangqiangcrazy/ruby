@@ -1,3 +1,8 @@
+Thu Dec  9 01:18:55 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): vm->specific_storage.ptr had same
+	  constraint as vm->cache.
+
 Thu Dec  9 00:49:43 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): rb_ary_clear was insufficient,
