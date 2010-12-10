@@ -28,6 +28,7 @@ rb_call_inits(void)
     CALL(generic_iv_tbl);
     CALL(sym);
     CALL(var_tables);
+    CALL(util);
     CALL(Object);
     CALL(top_self);
     CALL(Encoding);

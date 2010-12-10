@@ -23,6 +23,15 @@
 
 #include "ruby/util.h"
 
+#if   defined(_WIN32)
+#include "thread_win32.h"
+#elif defined(HAVE_PTHREAD_H)
+#include "thread_pthread.h"
+#else
+#error "unsupported thread type"
+#endif
+#include "eval_intern.h"
+
 unsigned long
 ruby_scan_oct(const char *start, size_t len, size_t *retlen)
 {
@@ -440,7 +449,9 @@ static void mmrot3_(register char *a, register char *b, register char *c, int mm
 /*****************************************************/
 
 typedef struct { char *LL, *RR; } stack_node; /* Stack structure for L,l,R,r */
+#undef PUSH
 #define PUSH(ll,rr) do { top->LL = (ll); top->RR = (rr); ++top; } while (0)  /* Push L,l,R,r */
+#undef POP
 #define POP(ll,rr)  do { --top; ll = top->LL; rr = top->RR; } while (0)      /* Pop L,l,R,r */
 
 #define med3(a,b,c) ((*cmp)(a,b,d)<0 ?                                   \
@@ -1116,9 +1127,25 @@ extern double rnd_prod(double, double), rnd_quot(double, double);
 #define ACQUIRE_DTOA_LOCK(n)	/*nothing*/
 #define FREE_DTOA_LOCK(n)	/*nothing*/
 #else
-#define ACQUIRE_DTOA_LOCK(n)	/*unused right now*/
-#define FREE_DTOA_LOCK(n)	/*unused right now*/
+static rb_thread_lock_t locks[2];
+#define ACQUIRE_DTOA_LOCK(n)	ruby_native_thread_lock(&locks[n])
+#define FREE_DTOA_LOCK(n)	ruby_native_thread_unlock(&locks[n])
 #endif
+
+void
+Init_util(void)
+{
+#ifdef MULTIPLE_THREADS
+    int i;
+    for (i=0; i<sizeof(locks)/sizeof(locks[0]); i++)
+        ruby_native_thread_lock_initialize(&locks[i]);
+#endif
+}
+
+void
+InitVM_util(void)
+{
+}
 
 #define Kmax 15
 
