@@ -1,3 +1,7 @@
+Sat Dec 11 01:03:08 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (vm_free): the condition was wrong.
+
 Sat Dec 11 00:32:02 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* thread.c (rb_vm_terminate_all_really_everything): New function.

@@ -1585,22 +1585,12 @@ static void
 vm_free(void *ptr)
 {
     rb_vm_t *vm = ptr;
-    rb_vm_t *current_vm = GET_VM();
-    rb_vm_t *parent_vm;
-    rb_vm_t *self_vm;
+    rb_vm_t *self = GET_VM();
 
-    if (current_vm->self) {
-        GetVMPtr(current_vm->self, self_vm);
-        if (self_vm == vm) {
-            return;
-        }
-    }
-    if (current_vm->parent) {
-        GetVMPtr(current_vm->parent, parent_vm);
-        if (parent_vm == vm) {
-            return;
-        }
-    }
+    /* only a VM who created this VM, not this one itself, can free it. */
+    if (!vm) return;
+    if (vm == self) return;
+    if (self->parent && (RTYPEDDATA_DATA(self->parent) == vm)) return;
     RUBY_FREE_ENTER("vm");
     ruby_vm_destruct(vm);
     RUBY_FREE_LEAVE("vm");
