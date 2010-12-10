@@ -1,3 +1,7 @@
+Fri Dec 10 19:14:44 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* thread.c (thread_start_func_2): They were double-free.
+
 Fri Dec 10 18:56:07 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): current thread not always vm->main.

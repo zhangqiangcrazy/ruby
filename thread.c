@@ -502,16 +502,14 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
 	TH_POP_TAG();
 	thread_terminated_2(th, state);
 
+        thread_cleanup_func(th);
 	if (vm->main_thread == th) {
 	    int signo = 0;
-	    ruby_vm_cleanup(vm, state);
 	    if (ruby_vm_main_p(vm)) signo = ruby_vm_exit_signal(vm);
-	    ruby_vm_destruct(vm);
 	    if (signo) ruby_default_signal(signo);
 	    native_cond_signal(&vm->global_vm_waiting);
 	}
 	else {
-	    thread_cleanup_func(th);
 	}
     }
     native_mutex_unlock(&vm->global_vm_lock);
