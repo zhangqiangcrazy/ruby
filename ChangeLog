@@ -1,3 +1,8 @@
+Sat Dec 11 05:20:11 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* util.c (scan_digits): Constify.  What is important here is the
+	  data can be accessed simultaneously from multiple VMs.
+
 Sat Dec 11 05:00:32 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* regparse.c (FreeNodeList): is a global static variable and shall
