@@ -392,8 +392,8 @@ rb_vm_terminate_all_really_everything(rb_vm_t *vm)
 	    rb_vm_thread_terminate_all(vm);
 	}
     }
-    if (vm->main_thread) {
-	terminate_i(vm->main_thread, 0, 0);
+    if (vm->main_thread && vm->main_thread->status != THREAD_KILLED) {
+	terminate_i((st_data_t)vm->main_thread->self, 0, 0);
         while (vm->main_thread->status != THREAD_KILLED) {
             PUSH_TAG();
             if (EXEC_TAG() == 0) {
@@ -525,6 +525,7 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
         thread_cleanup_func(th);
 	if (vm->main_thread == th) {
 	    int signo = 0;
+            rb_vm_thread_terminate_all(vm);
 	    if (ruby_vm_main_p(vm)) signo = ruby_vm_exit_signal(vm);
 	    if (signo) ruby_default_signal(signo);
 	    native_cond_signal(&vm->global_vm_waiting);

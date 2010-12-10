@@ -1,3 +1,15 @@
+Sat Dec 11 03:21:50 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* mvm.c (vm_join): Original condition never reached, because a
+	  vm->living_threads will not be freed until the VM is GCed;
+	  someone else is joining a VM means it still has the hash.
+
+	* thread.c (thread_start_func_2): Main thread's graceful
+	  shutdown neds to finish other threads of the same VM.
+
+	* thread.c (rb_vm_terminate_all_really_everything): This is
+	  abnormal shutdown; main thread might already be killed.
+
 Sat Dec 11 01:25:15 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): fixme.  don't know why this is wrong.
