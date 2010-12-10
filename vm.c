@@ -1561,14 +1561,18 @@ vm_free_locks(st_data_t file, st_data_t barrier, st_data_t ignore)
 int
 ruby_vmptr_destruct(rb_vm_t *vm)
 {
-    rb_thread_t *th;
+    rb_thread_t *th = GET_THREAD();
 
     if (!vm) {
         return FALSE;
     }
     else {
+        if (vm->main_thread != th) {
+            ruby_native_thread_choke(vm->main_thread);
+            vm->main_thread = 0;
+        }
         if (vm->living_threads) {
-            st_foreach(vm->living_threads, vm_knockin_on_the_heavens_door, (st_data_t)vm->main_thread);
+            st_foreach(vm->living_threads, vm_knockin_on_the_heavens_door, (st_data_t)th);
             st_free_table(vm->living_threads);
         }
         if (vm->loading_table) {
