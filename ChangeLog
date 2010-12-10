@@ -1,3 +1,15 @@
+Sat Dec 11 00:32:02 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* thread.c (rb_vm_terminate_all_really_everything): New function.
+	  On a process termination (not per-VM), termination of all
+	  threads, without allowing a sanctuary, is mandatory.
+
+	* vm.c (vm_knockin_on_the_heavens_door): move to thread.c
+
+Sat Dec 11 00:03:58 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): use what we already have.
+
 Fri Dec 10 21:36:08 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (vm_thread_new): might be a yer another merge miss.  A

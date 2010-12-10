@@ -384,6 +384,26 @@ rb_vm_thread_terminate_all(rb_vm_t *vm)
     }
 }
 
+void
+rb_vm_terminate_all_really_everything(rb_vm_t *vm)
+{
+    if (vm->living_threads) {
+	if (vm->living_threads->num_entries > 1) {
+	    rb_vm_thread_terminate_all(vm);
+	}
+    }
+    if (vm->main_thread) {
+	terminate_i(vm->main_thread, 0, 0);
+        while (vm->main_thread->status != THREAD_KILLED) {
+            PUSH_TAG();
+            if (EXEC_TAG() == 0) {
+                rb_thread_schedule();
+            }
+            POP_TAG();            
+        }
+    }
+}
+
 static void
 thread_unlock_all_locking_mutexes(rb_thread_t *th)
 {

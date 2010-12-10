@@ -1527,22 +1527,6 @@ rb_vm_mark(void *ptr)
     RUBY_MARK_LEAVE("vm");
 }
 
-/*
- * @shyouhei notes that the tricky part of this function is it just
- * leaves the thread resouces; they are left to be collected via GC.
- */
-static int
-vm_knockin_on_the_heavens_door(st_data_t key, st_data_t value, st_data_t outer)
-{
-    VALUE thval = (VALUE)key;
-    rb_thread_t* th = RTYPEDDATA_DATA(thval);
-    rb_thread_t *tnow = (rb_thread_t *)outer;
-    if (th != tnow) {
-        ruby_native_thread_choke(th);
-    }
-    return ST_CONTINUE;
-}
-
 static int
 vm_free_locks(st_data_t file, st_data_t barrier, st_data_t ignore)
 {
@@ -1567,14 +1551,8 @@ ruby_vmptr_destruct(rb_vm_t *vm)
         return FALSE;
     }
     else {
-        if (vm->main_thread != th) {
-            ruby_native_thread_choke(vm->main_thread);
-            vm->main_thread = 0;
-        }
-        if (vm->living_threads) {
-            st_foreach(vm->living_threads, vm_knockin_on_the_heavens_door, (st_data_t)th);
-            st_free_table(vm->living_threads);
-        }
+        rb_vm_terminate_all_really_everything(vm);
+        st_free_table(vm->living_threads);
         if (vm->loading_table) {
             /* @shyouhei is not sure if a loading lock should be per
              * VM...  shouldn't it be process global? */
