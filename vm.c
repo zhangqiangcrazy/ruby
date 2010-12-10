@@ -2756,10 +2756,6 @@ vm_thread_new(rb_vm_t *vm)
     MEMZERO(th, rb_thread_t, 1);
     th_init(th, 0);
     th->vm = vm;
-    vm->main_thread = th;
-    ruby_threadptr_init(th);
-    ruby_thread_set_native(th);
-
     return th;
 }
 
