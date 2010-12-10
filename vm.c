@@ -1562,7 +1562,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
         ruby_native_thread_unlock(&vm->global_vm_lock);
         ruby_native_cond_signal(&vm->global_vm_waiting);
         if (vm->parent) ((rb_vm_t*)RTYPEDDATA_DATA(vm->parent))->ref_count --;
-	ruby_native_thread_lock_destroy(&vm->global_vm_lock);
+	/* ruby_native_thread_lock_destroy(&vm->global_vm_lock); */
 	ruby_native_cond_destroy(&vm->global_vm_waiting);
 	rb_queue_destroy(&vm->queue.message);
 	rb_queue_destroy(&vm->queue.signal);
