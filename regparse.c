@@ -1009,8 +1009,39 @@ typedef struct _FreeNode {
   struct _FreeNode* next;
 } FreeNode;
 
-static FreeNode* FreeNodeList = (FreeNode* )NULL;
+static int vmkey_FreeNodeList = 0;
+#define FreeNodeList (*(FreeNode **)ruby_vm_specific_ptr(vmkey_FreeNodeList))
 #endif
+
+void
+Init_regparse(void)
+{
+#ifdef USE_PARSE_TREE_NODE_RECYCLE
+    vmkey_FreeNodeList = rb_vm_key_create();
+#endif
+}
+
+#ifdef USE_PARSE_TREE_NODE_RECYCLE
+static void
+FinalVM_regparse(ruby_vm_t * vm)
+{
+    FreeNode *ptr = *rb_vm_specific_ptr_for_specific_vm(vm, vmkey_FreeNodeList);
+    while (ptr) {
+        FreeNode *tmp = ptr->next;
+        xfree(ptr);
+        ptr = tmp;
+    }
+}
+#endif
+
+void
+InitVM_regparse(void)
+{
+#ifdef USE_PARSE_TREE_NODE_RECYCLE
+    FreeNodeList = 0;
+    ruby_vm_at_exit(FinalVM_regparse);
+#endif
+}
 
 extern void
 onig_node_free(Node* node)

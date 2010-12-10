@@ -44,6 +44,7 @@ rb_call_inits(void)
     CALL(Array);
     CALL(Hash);
     CALL(Struct);
+    CALL(regparse);
     CALL(Regexp);
     CALL(pack);
     CALL(transcode);
