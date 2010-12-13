@@ -378,18 +378,21 @@ ruby_vm_foreach(int (*func)(rb_vm_t *, void *), void *arg)
 static int
 vm_join(rb_vm_t *vm)
 {
-    MVM_CRITICAL(vm_manager.lock, {
+    /* MVM_CRITICAL(vm_manager.lock, { */
+    pthread_mutex_lock(&vm_manager.lock);
         struct vm_list_struct *entry;
         for (entry=vm_manager.list; entry; entry=entry->next) {
             if (entry->vm == vm) {
+                do {
+                    ruby_native_cond_wait(&vm->global_vm_waiting, &vm_manager.lock);
+                }
                 while (vm->living_threads &&
                        vm->living_threads->num_entries > 1 &&
                        vm->main_thread &&
-                       vm->main_thread->status != THREAD_KILLED) {
-                    ruby_native_cond_wait(&vm->global_vm_waiting, &vm_manager.lock);
-                }
+                       vm->main_thread->status != THREAD_KILLED);
             }
         }
-    });
+    pthread_mutex_unlock(&vm_manager.lock);
+    /* }); */
     return 0;
 }
