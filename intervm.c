@@ -3,6 +3,7 @@
 #include <assert.h>
 #include <ruby/ruby.h>
 #include <ruby/st.h>
+#include <ruby/encoding.h>
 #include "gc.h"
 #include "node.h"
 #include "vm_core.h"
@@ -145,19 +146,25 @@ VALUE
 rb_intervm_str(str)
     VALUE str;
 {
-    VALUE ret, proc;
+    VALUE ret;
+    struct planet *ours;
     VALUE str2 = rb_check_string_type(str);
-    struct RString *strp = RSTRING(str2);
-    struct planet *ours = (void *)strp->as.heap.aux.shared;
-    if (FL_TEST(str2, ELTS_SHARED) && is_a_planet(ours)) {
-        /* already */
+    if (is_a_planet((void *)str2)) {
+        /* case 1: str itself is already intervm */
+        ours = (void *)str2;
+    }
+    else if (FL_TEST(str2, ELTS_SHARED) &&
+             is_a_planet((ours = (void *)RSTRING(str2)->as.heap.aux.shared))) {
+        /* case 2: str is a shared, shares intervm */
     }
     else {
-        /* create one */
+        /* case 3: create one */
         VALUE str3 = rb_str_new_shared(str2);
         rb_str_modify(str3);    /* <- this makes a deep copy */
         ours = consume();
         memmove(&ours->value, (void *)str3, sizeof(struct RString));
+        rb_enc_set_index((VALUE)&ours->value, ENCODING_GET(str3));
+        ours->value.basic.klass = 0;
         if (FL_TEST(str3, RSTRING_NOEMBED)) {
             /* need to avoid double free */
             RSTRING(str3)->as.heap.ptr = 0;
@@ -168,9 +175,7 @@ rb_intervm_str(str)
         OBJ_FREEZE(&ours->value);
     }
     /* at this point ours points to a valid live intervm object. */
-    ret = rb_str_new_shared((VALUE)&ours->value);
-    OBJ_FREEZE(ret);
-    return ret;
+    return ours;
 }
 
 void

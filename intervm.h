@@ -102,7 +102,9 @@ static inline rb_atomic_t rb_atomic_dec(rb_atomic_t *ptr)
 /**
  * @brief make a string that is shared among VMs.
  *
- * The returned string is not modifiable.  Make a copy if you need.
+ * The returned string is not modifiable.   Make a copy if you need.  Also note
+ * that the value  lives outside of your  object space; do not store  it on any
+ * arrays or hashes or anything.
  *
  * @param[in] str string to share
  * @returns a shared frozen string with identical content of str

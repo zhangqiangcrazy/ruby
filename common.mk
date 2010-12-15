@@ -563,6 +563,8 @@ gc.$(OBJEXT): {$(VPATH)}gc.c $(RUBY_H_INCLUDES) {$(VPATH)}re.h \
   {$(VPATH)}vm.h {$(VPATH)}debug.h
 hash.$(OBJEXT): {$(VPATH)}hash.c $(RUBY_H_INCLUDES) {$(VPATH)}util.h
 inits.$(OBJEXT): {$(VPATH)}inits.c $(RUBY_H_INCLUDES)
+intervm.$(OBJEXT): {$(VPATH)}intervm.c $(RUBY_H_INCLUDES) $(ENCODING_H_INCLUDES) \
+  $(VM_CORE_H_INCLUDES) {$(VPATH)}st.h  {$(VPATH)}node.h 
 io.$(OBJEXT): {$(VPATH)}io.c $(RUBY_H_INCLUDES) {$(VPATH)}io.h \
   {$(VPATH)}util.h $(ENCODING_H_INCLUDES) {$(VPATH)}dln.h {$(VPATH)}vm.h
 main.$(OBJEXT): {$(VPATH)}main.c $(RUBY_H_INCLUDES) {$(VPATH)}debug.h \
@@ -581,7 +583,7 @@ parse.$(OBJEXT): {$(VPATH)}parse.c $(RUBY_H_INCLUDES) {$(VPATH)}node.h \
   $(ENCODING_H_INCLUDES) $(ID_H_INCLUDES) {$(VPATH)}regenc.h \
   {$(VPATH)}regex.h {$(VPATH)}util.h {$(VPATH)}lex.c \
   {$(VPATH)}defs/keywords {$(VPATH)}id.c {$(VPATH)}parse.y \
-  {$(VPATH)}parse.h {$(VPATH)}gc.h
+  {$(VPATH)}parse.h {$(VPATH)}gc.h {$(VPATH)}intervm.h
 proc.$(OBJEXT): {$(VPATH)}proc.c {$(VPATH)}eval_intern.h \
   $(RUBY_H_INCLUDES) {$(VPATH)}gc.h $(VM_CORE_H_INCLUDES) \
   {$(VPATH)}debug.h

@@ -24,6 +24,7 @@
 #include "gc.h"
 #include "id.h"
 #include "regenc.h"
+#include "intervm.h"
 #include <stdio.h>
 #include <errno.h>
 #include <ctype.h>
@@ -9365,7 +9366,6 @@ static struct symbols {
     st_table *id_str;
     VALUE op_sym[tLAST_TOKEN];
     rb_thread_lock_t lock;
-    struct rb_objspace *objspace;
 } global_symbols = {tLAST_ID};
 
 struct ivar_symbols {
@@ -9427,23 +9427,14 @@ static const struct st_hash_type ivar2_hash_type = {
     ivar2_hash,
 };
 
-static void
-Final_sym(void)
-{
-    rb_objspace_free(global_symbols.objspace);
-}
-
 void
 Init_sym(void)
 {
     ruby_native_thread_lock_initialize(&global_symbols.lock);
     ruby_native_thread_lock(&global_symbols.lock);
-    global_symbols.objspace = rb_objspace_alloc();
-    rb_objspace_gc_disable(global_symbols.objspace);
     global_symbols.sym_id = st_init_table_with_size(&symhash, 1000);
     global_symbols.id_str = st_init_numtable_with_size(1000);
     Init_id();
-    atexit(Final_sym);
     ruby_native_thread_unlock(&global_symbols.lock);
 }
 
@@ -9460,11 +9451,6 @@ InitVM_sym(void)
 void
 rb_gc_mark_symbols(void)
 {
-#if 0
-    rb_objspace_mark_tbl(global_symbols.objspace, global_symbols.id_str);
-    rb_objspace_mark_locations(global_symbols.objspace, global_symbols.op_sym,
-			       global_symbols.op_sym + tLAST_TOKEN);
-#endif
 }
 #endif /* !RIPPER */
 
@@ -9606,33 +9592,7 @@ rb_enc_symname2_p(const char *name, long len, rb_encoding *enc)
 static VALUE
 sym_str_new(const char *name, long len, rb_encoding *enc)
 {
-    size_t n = len + 1;		/* +1 for '\0' */
-
-    if (n <= len) {
-	rb_raise(rb_eArgError, "integer overflow");
-    }
-    else {
-	VALUE str = rb_newobj_from_heap(global_symbols.objspace);
-	RSTRING(str)->basic.flags = T_STRING;
-	RSTRING(str)->basic.klass = 0;
-	rb_enc_associate(str, enc);
-	if (GET_THREAD())
-	    if (rb_safe_level() >= 3)
-		OBJ_UNTRUST(str);
-	if (len > RSTRING_EMBED_LEN_MAX) {
-	    RSTRING(str)->as.heap.ptr = rb_objspace_xmalloc(global_symbols.objspace, n);
-	    RSTRING(str)->as.heap.len = len;
-	    RSTRING(str)->as.heap.aux.capa = n;
-	    FL_SET(str, RSTRING_NOEMBED);
-	}
-	else {
-	    RSTRING(str)->basic.flags |= len << RSTRING_EMBED_LEN_SHIFT;
-	}
-	memcpy(RSTRING_PTR(str), name, len);
-	RSTRING_PTR(str)[len] = '\0';
-	OBJ_FREEZE(str);
-	return str;
-    }
+    return rb_intervm_str(rb_enc_str_new(name, len, enc));
 }
 
 static ID
@@ -9821,7 +9781,7 @@ rb_id2str(ID id)
 		str = sym_str_new(name, 1, rb_usascii_encoding());
 		global_symbols.op_sym[i] = str;
 	    }
-	    return str;
+	    return rb_intervm_str(str);
 	}
 	for (i = 0; i < op_tbl_count; i++) {
 	    if (op_tbl[i].token == id) {
@@ -9831,7 +9791,7 @@ rb_id2str(ID id)
 		    str = sym_str_new(name, strlen(name), rb_usascii_encoding());
 		    global_symbols.op_sym[i] = str;
 		}
-		return str;
+		return rb_intervm_str(str);
 	    }
 	}
     }
@@ -9840,7 +9800,7 @@ rb_id2str(ID id)
         VALUE str = (VALUE)data;
         if (RBASIC(str)->klass == 0)
             RBASIC(str)->klass = rb_cString;
-	return str;
+	return rb_intervm_str(str);
     }
 
     if (is_attrset_id(id)) {
@@ -9858,7 +9818,7 @@ rb_id2str(ID id)
             VALUE str = (VALUE)data;
             if (RBASIC(str)->klass == 0)
                 RBASIC(str)->klass = rb_cString;
-            return str;
+            return rb_intervm_str(str);
         }
     }
     return 0;

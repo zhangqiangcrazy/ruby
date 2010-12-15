@@ -1,3 +1,14 @@
+Thu Dec 16 07:56:44 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y (sym_str_new): Uses intervm string.
+
+	* parse.y (rb_id2str): Uses intervm string also; it was a bug to
+	  return a cached string itself because that was not dedicated for
+	  a current VM.
+
+	* intervm.c (rb_intervm_str): case 1 was missing. Also needed care
+	  for embed strings.
+
 Thu Dec 16 07:22:51 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.h: New file.  This is an API to share datum among VMs.
