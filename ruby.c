@@ -1935,7 +1935,7 @@ ruby_vm_process_options(rb_vm_t *vm, int argc, char **argv)
     rb_gc_register_mark_object(rb_argv0);
     if (!optp) optp = rb_vm_options_init(&opt);
     iseq = process_options(vm, argc, argv, optp);
-    return (void*)(struct RData*)iseq;
+    return iseq;
 }
 
 void *

@@ -849,6 +849,7 @@ void rb_threadptr_execute_interrupts(rb_thread_t *);
 int ruby_threadptr_create(rb_thread_t *);
 void ruby_threadptr_init(rb_thread_t *);
 void ruby_threadptr_cleanup(rb_thread_t *);
+void rb_vm_terminate_all_really_everything(rb_vm_t *vm);
 
 void rb_thread_lock_unlock(rb_thread_lock_t *);
 void rb_thread_lock_destroy(rb_thread_lock_t *);

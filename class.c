@@ -27,6 +27,7 @@
 #include "ruby/st.h"
 #include "method.h"
 #include "vm_core.h"
+#include "gc.h"
 #include <ctype.h>
 
 static ID id_attached;

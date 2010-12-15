@@ -1930,6 +1930,7 @@ static int
 final_free_marshal_compat(st_data_t key, st_data_t value, st_data_t ignore)
 {
     free((void*)value);
+    return ST_CONTINUE;
 }
 
 void

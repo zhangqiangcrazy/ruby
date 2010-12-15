@@ -1,3 +1,13 @@
+Thu Dec 16 07:15:33 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* marshal.c (final_free_marshal_compat): should return.
+
+	* class.c: gc.h needed for rb_free_m_table.
+
+	* ruby.c (ruby_vm_process_options): what's this casting business?
+
+	* vm_core.h: declaration needed.
+
 Mon Dec 13 14:28:52 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* mvm.c (vm_join): join should wait for at least once.
