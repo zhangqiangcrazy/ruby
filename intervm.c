@@ -71,6 +71,7 @@ mother_of_the_universe(void)
     struct planet *planets = malloc(sizeof_an_universe);
     struct universe *newuniv = malloc(sizeof(struct universe));
     struct planet *last = &planets[number_of_planets - 1];
+    memset(planets, '\0', sizeof_an_universe);
     for (i=1; i<number_of_planets; i++) {
         planets[i].next = &planets[i - 1];
     }
@@ -114,7 +115,7 @@ struct planet *
 consume(void)
 {
     struct planet *now;
-    for (now = the_world.the_free; now; now = the_world.the_free) {
+    while ((now = the_world.the_free) != 0) {
         if (cas_p(the_world.the_free, now, now->next)) {
             assert(now->refs == 0);
             now->next = 0;

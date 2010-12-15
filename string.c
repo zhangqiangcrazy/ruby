@@ -15,6 +15,7 @@
 #include "ruby/re.h"
 #include "ruby/encoding.h"
 #include <assert.h>
+#include "intervm.h"
 
 #define BEG(no) regs->beg[no]
 #define END(no) regs->end[no]
@@ -641,6 +642,7 @@ str_replace_shared(VALUE str2, VALUE str)
 	RSTRING(str2)->as.heap.ptr = RSTRING_PTR(str);
 	RSTRING(str2)->as.heap.aux.shared = str;
 	FL_SET(str2, ELTS_SHARED);
+        rb_intervm_str_ascend(str);
     }
     rb_enc_cr_str_exact_copy(str2, str);
 
@@ -685,6 +687,7 @@ str_new4(VALUE klass, VALUE str)
 	assert(OBJ_FROZEN(shared));
 	FL_SET(str2, ELTS_SHARED);
 	RSTRING(str2)->as.heap.aux.shared = shared;
+        rb_intervm_str_ascend(shared);
     }
     else {
 	FL_SET(str, ELTS_SHARED);
@@ -801,6 +804,9 @@ rb_str_free(VALUE str)
     if (!STR_EMBED_P(str) && !STR_SHARED_P(str)) {
 	xfree(RSTRING(str)->as.heap.ptr);
     }
+    else if (STR_SHARED_P(str)) {
+        rb_intervm_str_descend(str);
+    }
 }
 
 size_t
@@ -840,6 +846,7 @@ rb_str_shared_replace(VALUE str, VALUE str2)
         ENC_CODERANGE_SET(str, cr);
 	return;
     }
+    rb_intervm_str_descend(str);
     STR_SET_NOEMBED(str);
     STR_UNSET_NOCAPA(str);
     RSTRING(str)->as.heap.ptr = RSTRING_PTR(str2);
@@ -893,6 +900,7 @@ str_replace(VALUE str, VALUE str2)
 	FL_SET(str, ELTS_SHARED);
 	FL_UNSET(str, STR_ASSOC);
 	RSTRING(str)->as.heap.aux.shared = shared;
+        rb_intervm_str_ascend(shared);
     }
     else {
 	str_replace_shared(str, str2);
@@ -1297,6 +1305,7 @@ str_make_independent(VALUE str)
     }
     STR_SET_NOEMBED(str);
     ptr[len] = 0;
+    rb_intervm_str_descend(str);
     RSTRING(str)->as.heap.ptr = ptr;
     RSTRING(str)->as.heap.len = len;
     RSTRING(str)->as.heap.aux.capa = len;

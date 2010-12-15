@@ -11,6 +11,7 @@
 
 #ifndef INIT_FOR_VM
 #include "ruby/ruby.h"
+#include "intervm.h"
 
 #define INIT_FOR_VM 1
 #include "inits.c"
@@ -26,6 +27,7 @@ rb_call_inits(void)
 {
     CALL(RandomSeed);
     CALL(generic_iv_tbl);
+    CALL(intervm);
     CALL(sym);
     CALL(var_tables);
     CALL(util);

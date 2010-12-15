@@ -1,3 +1,19 @@
+Thu Dec 16 07:22:51 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.h: New file.  This is an API to share datum among VMs.
+
+	* intervm.c: Its implementation.
+
+	* inits.c (rb_call_inits): call inits for intervm.c
+
+	* string.c: Strings needs some care about sharing among VMs:
+	  Inter-VM strings do not have their own GC so reference counts
+	  should be manipulated properly.
+
+	* gc.c (gc_mark_children): Now it is possible for an Object to
+	  have references toward other VM's object spaces; should not mark
+	  them on those cases.
+
 Thu Dec 16 07:15:33 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* marshal.c (final_free_marshal_compat): should return.

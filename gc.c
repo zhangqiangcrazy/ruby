@@ -20,6 +20,7 @@
 #include "eval_intern.h"
 #include "vm_core.h"
 #include "gc.h"
+#include <assert.h>
 #include <stdio.h>
 #include <setjmp.h>
 #include <sys/types.h>
@@ -1552,6 +1553,7 @@ gc_mark_children(rb_objspace_t *objspace, VALUE ptr, int lev)
   again:
     obj = RANY(ptr);
     if (rb_special_const_p(ptr)) return; /* special const not marked */
+    assert(is_pointer_to_heap(objspace, obj));
     if (obj->as.basic.flags == 0) return;       /* free cell */
     if (obj->as.basic.flags & FL_MARK) return;  /* already marked */
     obj->as.basic.flags |= FL_MARK;
@@ -1732,7 +1734,9 @@ gc_mark_children(rb_objspace_t *objspace, VALUE ptr, int lev)
 #define STR_ASSOC FL_USER3   /* copied from string.c */
 	if (FL_TEST(obj, RSTRING_NOEMBED) && FL_ANY(obj, ELTS_SHARED|STR_ASSOC)) {
 	    ptr = obj->as.string.as.heap.aux.shared;
-	    goto again;
+	    if (is_pointer_to_heap(objspace, RANY(ptr))) {
+                goto again;
+            }
 	}
 	break;
 
