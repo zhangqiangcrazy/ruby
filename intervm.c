@@ -31,13 +31,13 @@ struct multiveerse {
     } *universes;
     struct planet *the_free;
     rb_atomic_t beat;
-    rb_thread_lock_t *the_lock;
-} the_world = { 0, 0, 0, 0 };
+} the_world = { 0, 0, 0, };
 
 #if defined(_MSC_VER) || defined(__BORLANDC__) || defined(__CYGWIN__) || defined(__GNUC__)
 #pragma pack(pop)
 #endif
 
+static void Final_intervm(void);
 static void mother_of_the_universe(void);
 static int is_a_planet(const void *p);
 static VALUE intervm_mkproc(VALUE);
@@ -48,14 +48,48 @@ static void recycle(struct planet *);
 void
 Init_intervm(void)
 {
-    the_world.the_lock = malloc(sizeof *the_world.the_lock);
-    ruby_native_thread_lock_initialize(the_world.the_lock);
     mother_of_the_universe();
+    ruby_at_exit(Final_intervm);
 }
 
 void
 InitVM_intervm(void)
 {
+}
+
+void
+Final_intervm(void)
+{
+    /* this is roughly a fake rb_objspace_free */
+    const unsigned long number_of_planets = sizeof_an_universe / sizeof(struct planet);
+    struct universe *p, *q;
+    for (p = q = the_world.universes; p; p = q) {
+        int i;
+        q = p->next;
+        for (i = 0; i < number_of_planets; i++) {
+            struct planet *r = &p->planets[i];
+            if (r->value.basic.flags) {
+                switch (BUILTIN_TYPE(&r->value)) {
+                case T_STRING:
+                    if (r->reserved) {
+                        /* the  RSTRING(r)->as.heap.ptr was  allocated  under a
+                         * certain objspace.  The  problem is, that objspace is
+                         * already deallocated at the timing of this line.  */
+                        rb_objspace_xfree((void *)r->reserved,
+                                          RSTRING(&r->value)->as.heap.ptr);
+                    }
+                    else if (FL_TEST(&r->value, RSTRING_NOEMBED)) {
+                        free(RSTRING(&r->value)->as.heap.ptr);
+                    }
+                    break;
+                default:
+                    rb_bug("Final_intervm(): unknown data type 0x%x(%p)",
+                           BUILTIN_TYPE(&r->value), r);
+                    /* NOTREACHED */
+                }
+            }
+        }
+    }
 }
 
 #define cas_p(x, y, z)                          \
@@ -175,7 +209,7 @@ rb_intervm_str(str)
         OBJ_FREEZE(&ours->value);
     }
     /* at this point ours points to a valid live intervm object. */
-    return ours;
+    return (VALUE)&ours->value;
 }
 
 void
@@ -218,7 +252,7 @@ rb_intervm_str_ascend(self)
  * tab-width: 8
  * fill-column: 79
  * default-justification: full
- * c-file-style: "Ruby"
+ * c-file-style: "ruby"
  * c-doc-comment-style: javadoc
  * End:
  */

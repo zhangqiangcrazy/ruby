@@ -1,3 +1,17 @@
+Fri Dec 17 03:48:49 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (Final_intervm): New function to terminate the
+	  inter-VM object space.
+
+	* intervm.c (rb_intervm_str): type fix
+
+	* eval.c (ruby_at_exit): typo fix
+
+	* intervm.c (Init_intervm): I thought it needs lock at first, but
+	  now the implementation is totally lock-free.
+
+	* eval.c (ruby_at_exit): this case needs recursion.
+
 Fri Dec 17 02:08:21 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* include/ruby/intern.h (ruby_at_exit): process global finish-ups,

@@ -201,10 +201,11 @@ ruby_at_exit(void (*func)(void))
     for (;;) {
         struct at_exit *tmp = global_at_exit;
         p->next = tmp;
-        if (rb_atomic_cas((rb_atomic_t*)global_at_exit,
+        if (rb_atomic_cas((rb_atomic_t*)&global_at_exit,
                           (rb_atomic_t)tmp,
                           (rb_atomic_t)p)
             == (rb_atomic_t)tmp) {
+            ruby_at_exit(func);
             return;
         }
     }
