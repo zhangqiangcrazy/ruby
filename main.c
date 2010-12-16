@@ -27,6 +27,7 @@ RUBY_GLOBAL_SETUP
 int
 main(int argc, char **argv)
 {
+    int ret = 0;
 #ifdef RUBY_DEBUG_ENV
     ruby_set_debug_option(getenv("RUBY_DEBUG"));
 #endif
@@ -37,7 +38,7 @@ main(int argc, char **argv)
     ruby_sysinit(&argc, &argv);
     {
 	ruby_vm_t *vm;
-	int ret, signo = 0;
+	int signo = 0;
 
 	RUBY_INIT_STACK;
 	vm = ruby_vm_new(argc, argv);
@@ -45,6 +46,7 @@ main(int argc, char **argv)
 	signo = ruby_vm_exit_signal(vm);
 	ruby_vm_destruct(vm);
 	if (signo) ruby_default_signal(signo);
-	return ret;
     }
+    ruby_finalize();
+    return ret;
 }

@@ -1,3 +1,17 @@
+Fri Dec 17 02:08:21 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* include/ruby/intern.h (ruby_at_exit): process global finish-ups,
+	  just like ruby_vm_at_exit.
+
+	* eval.c (ruby_at_exit): but its implementation is totally
+	  different.  This is becaus the process global finishups cannot
+	  utilize Ruby's object system (because its lifetime is longer
+	  than them).
+
+	* eval.c (ruby_finalize): I believe the old implementation was wrong.
+
+	* main.c (main): need a ruby_finalize() call.
+
 Thu Dec 16 07:56:44 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* parse.y (sym_str_new): Uses intervm string.

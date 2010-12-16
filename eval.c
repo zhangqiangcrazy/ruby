@@ -16,6 +16,7 @@
 #include "gc.h"
 #include "ruby/vm.h"
 #include "ruby/encoding.h"
+#include "intervm.h"
 
 #define numberof(array) (int)(sizeof(array) / sizeof((array)[0]))
 
@@ -152,12 +153,61 @@ ruby_finalize_1(rb_vm_t *vm)
     rb_gc_call_finalizer_at_exit();
 }
 
+static struct at_exit {
+    int nelems;
+    struct at_exit *next;
+    void (*funcs[512])(void);
+} *global_at_exit = 0;
+
+static int
+vm_finalize_i(rb_vm_t *vm, void *unused)
+{
+    ruby_finalize_0(vm);
+    ruby_finalize_1(vm);
+    return TRUE;
+}
+
 void
 ruby_finalize(void)
 {
-    rb_vm_t *vm = GET_VM();
-    ruby_finalize_0(vm);
-    ruby_finalize_1(vm);
+    struct at_exit *p, *q;
+    ruby_vm_foreach(vm_finalize_i, 0);
+    for (p = q = global_at_exit; p; p = q) {
+        int i;
+        for (i = 0; i < p->nelems; i++) {
+            p->funcs[i]();
+        }
+        q = p->next;
+        free(p);
+    }
+    global_at_exit = 0;
+}
+
+void
+ruby_at_exit(void (*func)(void))
+{
+    struct at_exit *p;
+    for (p = global_at_exit; p; p = p->next) {
+        if (p->nelems < sizeof p->funcs / sizeof p->funcs[0]) {
+            p->funcs[p->nelems++] = func;
+            return;
+        }
+    }
+    /* it is highly important that this malloc is not
+     * rb_objspace_xmalloc, because the registered function survives
+     * longer than any existing objspace on a process. */
+    p = malloc(sizeof(struct at_exit));
+    memset(p, '\0', sizeof(struct at_exit));
+    for (;;) {
+        struct at_exit *tmp = global_at_exit;
+        p->next = tmp;
+        if (rb_atomic_cas((rb_atomic_t*)global_at_exit,
+                          (rb_atomic_t)tmp,
+                          (rb_atomic_t)p)
+            == (rb_atomic_t)tmp) {
+            return;
+        }
+    }
 }
 
 void rb_thread_stop_timer_thread(void);

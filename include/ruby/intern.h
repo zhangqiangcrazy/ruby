@@ -318,6 +318,7 @@ int rb_obj_method_arity(VALUE, ID);
 VALUE rb_protect(VALUE (*)(VALUE), VALUE, int*);
 void rb_set_end_proc(void (*)(VALUE), VALUE);
 void ruby_finalize(void);
+void ruby_at_exit(void (*)(void));
 NORETURN(void ruby_stop(int));
 int ruby_cleanup(volatile int);
 void rb_gc_mark_threads(void);
