@@ -13,26 +13,13 @@
 
 #include "ruby/ruby.h"
 #include "vm_core.h"
+#include "intervm.h"
 #include <signal.h>
 #include <stdio.h>
 #include <errno.h>
 
-#ifdef _WIN32
-typedef LONG rb_atomic_t;
-
-# define ATOMIC_TEST(var) InterlockedExchange(&(var), 0)
-# define ATOMIC_SET(var, val) InterlockedExchange(&(var), (val))
-# define ATOMIC_INC(var) InterlockedIncrement(&(var))
-# define ATOMIC_DEC(var) InterlockedDecrement(&(var))
-
-#else
-typedef int rb_atomic_t;
-
-# define ATOMIC_TEST(var) ((var) ? ((var) = 0, 1) : 0)
-# define ATOMIC_SET(var, val) ((var) = (val))
-# define ATOMIC_INC(var) (++(var))
-# define ATOMIC_DEC(var) (--(var))
-#endif
+# define ATOMIC_INC(var) rb_atomic_inc(&(var))
+# define ATOMIC_DEC(var) rb_atomic_dec(&(var))
 
 #if defined(__BEOS__) || defined(__HAIKU__)
 #undef SIGBUS

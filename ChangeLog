@@ -1,3 +1,7 @@
+Fri Dec 17 13:45:32 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* signal.c (ATOMIC_INC, ATOMIC_DEC): uses intervm.h definition.
+
 Fri Dec 17 13:43:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (rb_intervm_wormhole_send): support for immediate values.
