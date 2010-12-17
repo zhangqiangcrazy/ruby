@@ -392,7 +392,7 @@ rb_vm_terminate_all_really_everything(rb_vm_t *vm)
 	    rb_vm_thread_terminate_all(vm);
 	}
     }
-    if (vm->main_thread && vm->main_thread->status != THREAD_KILLED) {
+    if (vm->main_thread && vm->main_thread != GET_THREAD() && vm->main_thread->status != THREAD_KILLED) {
 	terminate_i((st_data_t)vm->main_thread->self, 0, 0);
         while (vm->main_thread->status != THREAD_KILLED) {
             PUSH_TAG();

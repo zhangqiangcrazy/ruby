@@ -1,3 +1,8 @@
+Fri Dec 17 19:01:07 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* thread.c (rb_vm_terminate_all_really_everything): avoid waiting
+	  the runnign thread itself.
+
 Fri Dec 17 13:45:32 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* signal.c (ATOMIC_INC, ATOMIC_DEC): uses intervm.h definition.
