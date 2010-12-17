@@ -1,3 +1,9 @@
+Fri Dec 17 13:43:13 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (rb_intervm_wormhole_send): support for immediate values.
+
+	* intervm.c (rb_intervm_wormhole_recv): ditto.
+
 Fri Dec 17 13:10:50 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c: New class and its implementation.  Much like a pipe,

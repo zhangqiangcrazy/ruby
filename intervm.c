@@ -594,6 +594,9 @@ rb_intervm_wormhole_send(self, obj)
             wormhole_push(ptr, (VALUE)&ptr2->intervm->as.data);
         }
     }
+    else if (IMMEDIATE_P(obj)) {
+        wormhole_push(ptr, obj);
+    }
     else {
         VALUE str = rb_check_string_type(obj);
         VALUE str2 = rb_intervm_str(str);
@@ -609,6 +612,9 @@ rb_intervm_wormhole_recv(self)
 {
     struct wormhole *ptr = RTYPEDDATA_DATA(self);
     VALUE intervm = wormhole_shift(ptr);
+    if (IMMEDIATE_P(intervm)) {
+        return intervm;
+    }
     switch (BUILTIN_TYPE(intervm)) {
         VALUE ret;
     case T_STRING:

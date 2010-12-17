@@ -172,7 +172,7 @@ extern VALUE rb_intrervm_wormhole_new(void);
 /**
  * @brief sends something through a wormhole
  * @param[out]  hole  target wormhole
- * @param[in]   obj   a string, or another wormhole
+ * @param[in]   obj   an immediate, a string, or another wormhole
  * @returns hole
  */
 extern VALUE rb_intervm_wormhole_send(VALUE hole, VALUE obj);
