@@ -1,3 +1,8 @@
+Fri Dec 17 13:10:50 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c: New class and its implementation.  Much like a pipe,
+	  behaves as a inter-VM communicaition channel.
+
 Fri Dec 17 03:48:49 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (Final_intervm): New function to terminate the

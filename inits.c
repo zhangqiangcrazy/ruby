@@ -69,6 +69,7 @@ rb_call_inits(void)
     CALL(ISeq);
     CALL(Thread);
     CALL(Cont);
+    CALL(Wormhole);
     CALL(Rational);
     CALL(Complex);
     CALL(version);

@@ -134,6 +134,72 @@ extern void rb_intervm_str_descend(VALUE self);
 extern void rb_intervm_str_ascend(VALUE self);
 
 /*
+ * Wormholes
+ */
+
+/**
+ * @brief creates a wormhole
+ * @returns a wormhole created.
+ *
+ * A wormhole is much like a pipe.   Once created, a VM can send something from
+ * it, and another VM can receive the info through it.  Every VMs has their own
+ * wormhole at the beginning of their execution.
+ *
+ * @code
+ *
+ * vm = RubyVM.new("ruby", "-e RubyVM.current.recv # => gets foo")
+ * vm.start.send "foo"
+ *
+ * @endcode
+ *
+ * But this is not so convenient.  You can also create a dedicated wormhole any
+ * time you want, and that  also can be sent/received through another wormhole.
+ * With this you can handshake a session between/among any VMs.
+ *
+ * @code
+ *
+ * # vm1 and vm2 can communicate this way, by not directly knowing each other
+ * vm1 = RubyVM.new("ruby", "-e RubyVM.current.send RubyVM::Wormhole.new")
+ * vm2 = RubyVM.new("ruby", "-e RubyVM.current.recv # => ^ this wormhole")
+ * vm1.start
+ * vm2.start
+ * vm2.send vm1.recv
+ *
+ * @endcode
+ */
+extern VALUE rb_intrervm_wormhole_new(void);
+
+/**
+ * @brief sends something through a wormhole
+ * @param[out]  hole  target wormhole
+ * @param[in]   obj   a string, or another wormhole
+ * @returns hole
+ */
+extern VALUE rb_intervm_wormhole_send(VALUE hole, VALUE obj);
+
+/**
+ * @brief recieves something through a wormhole (blocking version)
+ * @param[out]  hole  target wormhole
+ * @returns something from another side of the hole
+ */
+extern VALUE rb_intervm_wormhole_recv(VALUE hole);
+
+/**
+ * @brief nonblocking variant of recv
+ * @param[out]  hole       target wormhole
+ * @param[in]   ifnone     nothing-cen-be-read marker  
+ * @retval      ifnone     nothing can be read
+ * @retval      otherwise  something read
+ */
+extern VALUE rb_intervm_wormhole_peek(VALUE hole, VALUE ifnone);
+
+/** Expected to be called somewhere inside rb_vm_init(). */
+extern void InitVM_Wormhole(void);
+
+/** Does nothing but calles anyway */
+extern void Init_Wormhole(void);
+
+/*
  * Initializers
  */
 
