@@ -601,9 +601,15 @@ rb_intervm_wormhole_send(self, obj)
     }
     else {
         VALUE str = rb_check_string_type(obj);
-        VALUE str2 = rb_intervm_str(str);
-        rb_intervm_str_ascend(str2); /* prevent deallocation */
-        wormhole_push(ptr, str2);
+        if (NIL_P(str)) {
+            rb_raise(rb_eTypeError, "type mismatch (%s), String expected",
+                     rb_obj_classname(obj));
+        }
+        else {
+            VALUE str2 = rb_intervm_str(str);
+            rb_intervm_str_ascend(str2); /* prevent deallocation */
+            wormhole_push(ptr, str2);
+        }
     }
     return obj;
 }

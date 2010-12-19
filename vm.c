@@ -2300,17 +2300,8 @@ ruby_vm_call(rb_vm_t *vm, void (*func)(void *), void *arg)
 VALUE
 rb_vm_send(VALUE self, VALUE val)
 {
-    VALUE rb_str_copy_to_vm(VALUE str, struct rb_objspace *objspace);
     rb_vm_t *vm;
-
     GetVMPtr(self, vm);
-    if (!rb_special_const_p(val) && vm->objspace != GET_VM()->objspace) {
-	StringValue(val);
-	val = rb_str_copy_to_vm(val, vm->objspace);
-    }
-    if (!vm->self) {
-	rb_raise(rb_eArgError, "terminated VM");
-    }
     return rb_intervm_wormhole_send(vm->queue.message, val);
 }
 

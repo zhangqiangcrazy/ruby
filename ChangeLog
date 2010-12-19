@@ -1,3 +1,10 @@
+Mon Dec 20 05:46:50 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (rb_vm_send): garbage code eliminated.  Checks are done in
+	  the calling function.
+
+	* intervm.c (rb_intervm_wormhole_send): the check.
+
 Mon Dec 20 05:34:00 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (wormhole_init_copy): bug fix that, when source object
