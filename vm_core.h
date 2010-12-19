@@ -355,10 +355,8 @@ typedef struct rb_vm_struct {
 	int safe;
     } trap_list[RUBY_NSIG];
 
-    struct {
-	VALUE message;
-	VALUE signal;
-    } queue;
+    VALUE message_hole;
+    VALUE signal_hole;
 
     struct {
 	int signal, code;

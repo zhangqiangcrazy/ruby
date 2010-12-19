@@ -1110,7 +1110,7 @@ rb_thread_check_ints(void)
 int
 rb_thread_check_trap_pending(void)
 {
-    return !rb_intervm_wormhole_is_empty(GET_VM()->queue.signal);
+    return !rb_intervm_wormhole_is_empty(GET_VM()->signal_hole);
 }
 
 /* This function can be called in blocking region. */
@@ -1409,7 +1409,7 @@ rb_threadptr_execute_interrupts_rec(rb_thread_t *th, int sched_depth)
 	th->interrupt_flag = 0;
 
 	/* signal handling */
-	while ((exec_signal = rb_intervm_wormhole_peek(vm->queue.signal, Qundef)) != Qundef) {
+	while ((exec_signal = rb_intervm_wormhole_peek(vm->signal_hole, Qundef)) != Qundef) {
 	    int sig = FIX2INT(exec_signal);
 	    rb_signal_exec(th, sig);
 	}
@@ -2819,7 +2819,7 @@ void
 rb_threadptr_check_signal(rb_thread_t *mth)
 {
     VALUE sig;
-    while ((sig = rb_intervm_wormhole_peek(mth->vm->queue.signal, Qundef)) != Qundef) {
+    while ((sig = rb_intervm_wormhole_peek(mth->vm->signal_hole, Qundef)) != Qundef) {
         ruby_vm_send_signal(mth->vm, FIX2INT(sig));
     }
 }
@@ -2837,7 +2837,7 @@ ruby_vm_send_signal(rb_vm_t *vm, int sig)
     thread_debug("main_thread: %s, sig: %d\n",
 		 thread_status_name(prev_status), sig);
     mth->interrupt_flag |= ruby_vm_signal_bit;
-    rb_intervm_wormhole_send(vm->queue.signal, INT2FIX(sig));
+    rb_intervm_wormhole_send(vm->signal_hole, INT2FIX(sig));
     if (mth->status != THREAD_KILLED) mth->status = THREAD_RUNNABLE;
     rb_threadptr_interrupt(mth);
     mth->status = prev_status;

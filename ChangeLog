@@ -1,3 +1,11 @@
+Mon Dec 20 07:15:59 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm_core.h (rb_vm_struct): they are no longer queues
+
+	* thread.c: ditto.
+
+	* vm.c: ditto.
+
 Mon Dec 20 05:46:50 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (rb_vm_send): garbage code eliminated.  Checks are done in

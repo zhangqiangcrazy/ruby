@@ -1523,8 +1523,8 @@ rb_vm_mark(void *ptr)
 		rb_gc_mark(vm->trap_list[i].cmd);
 	}
 
-	rb_gc_mark(vm->queue.signal);
-	rb_gc_mark(vm->queue.message);
+	rb_gc_mark(vm->signal_hole);
+	rb_gc_mark(vm->message_hole);
     }
 
     RUBY_MARK_LEAVE("vm");
@@ -2302,7 +2302,7 @@ rb_vm_send(VALUE self, VALUE val)
 {
     rb_vm_t *vm;
     GetVMPtr(self, vm);
-    return rb_intervm_wormhole_send(vm->queue.message, val);
+    return rb_intervm_wormhole_send(vm->message_hole, val);
 }
 
 VALUE
@@ -2310,7 +2310,7 @@ rb_vm_recv(VALUE self)
 {
     rb_vm_t *vm;
     GetVMPtr(self, vm);
-    return rb_intervm_wormhole_recv(vm->queue.message);
+    return rb_intervm_wormhole_recv(vm->message_hole);
 }
 
 void
@@ -2453,8 +2453,8 @@ InitVM_VM(void)
 	    th->cwd.path = rb_str_new_cstr(ruby_getcwd());
 	}
 #endif
-        vm->queue.message = rb_intervm_wormhole_new();
-        vm->queue.signal = rb_intervm_wormhole_new();
+        vm->message_hole = rb_intervm_wormhole_new();
+        vm->signal_hole = rb_intervm_wormhole_new();
     }
 }
 
