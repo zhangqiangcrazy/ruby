@@ -26,6 +26,8 @@
 #include "vm_method.c"
 #include "vm_eval.c"
 
+#include "intervm.h"
+
 #include <assert.h>
 
 #define BUFSIZE 0x100
@@ -1521,7 +1523,8 @@ rb_vm_mark(void *ptr)
 		rb_gc_mark(vm->trap_list[i].cmd);
 	}
 
-	rb_queue_mark(&vm->queue.message);
+	rb_gc_mark(vm->queue.signal);
+	rb_gc_mark(vm->queue.message);
     }
 
     RUBY_MARK_LEAVE("vm");
@@ -1564,8 +1567,6 @@ ruby_vmptr_destruct(rb_vm_t *vm)
         if (vm->parent) ((rb_vm_t*)RTYPEDDATA_DATA(vm->parent))->ref_count --;
 	/* ruby_native_thread_lock_destroy(&vm->global_vm_lock); */
 	ruby_native_cond_destroy(&vm->global_vm_waiting);
-	rb_queue_destroy(&vm->queue.message);
-	rb_queue_destroy(&vm->queue.signal);
         rb_sweep_method_entry(vm);
         vm->mark_object_ary = Qundef;
         rb_objspace_free(vm->objspace);
@@ -1626,8 +1627,6 @@ vm_init2(rb_vm_t *vm)
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
     ruby_native_thread_lock(&vm->global_vm_lock);
     ruby_native_cond_initialize(&vm->global_vm_waiting);
-    rb_queue_initialize(&vm->queue.message);
-    rb_queue_initialize(&vm->queue.signal);
     vm->objspace = rb_objspace_alloc();
     vm->src_encoding_index = -1;
     vm->global_state_version = 1;
@@ -2312,38 +2311,15 @@ rb_vm_send(VALUE self, VALUE val)
     if (!vm->self) {
 	rb_raise(rb_eArgError, "terminated VM");
     }
-    if (!rb_queue_push(&vm->queue.message, (void *)val))
-	rb_sys_fail(0);
-    return (VALUE)val;
+    return rb_intervm_wormhole_send(vm->queue.message, val);
 }
 
 VALUE
-rb_vm_recv(VALUE self, const struct timeval *tv)
+rb_vm_recv(VALUE self)
 {
     rb_vm_t *vm;
-    void *val;
-
     GetVMPtr(self, vm);
-    if (!rb_queue_shift_wait(&vm->queue.message, &val, tv))
-	rb_sys_fail(0);
-    if (!rb_special_const_p((VALUE)val)) {
-	Check_Type((VALUE)val, T_STRING);
-	RBASIC(val)->klass = rb_cString;
-    }
-    return (VALUE)val;
-}
-
-struct timeval rb_time_interval(VALUE);
-
-static VALUE
-rb_vm_recv_m(int argc, VALUE *argv, VALUE self)
-{
-    struct timeval timeout = {0, 0}, *t = 0;
-    if (rb_scan_args(argc, argv, "01", 0)) {
-	timeout = rb_time_interval(argv[0]);
-	t = &timeout;
-    }
-    return rb_vm_recv(self, t);
+    return rb_intervm_wormhole_recv(vm->queue.message);
 }
 
 void
@@ -2365,7 +2341,7 @@ InitVM_VM(void)
     rb_define_method(rb_cRubyVM, "to_s", rb_vm_to_s, 0);
     rb_define_method(rb_cRubyVM, "start", rb_vm_start, 0);
     rb_define_method(rb_cRubyVM, "send", rb_vm_send, 1);
-    rb_define_method(rb_cRubyVM, "recv", rb_vm_recv_m, -1);
+    rb_define_method(rb_cRubyVM, "recv", rb_vm_recv, 0);
     rb_define_method(rb_cRubyVM, "join", rb_vm_join, 0);
     rb_define_method(rb_cRubyVM, "parent", rb_vm_parent, 0);
     rb_define_singleton_method(rb_cRubyVM, "current", rb_vm_s_current, 0);
@@ -2486,6 +2462,8 @@ InitVM_VM(void)
 	    th->cwd.path = rb_str_new_cstr(ruby_getcwd());
 	}
 #endif
+        vm->queue.message = rb_intervm_wormhole_new();
+        vm->queue.signal = rb_intervm_wormhole_new();
     }
 }
 

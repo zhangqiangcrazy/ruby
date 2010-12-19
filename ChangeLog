@@ -1,3 +1,8 @@
+Mon Dec 20 04:25:36 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c, vm_core.h, thread.c, intervm.c: rb_queue_t removed also,
+	  now signal handlings are done using wormholes.
+
 Mon Dec 20 02:47:38 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c, vm_core.h, thread.c: bytestream reverted.

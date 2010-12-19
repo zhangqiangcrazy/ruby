@@ -79,7 +79,8 @@ static void wormhole_descend(struct wormhole *self, const rb_vm_t *vm);
 static VALUE wormhole_initialize(VALUE);
 static VALUE wormhole_init_copy(VALUE, VALUE);
 static void wormhole_push(struct wormhole *, VALUE);
-static VALUE wormhole_shift(struct wormhole *);
+static struct planet *wormhole_shift(struct wormhole *);
+static VALUE wormhole_interpret_this_obj(VALUE, const void *);
 
 void
 Init_intervm(void)
@@ -454,7 +455,7 @@ wormhole_dealloc(self)
                 }
                 break;
             case T_STRING:
-                rb_intervm_str_descend((void *)tmp);
+                rb_intervm_str_descend(tmp);
                 break;
             }
         }
@@ -556,7 +557,7 @@ wormhole_push(hole, obj)
     ruby_native_thread_unlock(&hole->lock);
 }
 
-VALUE
+struct planet *
 wormhole_shift(hole)
     struct wormhole *hole;
 {
@@ -573,9 +574,7 @@ wormhole_shift(hole)
 
     ruby_native_thread_unlock(&hole->lock);
 
-    ret = dm->as.darkmatter.value;
-    recycle(dm);
-    return ret;
+    return dm;
 }
 
 VALUE
@@ -607,30 +606,78 @@ rb_intervm_wormhole_send(self, obj)
 }
 
 VALUE
+wormhole_interpret_this_obj(obj, vm)
+    VALUE obj;
+    const void *vm;
+{
+    VALUE ret;
+    switch (TYPE(obj)) {
+    case T_NIL:
+    case T_FALSE:
+    case T_TRUE:
+    case T_FIXNUM:
+    case T_SYMBOL:
+        return obj;
+    case T_STRING:
+        rb_intervm_str_descend(obj);
+        ret = rb_str_new_shared(obj);
+        RSTRING(ret)->basic.klass = rb_cString;
+        return ret;
+    case T_DATA:
+        wormhole_descend(RTYPEDDATA_DATA(obj), vm);
+        ret = wormhole_alloc(rb_cWormhole);
+        return wormhole_init_copy(ret, obj);
+    default:
+        rb_bug("wormhole_interpret_this_obj(): unknown data type 0x%x(%p)",
+               BUILTIN_TYPE(obj), (void *)obj);
+        /* NOTREACHED */
+    }    
+}
+
+VALUE
 rb_intervm_wormhole_recv(self)
     VALUE self;
 {
     struct wormhole *ptr = RTYPEDDATA_DATA(self);
-    VALUE intervm = wormhole_shift(ptr);
-    if (IMMEDIATE_P(intervm)) {
-        return intervm;
+    struct planet *darkmatter = wormhole_shift(ptr);
+    VALUE ret = wormhole_interpret_this_obj(darkmatter->as.darkmatter.value, ptr);
+    recycle(darkmatter);
+    return ret;
+}
+
+VALUE
+rb_intervm_wormhole_peek(self, ifnone)
+    VALUE self, ifnone;
+{
+    struct planet *darkmatter;
+    VALUE ret = ifnone;
+    struct wormhole *ptr = RTYPEDDATA_DATA(self);
+    ruby_native_thread_lock(&ptr->lock);
+
+    darkmatter = ptr->tail;
+    if (darkmatter) {
+        VALUE tmp = darkmatter->as.darkmatter.value;
+        ret = wormhole_interpret_this_obj(tmp, ptr);
+        ptr->tail = darkmatter->as.darkmatter.prev;
+        if (!ptr->tail) {
+            ptr->head = 0;
+        }
+        recycle(darkmatter);
     }
-    switch (BUILTIN_TYPE(intervm)) {
-        VALUE ret;
-    case T_STRING:
-        rb_intervm_str_descend(intervm);
-        ret = rb_str_new_shared(intervm);
-        RSTRING(ret)->basic.klass = rb_cString;
-        return ret;
-    case T_DATA:
-        wormhole_descend(RTYPEDDATA_DATA(intervm), (void *)ptr);
-        ret = wormhole_alloc(rb_cWormhole);
-        return wormhole_init_copy(ret, intervm);
-    default:
-        rb_bug("rb_intervm_wormhole_recv(): unknown data type 0x%x(%p)",
-               BUILTIN_TYPE(intervm), (void *)intervm);
-        /* NOTREACHED */
-    }
+
+    ruby_native_thread_unlock(&ptr->lock);
+    return ret;
+}
+
+int
+rb_intervm_wormhole_is_empty(self)
+    VALUE self;
+{
+    /* this  operation does  not  guarantee any  thread  coherency anyway.   No
+     * edstructive operations  are issued, so  no lock should just  suffice for
+     * the purpose.*/
+    struct wormhole *ptr = RTYPEDDATA_DATA(self);
+    return !ptr->head;
 }
 
 /* 

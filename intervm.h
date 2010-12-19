@@ -167,7 +167,7 @@ extern void rb_intervm_str_ascend(VALUE self);
  *
  * @endcode
  */
-extern VALUE rb_intrervm_wormhole_new(void);
+extern VALUE rb_intervm_wormhole_new(void);
 
 /**
  * @brief sends something through a wormhole
@@ -192,6 +192,14 @@ extern VALUE rb_intervm_wormhole_recv(VALUE hole);
  * @retval      otherwise  something read
  */
 extern VALUE rb_intervm_wormhole_peek(VALUE hole, VALUE ifnone);
+
+/**
+ * @brief needed by rb_thread_trap_pending()
+ * @param[in]   hole  target wormhole
+ * @retval      1     buffer empty
+ * @retval      0     buffer loaded
+ */
+extern int rb_intervm_wormhole_is_empty(VALUE hole);
 
 /** Expected to be called somewhere inside rb_vm_init(). */
 extern void InitVM_Wormhole(void);

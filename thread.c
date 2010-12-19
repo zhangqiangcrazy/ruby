@@ -48,6 +48,7 @@
 #include "gc.h"
 #include "ruby/util.h"
 #include "ruby/vm.h"
+#include "intervm.h"
 
 #ifndef USE_NATIVE_THREAD_PRIORITY
 #define USE_NATIVE_THREAD_PRIORITY 0
@@ -1109,7 +1110,7 @@ rb_thread_check_ints(void)
 int
 rb_thread_check_trap_pending(void)
 {
-    return !rb_queue_empty_p(&GET_VM()->queue.signal);
+    return !rb_intervm_wormhole_is_empty(GET_VM()->queue.signal);
 }
 
 /* This function can be called in blocking region. */
@@ -1354,124 +1355,6 @@ ruby_thread_has_gvl_p(void)
     }
 }
 
-void
-rb_queue_initialize(rb_queue_t *que)
-{
-    native_cond_initialize(&que->wait);
-    ruby_native_thread_lock_initialize(&que->lock);
-    que->head = 0;
-    que->tail = &que->head;
-}
-
-void
-rb_queue_destroy(rb_queue_t *que)
-{
-    rb_queue_element_t *e, *n;
-    ruby_native_thread_lock(&que->lock);
-    for (e = que->head; e; e = n) {
-	n = e->next;
-	free(e);
-    }
-    que->head = 0;
-    que->tail = 0;
-    ruby_native_thread_unlock(&que->lock);
-    native_mutex_destroy(&que->lock);
-    native_cond_destroy(&que->wait);
-}
-
-int
-rb_queue_push(rb_queue_t *que, void *value)
-{
-    rb_queue_element_t *e = malloc(sizeof(rb_queue_element_t));
-    if (!e) return Qfalse;
-    e->value = value;
-    e->next = 0;
-    ruby_native_thread_lock(&que->lock);
-    *que->tail = e;
-    que->tail = &e->next;
-    ruby_native_cond_signal(&que->wait);
-    ruby_native_thread_unlock(&que->lock);
-    return Qtrue;
-}
-
-void
-rb_queue_mark(rb_queue_t *que)
-{
-    rb_queue_element_t *e = que->head;
-    ruby_native_thread_lock(&que->lock);
-    while (e) {
-	rb_gc_mark_maybe((VALUE)e->value);
-	e = e->next;
-    }
-    ruby_native_thread_unlock(&que->lock);
-}
-
-#define QUEUE_SHIFT(e, que) (	       \
-	(e = que->head) != 0 &&	       \
-	((que->head = e->next) != 0 || \
-	 (que->tail = &que->head, 1)))
-
-#define COND_WAIT(wt, lk, tv) \
-    (tv ?  : native_cond_wait(wt, lk))
-
-int
-rb_queue_shift_wait(rb_queue_t *que, void **value, const struct timeval *tv)
-{
-    rb_queue_element_t *e;
-    struct timeval to, td, tvn;
-
-    if (tv) {
-	getclockofday(&to);
-	add_tv(&to, tv);
-    }
-    ruby_native_thread_lock(&que->lock);
-    while (!QUEUE_SHIFT(e, que)) {
-	if (tv) {
-	    if (native_cond_timedwait(&que->wait, &que->lock, tv) != ETIMEDOUT) break;
-	    if (QUEUE_SHIFT(e, que)) break;
-	    td = to;
-	    getclockofday(&tvn);
-	    if (!subtract_tv(&td, &tvn)) break;
-	    tv = &td;
-	}
-	else {
-	    native_cond_wait(&que->wait, &que->lock);
-	}
-    }
-    ruby_native_thread_unlock(&que->lock);
-    if (!e) {
-	errno = ETIMEDOUT;
-	return FALSE;
-    }
-    *value = e->value;
-    free(e);
-    return TRUE;
-}
-
-int
-rb_queue_shift(rb_queue_t *que, void **value)
-{
-    rb_queue_element_t *e;
-
-    if (!que->head) return Qfalse;
-    ruby_native_thread_lock(&que->lock);
-    if ((e = que->head) != 0 && !(que->head = e->next)) {
-	que->tail = &que->head;
-    }
-    ruby_native_thread_unlock(&que->lock);
-    if (!e) return 0;
-    *value = e->value;
-    free(e);
-    return Qtrue;
-}
-
-int
-rb_queue_empty_p(const rb_queue_t *que)
-{
-    if (!que->head) return Qtrue;
-    return Qfalse;
-}
-
 /*
  *  call-seq:
  *     Thread.pass   -> nil
@@ -1520,14 +1403,14 @@ rb_threadptr_execute_interrupts_rec(rb_thread_t *th, int sched_depth)
 	enum rb_thread_status status = th->status;
 	int timer_interrupt = th->interrupt_flag & ruby_vm_timer_bit;
 	int finalizer_interrupt = th->interrupt_flag & ruby_vm_finalizer_bit;
-	void *exec_signal;
+	VALUE exec_signal;
 
 	th->status = THREAD_RUNNABLE;
 	th->interrupt_flag = 0;
 
 	/* signal handling */
-	while (rb_queue_shift(&vm->queue.signal, &exec_signal)) {
-	    int sig = FIX2INT((VALUE)exec_signal);
+	while ((exec_signal = rb_intervm_wormhole_peek(vm->queue.signal, Qundef)) != Qundef) {
+	    int sig = FIX2INT(exec_signal);
 	    rb_signal_exec(th, sig);
 	}
 
@@ -2935,9 +2818,9 @@ vm_set_timer_interrupt(rb_vm_t *vm, void *dummy)
 void
 rb_threadptr_check_signal(rb_thread_t *mth)
 {
-    void *sig;
-    while (rb_queue_shift(&mth->vm->queue.signal, &sig)) {
-        ruby_vm_send_signal(mth->vm, (int)(VALUE)(sig));
+    VALUE sig;
+    while ((sig = rb_intervm_wormhole_peek(mth->vm->queue.signal, Qundef)) != Qundef) {
+        ruby_vm_send_signal(mth->vm, FIX2INT(sig));
     }
 }
 
@@ -2954,7 +2837,7 @@ ruby_vm_send_signal(rb_vm_t *vm, int sig)
     thread_debug("main_thread: %s, sig: %d\n",
 		 thread_status_name(prev_status), sig);
     mth->interrupt_flag |= ruby_vm_signal_bit;
-    rb_queue_push(&vm->queue.signal, (void *)INT2FIX(sig));
+    rb_intervm_wormhole_send(vm->queue.signal, INT2FIX(sig));
     if (mth->status != THREAD_KILLED) mth->status = THREAD_RUNNABLE;
     rb_threadptr_interrupt(mth);
     mth->status = prev_status;

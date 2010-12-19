@@ -307,18 +307,6 @@ struct rb_vm_options {
     struct rb_options_arg_list req_list, load_path, argv;
 };
 
-typedef struct rb_queue_element {
-    struct rb_queue_element *next;
-    void *value;
-} rb_queue_element_t;
-
-typedef struct rb_queue {
-    rb_thread_lock_t lock;
-    rb_thread_cond_t wait;
-    rb_queue_element_t *head, **tail;
-} rb_queue_t;
-
-
 typedef struct rb_vm_struct {
     VALUE self;
     VALUE parent;
@@ -368,8 +356,8 @@ typedef struct rb_vm_struct {
     } trap_list[RUBY_NSIG];
 
     struct {
-	rb_queue_t message;
-	rb_queue_t signal;
+	VALUE message;
+	VALUE signal;
     } queue;
 
     struct {
@@ -466,14 +454,6 @@ struct rb_unblock_callback {
 };
 
 struct rb_mutex_struct;
-
-void rb_queue_initialize(rb_queue_t *);
-void rb_queue_destroy(rb_queue_t *);
-int rb_queue_push(rb_queue_t *, void *);
-int rb_queue_shift(rb_queue_t *, void **);
-int rb_queue_shift_wait(rb_queue_t *, void **, const struct timeval *);
-int rb_queue_empty_p(const rb_queue_t *);
-void rb_queue_mark(rb_queue_t *);
 
 struct rb_thread_struct
 {
