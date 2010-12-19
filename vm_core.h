@@ -319,27 +319,6 @@ typedef struct rb_queue {
 } rb_queue_t;
 
 
-struct rb_bytestream_buffer;
-
-typedef struct {
-    struct rb_bytestream_buffer *next;
-    unsigned short r, w;
-} rb_bytestream_header_t;
-
-typedef struct rb_bytestream_buffer {
-    rb_bytestream_header_t header;
-    char body[(1<<14) - sizeof(rb_bytestream_header_t)];
-} rb_bytestream_buffer_t;
-
-typedef struct {
-    rb_thread_lock_t lock;
-    rb_thread_cond_t cond;
-    struct rb_thread_struct *locker;
-    rb_bytestream_buffer_t *volatile head, *volatile *tail;
-    size_t pages;
-    struct rb_vm_struct *owner;
-} rb_bytestream_t;
-
 typedef struct rb_vm_struct {
     VALUE self;
     VALUE parent;
@@ -392,11 +371,6 @@ typedef struct rb_vm_struct {
 	rb_queue_t message;
 	rb_queue_t signal;
     } queue;
-
-    struct {
-	rb_bytestream_t in;
-	rb_bytestream_t out;
-    } bs;
 
     struct {
 	int signal, code;
@@ -500,14 +474,6 @@ int rb_queue_shift(rb_queue_t *, void **);
 int rb_queue_shift_wait(rb_queue_t *, void **, const struct timeval *);
 int rb_queue_empty_p(const rb_queue_t *);
 void rb_queue_mark(rb_queue_t *);
-
-rb_bytestream_t *rb_bytestream_new(void);
-void rb_bytestream_free(rb_bytestream_t *bs);
-void rb_bytestream_init(rb_bytestream_t *bs, rb_vm_t *vm);
-void rb_bytestream_destroy(rb_bytestream_t *bs);
-ssize_t rb_bytestream_read(void *ptr, size_t size, rb_bytestream_t *bs);
-ssize_t rb_bytestream_read_nonblock(void *ptr, size_t size, rb_bytestream_t *bs);
-ssize_t rb_bytestream_write(const void *ptr, size_t size, rb_bytestream_t *bs);
 
 struct rb_thread_struct
 {

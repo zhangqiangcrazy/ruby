@@ -1628,8 +1628,6 @@ vm_init2(rb_vm_t *vm)
     ruby_native_cond_initialize(&vm->global_vm_waiting);
     rb_queue_initialize(&vm->queue.message);
     rb_queue_initialize(&vm->queue.signal);
-    rb_bytestream_init(&vm->bs.in, vm);
-    rb_bytestream_init(&vm->bs.out, vm);
     vm->objspace = rb_objspace_alloc();
     vm->src_encoding_index = -1;
     vm->global_state_version = 1;
@@ -2348,179 +2346,9 @@ rb_vm_recv_m(int argc, VALUE *argv, VALUE self)
     return rb_vm_recv(self, t);
 }
 
-typedef struct {
-    rb_bytestream_t *in, *out;
-    VALUE vm;
-} vm_bytestream_t;
-
-static void
-vm_bytestream_mark(void *p)
-{
-    vm_bytestream_t *ptr = p;
-    rb_vm_t *vm;
-    GetVMPtr(ptr->vm, vm);
-    if (vm != GET_VM()) rb_gc_mark(ptr->vm);
-}
-
-static size_t
-vm_bytestream_memsize(const void *p)
-{
-    return p ? sizeof(vm_bytestream_t) : 0;
-}
-
-static const rb_data_type_t bytestream_type = {
-    "VM/bytestream",
-    vm_bytestream_mark, RUBY_TYPED_DEFAULT_FREE, vm_bytestream_memsize,
-};
-
-static inline vm_bytestream_t *
-get_vm_bytestream(VALUE self)
-{
-    vm_bytestream_t *p = rb_check_typeddata(self, &bytestream_type);
-    if (!p) rb_raise(rb_eArgError, "uninitialized VM bytestream");
-    return p;
-}
-
-/*
- * call-seq:
- *   bs.read(length) => str
- *
- * Reads data up to +length+ bytes with blocking, and returns the
- * data.
- */
-
-static VALUE
-vm_bytestream_read(VALUE self, VALUE length)
-{
-    ssize_t len = NUM2INT(length);
-    VALUE buf = rb_str_tmp_new(len);
-    char *ptr = RSTRING_PTR(buf);
-    rb_bytestream_t *bs = get_vm_bytestream(self)->in;
-    ssize_t rlen = rb_bytestream_read(ptr, len, bs);
-    if (rlen < 0) return Qnil;
-    rb_str_set_len(buf, (long)rlen);
-    RBASIC(buf)->klass = rb_cString;
-    return buf;
-}
-
-/*
- * call-seq:
- *   bs.read_nonblock(length) => str
- *
- * Reads data up to +length+ bytes without blocking, and returns the
- * data.
- */
-
-static VALUE
-vm_bytestream_read_nonblock(VALUE self, VALUE length)
-{
-    ssize_t len = NUM2INT(length);
-    VALUE buf = rb_str_tmp_new(len);
-    char *ptr = RSTRING_PTR(buf);
-    rb_bytestream_t *bs = get_vm_bytestream(self)->in;
-    ssize_t rlen = rb_bytestream_read_nonblock(ptr, len, bs);
-    if (rlen < 0) return Qnil;
-    rb_str_set_len(buf, (long)rlen);
-    RBASIC(buf)->klass = rb_cString;
-    return buf;
-}
-
-/*
- * call-seq:
- *   bs.write(string) => num
- *
- * Writes +string+ to +bs+ and returns the number of written bytes.
- */
-
-static VALUE
-vm_bytestream_write(VALUE self, VALUE buf)
-{
-    rb_bytestream_t *out = get_vm_bytestream(self)->out;
-    const char *ptr = StringValuePtr(buf);
-    ssize_t r = rb_bytestream_write(ptr, RSTRING_LEN(buf), out);
-    return LONG2NUM(r);
-}
-
-/*
- * call-seq:
- *   bs.putc(c)
- */
-
-static VALUE
-vm_bytestream_putc(VALUE self, VALUE ch)
-{
-    rb_bytestream_t *out = get_vm_bytestream(self)->out;
-    char c = NUM2CHR(ch);
-    rb_bytestream_write(&c, 1, out);
-    return ch;
-}
-
-static ID default_bytestream;
-
-/*
- * call-seq:
- *   RubyVM.io => bytestream
- *
- * Returns +bytestream+ object of the current VM.
- */
-
-static VALUE
-vm_bytestream_self_io(VALUE self)
-{
-    VALUE *ptr = rb_vm_specific_ptr(rb_vmkey_default_bytestream);
-    VALUE io = *ptr;
-
-    if (!io) {
-	vm_bytestream_t *bs;
-	rb_vm_t *vm = GET_VM();
-	io = TypedData_Make_Struct(rb_cBytestream, vm_bytestream_t, &bytestream_type, bs);
-	*ptr = io;
-	bs->in = &vm->bs.in;
-	bs->out = &vm->bs.out;
-    }
-    return io;
-}
-
-static VALUE
-vm_bytestream_other_io(VALUE self, rb_vm_t *vm)
-{
-    VALUE io = rb_attr_get(self, default_bytestream);
-
-    if (NIL_P(io)) {
-	vm_bytestream_t *bs;
-	io = TypedData_Make_Struct(rb_cBytestream, vm_bytestream_t, &bytestream_type, bs);
-	rb_ivar_set(self, default_bytestream, io);
-	bs->out = &vm->bs.in;
-	bs->in = &vm->bs.out;
-    }
-    return io;
-}
-
-/*
- * call-seq:
- *   vm.io => bytestream
- *
- * Returns +bytestream+ object of +vm+.
- */
-
-static VALUE
-vm_bytestream_io(VALUE self)
-{
-    rb_vm_t *vm;
-
-    GetVMPtr(self, vm);
-    if (vm == GET_VM()) {
-	return vm_bytestream_self_io(self);
-    }
-    else {
-	return vm_bytestream_other_io(self, vm);
-    }
-}
-
 void
 Init_VM(void)
 {
-    default_bytestream = rb_intern_const("default_bytestream");
 }
 
 void
@@ -2540,10 +2368,8 @@ InitVM_VM(void)
     rb_define_method(rb_cRubyVM, "recv", rb_vm_recv_m, -1);
     rb_define_method(rb_cRubyVM, "join", rb_vm_join, 0);
     rb_define_method(rb_cRubyVM, "parent", rb_vm_parent, 0);
-    rb_define_method(rb_cRubyVM, "io", vm_bytestream_io, 0);
     rb_define_singleton_method(rb_cRubyVM, "current", rb_vm_s_current, 0);
     rb_define_singleton_method(rb_cRubyVM, "parent", rb_vm_s_parent, 0);
-    rb_define_singleton_method(rb_cRubyVM, "io", vm_bytestream_self_io, 0);
 
     /* ::VM::FrozenCore */
     fcore = rb_class_new(rb_cBasicObject);
@@ -2606,15 +2432,6 @@ InitVM_VM(void)
 
     /* ::VM::InsnNameArray */
     rb_define_const(rb_cRubyVM, "INSTRUCTION_NAMES", rb_insns_name_array());
-
-    rb_cBytestream = rb_define_class_under(rb_cRubyVM, "Bytestream", rb_cData);
-    rb_define_method(rb_cBytestream, "read", vm_bytestream_read, 1);
-    rb_define_method(rb_cBytestream, "read_nonblock", vm_bytestream_read_nonblock, 1);
-    rb_define_method(rb_cBytestream, "write", vm_bytestream_write, 1);
-    rb_define_method(rb_cBytestream, "print", rb_io_print, -1);
-    rb_define_method(rb_cBytestream, "putc", vm_bytestream_putc, 1);
-    rb_define_method(rb_cBytestream, "puts", rb_io_puts, -1);
-    rb_define_method(rb_cBytestream, "printf", rb_io_printf, -1);
 
     /* debug functions ::VM::SDR(), ::VM::NSDR() */
 #if VMDEBUG
