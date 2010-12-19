@@ -421,11 +421,14 @@ wormhole_init_copy(dest, src)
         return dest;
     }
     else {
-        VALUE dest2 = rb_obj_init_copy(dest, src);
+        /* src  object might not  have its  klass because  it might  be sourced
+         * from outer-space.   rb_obj_init_copy() implies a klass  so we cannot
+         * use it. */
         struct wormhole *ptr = RTYPEDDATA_DATA(src);
+        rb_check_frozen(dest);
         wormhole_ascend(ptr, GET_VM());
-        RTYPEDDATA_DATA(dest2) = ptr;
-        return dest2;
+        RTYPEDDATA_DATA(dest) = ptr;
+        return dest;
     }
 }
 

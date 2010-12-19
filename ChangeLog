@@ -1,3 +1,8 @@
+Mon Dec 20 05:34:00 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (wormhole_init_copy): bug fix that, when source object
+	  was from outer-space, rb_obj_init_copy() does not work.
+
 Mon Dec 20 04:25:36 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c, vm_core.h, thread.c, intervm.c: rb_queue_t removed also,
