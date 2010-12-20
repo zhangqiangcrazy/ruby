@@ -1640,6 +1640,56 @@ vm_init2(rb_vm_t *vm)
     vm->at_exit.basic.klass = 0;
 }
 
+/* specific key management API */
+
+static rb_atomic_t number_of_vm_specific_keys = ruby_builtin_object_count + 1;
+
+int
+rb_vm_key_count(void)
+{
+    return number_of_vm_specific_keys;
+}
+
+int
+rb_vm_key_create(void)
+{
+    return rb_atomic_inc(&number_of_vm_specific_keys);
+}
+
+void **
+rb_vm_specific_ptr_for_specific_vm(rb_vm_t *vm, int key)
+{
+    void **ptr;
+    long len;
+
+    ptr = vm->specific_storage.ptr;
+    len = vm->specific_storage.len;
+    if (!ptr || len <= key) {
+	long newlen = (key + 8) & ~7;
+	ptr = realloc(ptr, sizeof(void *) * newlen);
+	vm->specific_storage.ptr = ptr;
+	vm->specific_storage.len = newlen;
+	MEMZERO(&ptr[len], void *, newlen - len);
+    }
+    return &ptr[key];
+}
+
+void **
+ruby_vm_specific_ptr(int key)
+{
+    rb_vm_t *vm = GET_VM();
+    if (!vm) return 0;
+    return rb_vm_specific_ptr_for_specific_vm(vm, key);
+}
+
+/* at exit */
+
+void
+ruby_vm_at_exit(void (*func)(rb_vm_t *vm))
+{
+    rb_ary_push((VALUE)&GET_VM()->at_exit, (VALUE)func);
+}
+
 /* Thread */
 
 #define USE_THREAD_DATA_RECYCLE 1
@@ -2516,13 +2566,11 @@ vm_thread_new(rb_vm_t *vm)
 rb_vm_t *
 Init_BareVM(void)
 {
-    void Init_vmmgr(void);
     void Init_native_thread(void);
     rb_vm_t *vm;
 
     /* init thread core */
     Init_native_thread();
-    Init_vmmgr();
     vm = ruby_make_bare_vm();
     if (!vm) {
 	fprintf(stderr, "[FATAL] failed to allocate memory\n");

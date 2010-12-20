@@ -59,6 +59,12 @@ struct wormhole {
     struct planet *tail;          /**< queue tail */
 };
 
+static struct vm_manager {
+    rb_thread_lock_t lock;      /**< mutex */
+    st_table *machines;         /**< set of VMs */
+    rb_vm_t *main;              /**< main VM */
+} vm_manager;
+
 static void Final_intervm(void);
 static void mother_of_the_universe(void);
 static int is_a_planet(const void *p);
@@ -81,11 +87,15 @@ static VALUE wormhole_init_copy(VALUE, VALUE);
 static void wormhole_push(struct wormhole *, VALUE);
 static struct planet *wormhole_shift(struct wormhole *);
 static VALUE wormhole_interpret_this_obj(VALUE, const void *);
+static int vm_foreach_i(st_data_t, st_data_t, st_data_t);
 
 void
 Init_intervm(void)
 {
-    mother_of_the_universe();
+    vm_manager.machines = st_init_numtable();
+    vm_manager.main = 0;
+    ruby_native_thread_lock_initialize(&vm_manager.lock);
+    mother_of_the_universe();   /* not required, but makes things faster */
     ruby_at_exit(Final_intervm);
 }
 
@@ -147,6 +157,10 @@ Final_intervm(void)
             }
         }
     }
+
+    /* VMs should have been freed at this point.  This table must be emoty */
+    st_free_table(vm_manager.machines);
+    ruby_native_thread_lock_destroy(&vm_manager.lock);
 }
 
 #define cas_p(x, y, z)                          \
@@ -687,6 +701,121 @@ rb_intervm_wormhole_is_empty(self)
      * the purpose.*/
     struct wormhole *ptr = RTYPEDDATA_DATA(self);
     return !ptr->head;
+}
+
+/* 
+ * VM management
+ */
+
+/* Beware: VM  management related APIs  are declared in  include/ruby/vm.h, not
+ * in intervm.h. */
+
+rb_vm_t *
+ruby_vm_new(argc, argv)
+    int argc;
+    char **argv;
+{
+    rb_vm_t *vm;
+
+    if (!(vm = ruby_init()) &&
+        !(vm = ruby_make_bare_vm())) {
+        return 0;
+    }
+    else {
+        ruby_native_thread_lock(&vm_manager.lock);
+
+        vm->argc = argc;
+        vm->argv = argv;
+        st_insert(vm_manager.machines, (st_data_t)vm, 0);
+        if (!vm_manager.main) {
+            vm_manager.main = vm;
+        }
+
+        ruby_native_thread_unlock(&vm_manager.lock);
+        return vm;
+    }
+}
+
+int
+ruby_vm_destruct(vm)
+    rb_vm_t *vm;
+{
+    st_data_t k, v;
+    ruby_vmptr_destruct(vm);
+    ruby_native_thread_lock(&vm_manager.lock);
+
+    k = (st_data_t)vm;
+    st_delete(vm_manager.machines, &k, &v);
+    assert(v == 0);
+    if (vm_manager.main == vm) {
+        vm_manager.main = 0;
+    }
+    free(vm);
+
+    ruby_native_thread_unlock(&vm_manager.lock);
+    return 0;
+}
+
+int
+ruby_vm_main_p(vm)
+    rb_vm_t *vm;
+{
+    return vm == vm_manager.main;
+}
+
+/* temporary use */
+struct vm_foreach_data {
+    int (*func)(rb_vm_t *, void *);
+    void *data;
+};
+
+int
+vm_foreach_i(key, val, data)
+    st_data_t key, val, data;
+{
+    struct vm_foreach_data *tmp = (void *)data;
+    rb_vm_t *vm = (void *)key;
+    if (tmp->func(vm, tmp->data) == 0) {
+        return ST_STOP;
+    }
+    else {
+        return ST_CONTINUE;
+    }
+}
+
+void
+ruby_vm_foreach(int (*func)(rb_vm_t *, void *), void *arg)
+{
+    struct vm_foreach_data tmp;
+    tmp.func = func;
+    tmp.data = arg;
+    st_foreach(vm_manager.machines, vm_foreach_i, (st_data_t)&tmp);
+}
+
+void
+ruby_vmmgr_add(vm)
+    rb_vm_t *vm;
+{
+    ruby_native_thread_lock(&vm_manager.lock);
+    st_insert(vm_manager.machines, (st_data_t)vm, 0);
+    ruby_native_thread_unlock(&vm_manager.lock);
+}
+
+int
+ruby_vm_join(vm)
+    rb_vm_t *vm;
+{
+    ruby_native_thread_lock(&vm_manager.lock);
+    if (st_lookup(vm_manager.machines, (st_data_t)vm, 0)) {
+        do {
+            ruby_native_cond_wait(&vm->global_vm_waiting, &vm_manager.lock);
+        }
+        while (vm->living_threads &&
+               vm->living_threads->num_entries > 1 &&
+               vm->main_thread &&
+               vm->main_thread->status != THREAD_KILLED);
+    }
+    ruby_native_thread_unlock(&vm_manager.lock);
 }
 
 /* 

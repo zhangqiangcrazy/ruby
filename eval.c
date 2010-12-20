@@ -392,7 +392,6 @@ ruby_vmptr_start(rb_vm_t *vm, int status)
 	ruby_vm_cleanup(vm, 0);
 	return status;
     }
-    ruby_vm_init_call_initializer(vm);
     status = ruby_vm_exec_internal(vm, n);
     return ruby_vm_cleanup(vm, status);
 }
