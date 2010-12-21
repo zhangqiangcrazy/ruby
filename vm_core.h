@@ -329,8 +329,6 @@ typedef struct rb_vm_struct {
     unsigned long trace_flag;
     volatile int sleeper;
 
-    int ref_count;
-
     /* object management */
     VALUE mark_object_ary;
 

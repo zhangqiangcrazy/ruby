@@ -1,3 +1,9 @@
+Tue Dec 21 13:14:06 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm_core.h (rb_vm_struct): ref_count is no longer used; VMs
+	  cannot live longer than their parent so a VM is now totally
+	  handled by its parent.
+
 Mon Dec 20 10:53:01 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* mvm.c: goodbye.

@@ -1564,8 +1564,6 @@ ruby_vmptr_destruct(rb_vm_t *vm)
         }
         ruby_native_thread_unlock(&vm->global_vm_lock);
         ruby_native_cond_signal(&vm->global_vm_waiting);
-        if (vm->parent) ((rb_vm_t*)RTYPEDDATA_DATA(vm->parent))->ref_count --;
-	/* ruby_native_thread_lock_destroy(&vm->global_vm_lock); */
 	ruby_native_cond_destroy(&vm->global_vm_waiting);
         rb_sweep_method_entry(vm);
         vm->mark_object_ary = Qundef;
@@ -1622,7 +1620,6 @@ static void
 vm_init2(rb_vm_t *vm)
 {
     MEMZERO(vm, rb_vm_t, 1);
-    vm->ref_count = 0;
     vm->argc = -1;
     ruby_native_thread_lock_initialize(&vm->global_vm_lock);
     ruby_native_thread_lock(&vm->global_vm_lock);
@@ -2204,7 +2201,6 @@ vm_create(void *arg)
     status = ruby_vm_init(vm);
     ruby_native_thread_lock(args->lock);
     vm->parent = TypedData_Wrap_Struct(rb_cRubyVM, &vm_data_type, args->parent);
-    args->parent->ref_count++;
     if (!status) ruby_vmmgr_add(vm);
     args->initialized = 1;
     ruby_native_cond_signal(&args->waiting);
@@ -2470,7 +2466,6 @@ InitVM_VM(void)
 
 	/* create vm object */
 	vm->self = TypedData_Wrap_Struct(rb_cRubyVM, &vm_data_type, vm);
-	vm->ref_count++;
 
 	/* create main thread */
 	th_self = th->self = TypedData_Wrap_Struct(rb_cThread, &thread_data_type, th);
