@@ -1,3 +1,9 @@
+Wed Dec 22 10:53:03 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* parse.y (rb_id2str): intervm strings shall not be returned from
+	  this function because they are not ready to be used directly.
+	  Wrap them with a shared string.
+
 Tue Dec 21 13:14:06 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm_core.h (rb_vm_struct): ref_count is no longer used; VMs

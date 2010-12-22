@@ -9781,7 +9781,7 @@ rb_id2str(ID id)
 		str = sym_str_new(name, 1, rb_usascii_encoding());
 		global_symbols.op_sym[i] = str;
 	    }
-	    return rb_intervm_str(str);
+	    return rb_str_new_shared(str);
 	}
 	for (i = 0; i < op_tbl_count; i++) {
 	    if (op_tbl[i].token == id) {
@@ -9791,7 +9791,7 @@ rb_id2str(ID id)
 		    str = sym_str_new(name, strlen(name), rb_usascii_encoding());
 		    global_symbols.op_sym[i] = str;
 		}
-		return rb_intervm_str(str);
+		return rb_str_new_shared(str);
 	    }
 	}
     }
@@ -9800,7 +9800,7 @@ rb_id2str(ID id)
         VALUE str = (VALUE)data;
         if (RBASIC(str)->klass == 0)
             RBASIC(str)->klass = rb_cString;
-	return rb_intervm_str(str);
+	return rb_str_new_shared(str);
     }
 
     if (is_attrset_id(id)) {
@@ -9818,7 +9818,7 @@ rb_id2str(ID id)
             VALUE str = (VALUE)data;
             if (RBASIC(str)->klass == 0)
                 RBASIC(str)->klass = rb_cString;
-            return rb_intervm_str(str);
+            return rb_str_new_shared(str);
         }
     }
     return 0;
