@@ -1,3 +1,10 @@
+Wed Jan  5 19:48:02 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* dln.c (dln_load): initial support for MVM-capable extensions.
+	  Extensions shall have InitVM_ prefixed initializer function to
+	  be required from inside of a VM.  Only the main VM can require
+	  old-fashioned extensions.
+
 Wed Jan  5 17:04:41 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* dln.c (global_dln_handles): new global variable.

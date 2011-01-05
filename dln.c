@@ -89,6 +89,7 @@ char *getenv();
 #endif
 
 #include "ruby/st.h"
+#include "vm_core.h"
 static st_table *global_dln_handles = 0;
 
 #ifndef dln_loaderror
@@ -140,7 +141,7 @@ init_funcname_len(char **buf, const char *file)
 }
 
 #define init_funcname(buf, file) do {\
-    size_t len = init_funcname_len(buf, file);\
+    size_t len = init_funcname_len(buf, file) + 2 /* +2 for "VM" */;\
     char *tmp = ALLOCA_N(char, len+1);\
     if (!tmp) {\
 	free(*buf);\
@@ -1235,6 +1236,7 @@ dln_load(const char *file)
 #endif
 
 #if defined _WIN32 && !defined __CYGWIN__
+#error MVM unsupported
     HINSTANCE handle;
     char winfile[MAXPATHLEN];
     void (*init_fct)();
@@ -1262,6 +1264,7 @@ dln_load(const char *file)
     return handle;
 #else
 #ifdef USE_DLN_A_OUT
+#error MVM unsupported
     if (load(file) == -1) {
 	error = dln_strerror();
 	goto failed;
@@ -1291,7 +1294,11 @@ dln_load(const char *file)
 #endif
 
 	/* Load file */
-	if ((handle = (void*)dlopen(file, RTLD_LAZY|RTLD_GLOBAL)) == NULL) {
+	if (st_lookup(global_dln_handles, (st_data_t)file, (st_data_t *)&handle)) {
+	    /* already. */
+	    goto per_vm;
+	}
+	else if ((handle = (void*)dlopen(file, RTLD_LAZY|RTLD_GLOBAL)) == NULL) {
 	    error = dln_strerror();
 	    goto failed;
 	}
@@ -1309,12 +1316,33 @@ dln_load(const char *file)
 	}
 	/* Call the init code */
 	(*init_fct)();
-
+	st_insert(global_dln_handles, (st_data_t)file, (st_data_t)handle);
+    per_vm:
+	{
+	    void (*initvm_fct)();
+	    char *tmp = (buf[0] == '_') ? buf + 1 : buf;
+	    memmove(tmp + 6, tmp + 4, strlen(tmp) - 3);
+	    memmove(tmp, "InitVM", 6);
+	    if ((initvm_fct = (void(*)())(VALUE)dlsym(handle, tmp)) == NULL) {
+		if (ruby_vm_main_p(GET_VM())) {
+		    /* main VM can require non-MVM-ready extensions */
+		    goto end_of_dlopen;
+		}
+		else {
+		    error = DLN_ERROR();
+		    /* do not dlclose for other VMs. */
+		    goto failed;
+		}
+	    }
+	    initvm_fct();
+	}
+    end_of_dlopen:
 	return handle;
     }
 #endif /* USE_DLN_DLOPEN */
 
 #ifdef __hpux
+#error MVM unsupported
 #define DLN_DEFINED
     {
 	shl_t lib = NULL;
@@ -1341,6 +1369,7 @@ dln_load(const char *file)
 #endif /* hpux */
 
 #if defined(_AIX) && ! defined(_IA64)
+#error MVM unsupported
 #define DLN_DEFINED
     {
 	void (*init_fct)();
@@ -1358,6 +1387,7 @@ dln_load(const char *file)
 #endif /* _AIX */
 
 #if defined(NeXT) || defined(MACOSX_DYLD)
+#error MVM unsupported
 #define DLN_DEFINED
 /*----------------------------------------------------
    By SHIROYAMA Takayuki Psi@fortune.nest.or.jp
@@ -1435,6 +1465,7 @@ dln_load(const char *file)
 #endif
 
 #if defined(__BEOS__) || defined(__HAIKU__)
+#error MVM unsupported
 # define DLN_DEFINED
     {
       status_t err_stat;  /* BeOS error status code */
@@ -1534,7 +1565,7 @@ void (*dln_symbol(void *handle, const char *sym))()
 void
 Init_dln(void)
 {
-    global_dln_handles = st_init_numtable();
+    global_dln_handles = st_init_strtable();
 }
 
 void
