@@ -88,6 +88,9 @@ char *getenv();
 # include <image.h>
 #endif
 
+#include "ruby/st.h"
+static st_table *global_dln_handles = 0;
+
 #ifndef dln_loaderror
 static void
 dln_loaderror(const char *format, ...)
@@ -1526,4 +1529,15 @@ void (*dln_symbol(void *handle, const char *sym))()
 #endif
     return init_fct;
 #endif /* NO_DLN_LOAD */
+}
+
+void
+Init_dln(void)
+{
+    global_dln_handles = st_init_numtable();
+}
+
+void
+InitVM_dln(void)
+{
 }

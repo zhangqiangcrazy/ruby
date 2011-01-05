@@ -25,6 +25,7 @@
 void
 rb_call_inits(void)
 {
+    CALL(dln);
     CALL(RandomSeed);
     CALL(generic_iv_tbl);
     CALL(intervm);

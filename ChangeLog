@@ -1,3 +1,13 @@
+Wed Jan  5 17:04:41 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* dln.c (global_dln_handles): new global variable.
+
+	* dln.c (Init_dln): new function to initialize above.
+
+	* dmydln.c: ditto.
+
+	* inits.c: ditto.
+
 Wed Dec 22 10:53:03 2010  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* parse.y (rb_id2str): intervm strings shall not be returned from
