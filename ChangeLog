@@ -1,3 +1,7 @@
+Thu Jan  6 21:18:25 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* ext/etc/etc.c (InitVM_etc): MVM ready.
+
 Thu Jan  6 21:07:48 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* gc.c (gc_mark_children): weaken the criteria; It may be a bug

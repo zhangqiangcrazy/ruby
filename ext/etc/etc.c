@@ -23,9 +23,11 @@
 #include <grp.h>
 #endif
 
-static VALUE sPasswd;
+static int vmkey_sPasswd = 0;
+#define sPasswd *ruby_vm_specific_ptr(vmkey_sPasswd)
 #ifdef HAVE_GETGRENT
-static VALUE sGroup;
+static int vmkey_sGroup = 0;
+#define sGroup *ruby_vm_specific_ptr(vmkey_sGroup)
 #endif
 
 #ifdef _WIN32
@@ -602,6 +604,21 @@ etc_systmpdir(void)
 void
 Init_etc(void)
 {
+    vmkey_sPasswd = rb_vm_key_create();
+#ifdef HAVE_GETGRENT
+    vmkey_sGroup = rb_vm_key_create();
+#endif
+}
+
+void
+InitVM_etc(void)
+{
+#undef sPasswd
+#undef sGroup
+    VALUE sPasswd;
+#ifdef HAVE_GETGRENT
+    VALUE sGroup;
+#endif
     VALUE mEtc;
 
     mEtc = rb_define_module("Etc");
@@ -651,6 +668,7 @@ Init_etc(void)
     rb_define_const(mEtc, "Passwd", sPasswd);
     rb_extend_object(sPasswd, rb_mEnumerable);
     rb_define_singleton_method(sPasswd, "each", etc_each_passwd, 0);
+    *ruby_vm_specific_ptr(vmkey_sPasswd) = sPasswd;
 
 #ifdef HAVE_GETGRENT
     sGroup = rb_struct_define("Group", "name",
@@ -662,5 +680,6 @@ Init_etc(void)
     rb_define_const(mEtc, "Group", sGroup);
     rb_extend_object(sGroup, rb_mEnumerable);
     rb_define_singleton_method(sGroup, "each", etc_each_group, 0);
+    *ruby_vm_specific_ptr(vmkey_sGroup) = sGroup;
 #endif
 }
