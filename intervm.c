@@ -261,36 +261,28 @@ VALUE
 rb_intervm_str(str)
     VALUE str;
 {
-    VALUE ret;
-    struct planet *ours;
     VALUE str2 = rb_check_string_type(str);
-    if (is_a_planet((void *)str2)) {
-        /* case 1: str itself is already intervm */
-        ours = (void *)str2;
+    if (FL_TEST(str2, ELTS_SHARED) && FL_TEST(str2, RSTRING_NOEMBED)) {
+        /* recur */
+        return rb_intervm_str(RSTRING(str2)->as.heap.aux.shared);
     }
-    else if (FL_TEST(str2, ELTS_SHARED) &&
-             is_a_planet((ours = (void *)RSTRING(str2)->as.heap.aux.shared))) {
-        /* case 2: str is a shared, shares intervm */
+    else if (is_a_planet((void *)str2)) {
+        /* already */
+        return str2;
     }
     else {
-        /* case 3: create one */
-        VALUE str3 = rb_str_new_shared(str2);
-        rb_str_modify(str3);    /* <- this makes a deep copy */
-        ours = consume();
-        memmove(&ours->as.string, (void *)str3, sizeof(struct RString));
-        rb_enc_set_index((VALUE)&ours->as.string, ENCODING_GET(str3));
-        ours->as.string.basic.klass = 0;
-        if (FL_TEST(str3, RSTRING_NOEMBED)) {
-            /* need to avoid double free */
-            RSTRING(str3)->as.heap.ptr = 0;
-            RSTRING(str3)->as.heap.len = 0;
-            /* save where the pointer was from */
-            ours->reserved = (VALUE)(GET_VM()->objspace);
+        struct planet *ours = consume();
+        VALUE ret = (VALUE)&ours->as.string;
+        memcpy((void*)ret, (void*)str2, sizeof(struct RString));
+        if (FL_TEST(str2, RSTRING_NOEMBED)) {
+            RSTRING(str2)->as.heap.aux.shared = ret;
+            FL_SET(str2, ELTS_SHARED);
+            ours->reserved = (VALUE)GET_VM()->objspace; /* save where was it from */
         }
-        OBJ_FREEZE(&ours->as.string);
+        ours->as.string.basic.klass = 0;
+        OBJ_FREEZE(ret);
+        return ret;
     }
-    /* at this point ours points to a valid live intervm object. */
-    return (VALUE)&ours->as.string;
 }
 
 void
