@@ -1,3 +1,7 @@
+Fri Jan  7 15:40:30 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* ext/socket/socket.c (InitVM_socket): MVM ready.
+
 Thu Jan  6 21:18:25 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* ext/etc/etc.c (InitVM_etc): MVM ready.

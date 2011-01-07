@@ -1,6 +1,7 @@
 #include "rubysocket.h"
 
-VALUE rb_cSockOpt;
+int vmkey_rb_cSockOpt;
+#define rb_cSockOpt *ruby_vm_specific_ptr(vmkey_rb_cSockOpt)
 
 static VALUE
 constant_to_sym(int constant, ID (*intern_const)(int))
@@ -656,6 +657,12 @@ static VALUE
 sockopt_unpack(VALUE self, VALUE template)
 {
     return rb_funcall(sockopt_data(self), rb_intern("unpack"), 1, template);
+}
+
+void
+rsock_init_vmkey_sockopt(void)
+{
+    vmkey_rb_cSockOpt = rb_vm_key_create();
 }
 
 /*

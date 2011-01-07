@@ -1129,7 +1129,7 @@ sock_s_getaddrinfo(int argc, VALUE *argv)
 	hints.ai_flags = NUM2INT(flags);
     }
     if (NIL_P(revlookup) || !rsock_revlookup_flag(revlookup, &norevlookup)) {
-	norevlookup = rsock_do_not_reverse_lookup;
+	norevlookup = RTEST(rsock_do_not_reverse_lookup);
     }
     res = rsock_getaddrinfo(host, port, &hints, 0);
 
@@ -1828,7 +1828,7 @@ socket_s_ip_address_list(VALUE self)
  * <em>Programming Ruby</em> from The Pragmatic Bookshelf.
  */
 void
-Init_socket()
+InitVM_socket()
 {
     rsock_init_basicsocket();
 

@@ -705,7 +705,7 @@ bsock_recv_nonblock(int argc, VALUE *argv, VALUE sock)
 static VALUE
 bsock_do_not_rev_lookup(void)
 {
-    return rsock_do_not_reverse_lookup?Qtrue:Qfalse;
+    return rsock_do_not_reverse_lookup;
 }
 
 /*
@@ -728,7 +728,7 @@ static VALUE
 bsock_do_not_rev_lookup_set(VALUE self, VALUE val)
 {
     rb_secure(4);
-    rsock_do_not_reverse_lookup = RTEST(val);
+    rsock_do_not_reverse_lookup = RTEST(val)? Qtrue : Qfalse;
     return val;
 }
 

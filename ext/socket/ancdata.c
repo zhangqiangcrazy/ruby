@@ -3,7 +3,8 @@
 #include <time.h>
 
 #if defined(HAVE_ST_MSG_CONTROL)
-static VALUE rb_cAncillaryData;
+static int vmkey_rb_cAncillaryData;
+#define rb_cAncillaryData *ruby_vm_specific_ptr(vmkey_rb_cAncillaryData)
 
 static VALUE
 constant_to_sym(int constant, ID (*intern_const)(int))
@@ -1758,6 +1759,12 @@ rsock_bsock_recvmsg_nonblock(int argc, VALUE *argv, VALUE sock)
     return bsock_recvmsg_internal(argc, argv, sock, 1);
 }
 #endif
+
+void
+rsock_init_vmkey_ancdata(void)
+{
+    vmkey_rb_cAncillaryData = rb_vm_key_create();
+}
 
 /*
  * Document-class: ::Socket::AncillaryData

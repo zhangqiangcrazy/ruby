@@ -156,26 +156,39 @@ struct sockaddr_storage {
 #define INET_SERVER 1
 #define INET_SOCKS  2
 
-extern int rsock_do_not_reverse_lookup;
-#define FMODE_NOREVLOOKUP 0x100
+extern int vmkey_rsock_do_not_reverse_lookup;
+#define rsock_do_not_reverse_lookup *ruby_vm_specific_ptr(vmkey_rsock_do_not_reverse_lookup)
+#define FMODE_NOREVLOOKUP INT2FIX(0x100)
 
-extern VALUE rb_cBasicSocket;
-extern VALUE rb_cIPSocket;
-extern VALUE rb_cTCPSocket;
-extern VALUE rb_cTCPServer;
-extern VALUE rb_cUDPSocket;
+extern int vmkey_rb_cBasicSocket;
+#define rb_cBasicSocket *rb_vm_specific_ptr(vmkey_rb_cBasicSocket)
+extern int vmkey_rb_cIPSocket;
+#define rb_cIPSocket *rb_vm_specific_ptr(vmkey_rb_cIPSocket)
+extern int vmkey_rb_cTCPSocket;
+#define rb_cTCPSocket *rb_vm_specific_ptr(vmkey_rb_cTCPSocket)
+extern int vmkey_rb_cTCPServer;
+#define rb_cTCPServer *rb_vm_specific_ptr(vmkey_rb_cTCPServer)
+extern int vmkey_rb_cUDPSocket;
+#define rb_cUDPSocket *rb_vm_specific_ptr(vmkey_rb_cUDPSocket)
 #ifdef HAVE_SYS_UN_H
-extern VALUE rb_cUNIXSocket;
-extern VALUE rb_cUNIXServer;
+extern int vmkey_rb_cUNIXSocket;
+#define rb_cUNIXSocket *rb_vm_specific_ptr(vmkey_rb_cUNIXSocket)
+extern int vmkey_rb_cUNIXServer;
+#define rb_cUNIXServer *rb_vm_specific_ptr(vmkey_rb_cUNIXServer)
 #endif
-extern VALUE rb_cSocket;
-extern VALUE rb_cAddrinfo;
-extern VALUE rb_cSockOpt;
+extern int vmkey_rb_cSocket;
+#define rb_cSocket *rb_vm_specific_ptr(vmkey_rb_cSocket)
+extern int vmkey_rb_cAddrinfo;
+#define rb_cAddrinfo *rb_vm_specific_ptr(vmkey_rb_cAddrinfo)
+extern int vmkey_rb_cSockOpt;
+#define rb_cSockOpt *rb_vm_specific_ptr(vmkey_rb_cSockOpt)
 
-extern VALUE rb_eSocket;
+extern int vmkey_rb_eSocket;
+#define rb_eSocket *rb_vm_specific_ptr(vmkey_rb_eSocket)
 
 #ifdef SOCKS
-extern VALUE rb_cSOCKSSocket;
+extern int vmkey_rb_cSOCKSSocket;
+#define rb_cSOCKSSocket *rb_vm_specific_ptr(vmkey_rb_cSOCKSSocket)
 #ifdef SOCKS5
 #include <socks.h>
 #else

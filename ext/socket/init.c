@@ -10,25 +10,55 @@
 
 #include "rubysocket.h"
 
-VALUE rb_cBasicSocket;
-VALUE rb_cIPSocket;
-VALUE rb_cTCPSocket;
-VALUE rb_cTCPServer;
-VALUE rb_cUDPSocket;
+int vmkey_rb_cBasicSocket;
+int vmkey_rb_cIPSocket;
+int vmkey_rb_cTCPSocket;
+int vmkey_rb_cTCPServer;
+int vmkey_rb_cUDPSocket;
 #ifdef AF_UNIX
-VALUE rb_cUNIXSocket;
-VALUE rb_cUNIXServer;
+int vmkey_rb_cUNIXSocket;
+int vmkey_rb_cUNIXServer;
 #endif
-VALUE rb_cSocket;
-VALUE rb_cAddrinfo;
+int vmkey_rb_cSocket;
+int vmkey_rb_cAddrinfo;
 
-VALUE rb_eSocket;
+int vmkey_rb_eSocket;
 
 #ifdef SOCKS
-VALUE rb_cSOCKSSocket;
+int vmkey_rb_cSOCKSSocket;
 #endif
 
-int rsock_do_not_reverse_lookup = 1;
+int vmkey_rsock_do_not_reverse_lookup;
+
+void
+Init_socket(void)
+{
+    vmkey_rb_cBasicSocket = rb_vm_key_create();
+    vmkey_rb_cIPSocket = rb_vm_key_create();
+    vmkey_rb_cTCPSocket = rb_vm_key_create();
+    vmkey_rb_cTCPServer = rb_vm_key_create();
+    vmkey_rb_cUDPSocket = rb_vm_key_create();
+#ifdef AF_UNIX
+    vmkey_rb_cUNIXSocket = rb_vm_key_create();
+    vmkey_rb_cUNIXServer = rb_vm_key_create();
+#endif
+    vmkey_rb_cSocket = rb_vm_key_create();
+    vmkey_rb_cAddrinfo = rb_vm_key_create();
+
+    vmkey_rb_eSocket = rb_vm_key_create();
+
+#ifdef SOCKS
+    vmkey_rb_cSOCKSSocket = rb_vm_key_create();
+#endif
+
+    vmkey_rsock_do_not_reverse_lookup = rb_vm_key_create();
+
+#if defined(HAVE_ST_MSG_CONTROL)
+    rsock_init_vmkey_ancdata();
+#endif
+
+    rsock_init_vmkey_sockopt();
+}
 
 void
 rsock_raise_socket_error(const char *reason, int error)
@@ -59,7 +89,7 @@ rsock_init_sock(VALUE sock, int fd)
     fp->fd = fd;
     fp->mode = FMODE_READWRITE|FMODE_DUPLEX;
     rb_io_ascii8bit_binmode(sock);
-    if (rsock_do_not_reverse_lookup) {
+    if (RTEST(rsock_do_not_reverse_lookup)) {
 	fp->mode |= FMODE_NOREVLOOKUP;
     }
     rb_io_synchronized(fp);
