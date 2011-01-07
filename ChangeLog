@@ -1,3 +1,7 @@
+Fri Jan  7 15:43:16 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* ext/fcntl/fcntl.c (InitVM_fcntl): MVM ready.
+
 Fri Jan  7 15:40:30 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* ext/socket/socket.c (InitVM_socket): MVM ready.

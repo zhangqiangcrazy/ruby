@@ -112,6 +112,11 @@ pack up your own arguments to pass as args for locking functions, etc.
 void
 Init_fcntl()
 {
+}
+
+void
+InitVM_fcntl()
+{
     VALUE mFcntl = rb_define_module("Fcntl");
 #ifdef F_DUPFD
     rb_define_const(mFcntl, "F_DUPFD", INT2NUM(F_DUPFD));
