@@ -24,6 +24,7 @@ struct multiveerse {              /**< set of universes */
         struct planet {           /**< an inter-vm spaceship */
             union {               /**< several possibilities are there: */
                 struct RString string;     /**< inter-VM string */
+                struct RArray array;       /**< inter-VM array */
                 struct RTypedData data;    /**< typed data (e.g. wormholes) */
                 struct darkmatter {        /**< or a new kind of Ruby object */
                     struct RBasic basic;   /**< flags, klass */
@@ -86,6 +87,9 @@ static VALUE wormhole_initialize(VALUE);
 static VALUE wormhole_init_copy(VALUE, VALUE);
 static void wormhole_push(struct wormhole *, VALUE);
 static struct planet *wormhole_shift(struct wormhole *);
+enum judge { unacceptable, duplicatable, valid };
+static enum judge wormhole_sendaable_p(VALUE obj);
+static VALUE wormhole_convert_this_obj(VALUE, const struct wormhole *wh);
 static VALUE wormhole_interpret_this_obj(VALUE, const void *);
 static int vm_foreach_i(st_data_t, st_data_t, st_data_t);
 
@@ -607,6 +611,79 @@ wormhole_shift(hole)
     return dm;
 }
 
+static enum judge
+wormhole_sendable_p(obj)
+    VALUE obj;
+{
+    VALUE tmp;
+    switch(TYPE(obj)) {
+        int i;
+    case T_FIXNUM:
+    case T_SYMBOL:
+    case T_TRUE:
+    case T_FALSE:
+    case T_NIL:
+    case T_UNDEF:
+        return valid;
+    case T_STRING:
+        /* all strings visible from Ruby levels are _not_ intervm. */
+        return duplicatable;
+    case T_ARRAY:
+        /* arrays are duplicatable if all its contents are not invalid */
+        for (i=0; i<RARRAY_LEN(obj); i++) {
+            if (wormhole_sendable_p(RARRAY_PTR(obj)[i]) ==unacceptable) {
+                return unacceptable;
+            }
+        }
+        return duplicatable;
+    case T_DATA:
+        /* channels are valid, otherd aren't. */
+        if (rb_obj_class(obj) == rb_cChannel) {
+            return valid;
+        }
+        else {
+            return unacceptable;
+        }
+    default:
+        return unacceptable;
+    }
+}
+
+VALUE
+wormhole_convert_this_obj(obj, wh)
+    VALUE obj;
+    const struct wormhole *wh;
+{
+    switch(TYPE(obj)) {
+        int i, j;
+        VALUE ret;
+        struct wormhole *wh2;
+    case T_STRING:
+        ret = rb_intervm_str(obj);
+        rb_intervm_str_ascend(ret); /* prevent deallocation */
+        return ret;
+    case T_DATA:
+        wh2 = RTYPEDDATA_DATA(obj);
+        wormhole_ascend(wh2, (void *)wh);
+        return (VALUE)&wh2->intervm->as.data;
+    case T_ARRAY:
+        /* intervm arrays are not shared; they are always duplicated */
+        j = RARRAY_LEN(obj);
+        ret = (VALUE)&consume()->as.array;
+        memcpy((void *)ret, (void *)obj, sizeof(struct RArray));
+        if (!FL_TEST(ret, RARRAY_EMBED_FLAG)) {
+            FL_UNSET(ret, ELTS_SHARED); /* not used though */
+            RARRAY(ret)->as.heap.ptr = malloc(sizeof(VALUE) * j);
+        }
+        for (i=0; i<j; i++) {
+            RARRAY_PTR(ret)[i] = wormhole_convert_this_obj(RARRAY_PTR(obj)[i], wh);
+        }
+        return ret;
+    default:
+        return obj;
+    }
+}
+
 /*
  * call-seq:
  *    ch.send(msg)
@@ -618,31 +695,22 @@ rb_intervm_wormhole_send(self, obj)
     VALUE self, obj;
 {
     /* Current limitation is that we can only usr strings or wormholes. */
-    struct wormhole *ptr = RTYPEDDATA_DATA(self);
-    if (rb_obj_class(obj) == rb_cChannel) {
-        struct wormhole *ptr2 = RTYPEDDATA_DATA(obj);
-        if (ptr == ptr2) {
-            rb_raise(rb_eArgError, "infinite recursion detected");
-        }
-        else {
-            wormhole_ascend(ptr2, (void *)ptr);
-            wormhole_push(ptr, (VALUE)&ptr2->intervm->as.data);
-        }
+    VALUE str = rb_check_string_type(obj);
+    if (!NIL_P(str)) {
+        obj = str;
     }
-    else if (IMMEDIATE_P(obj)) {
-        wormhole_push(ptr, obj);
-    }
-    else {
-        VALUE str = rb_check_string_type(obj);
-        if (NIL_P(str)) {
-            rb_raise(rb_eTypeError, "type mismatch (%s), String expected",
-                     rb_obj_classname(obj));
-        }
-        else {
-            VALUE str2 = rb_intervm_str(str);
-            rb_intervm_str_ascend(str2); /* prevent deallocation */
-            wormhole_push(ptr, str2);
-        }
+    switch (wormhole_sendable_p(obj)) {
+        struct wormhole *ptr;
+        VALUE tmp;
+    case unacceptable:
+        rb_raise(rb_eTypeError, "type mismatch (%s), String expected",
+                 rb_obj_classname(obj));
+    case valid:
+    case duplicatable:
+        ptr = RTYPEDDATA_DATA(self);
+        tmp = wormhole_convert_this_obj(obj, ptr);
+        wormhole_push(ptr, tmp);
+        break;
     }
     return obj;
 }
@@ -654,6 +722,7 @@ wormhole_interpret_this_obj(obj, vm)
 {
     VALUE ret;
     switch (TYPE(obj)) {
+        int i, j;
     case T_NIL:
     case T_FALSE:
     case T_TRUE:
@@ -669,6 +738,13 @@ wormhole_interpret_this_obj(obj, vm)
         wormhole_descend(RTYPEDDATA_DATA(obj), vm);
         ret = wormhole_alloc(rb_cChannel);
         return wormhole_init_copy(ret, obj);
+    case T_ARRAY:
+        j = RARRAY_LEN(obj);
+        ret = rb_ary_new2(j);
+        for (i=0; i<j; i++) {
+            RARRAY_PTR(ret)[i] = wormhole_interpret_this_obj(RARRAY_PTR(obj)[i], vm);
+        }
+        return ret;
     default:
         rb_bug("wormhole_interpret_this_obj(): unknown data type 0x%x(%p)",
                BUILTIN_TYPE(obj), (void *)obj);
