@@ -1,3 +1,7 @@
+Sat Jan  8 10:26:29 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (ruby_vm_join): should return something.
+
 Sat Jan  8 09:29:39 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (InitVM_Wormhole): rename to RubyVM::Channel because

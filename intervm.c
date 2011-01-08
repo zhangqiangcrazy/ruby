@@ -841,6 +841,7 @@ ruby_vm_join(vm)
                vm->main_thread->status != THREAD_KILLED);
     }
     ruby_native_thread_unlock(&vm_manager.lock);
+    return 1;
 }
 
 /* 
