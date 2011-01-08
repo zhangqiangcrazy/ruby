@@ -45,7 +45,7 @@ struct multiveerse {              /**< set of universes */
 #pragma pack(pop)
 #endif
 
-static int vmkey_wormhole = 0;
+static int vmkey_channel = 0;
 
 /* @_ko1 said that he has  a lock-free queue implementation so @shyouhei leaves
  * him to make this data structure lock free. */
@@ -335,20 +335,20 @@ rb_intervm_str_ascend(self)
 void
 Init_Wormhole(void)
 {
-    vmkey_wormhole = rb_vm_key_create();
+    vmkey_channel = rb_vm_key_create();
 }
 
 void
 InitVM_Wormhole(void)
 {
-    VALUE klass = rb_define_class_under(rb_cRubyVM, "Wormhole", rb_cData);
+    VALUE klass = rb_define_class_under(rb_cRubyVM, "Channel", rb_cData);
     rb_define_alloc_func(klass, wormhole_alloc);
     rb_define_method(klass, "initialize", wormhole_initialize, 0);
     rb_define_method(klass, "initialize_copy", wormhole_init_copy, 0);
     rb_define_method(klass, "send", rb_intervm_wormhole_send, 1);
     rb_define_method(klass, "recv", rb_intervm_wormhole_recv, 0);
-    *(VALUE *)ruby_vm_specific_ptr(vmkey_wormhole) = klass;
-    #define rb_cWormhole (*(VALUE *)ruby_vm_specific_ptr(vmkey_wormhole))
+    *(VALUE *)ruby_vm_specific_ptr(vmkey_channel) = klass;
+    #define rb_cChannel (*(VALUE *)ruby_vm_specific_ptr(vmkey_channel))
 }
 
 void
@@ -356,7 +356,7 @@ wormhole_initial_fill(t)
     VALUE t;
 {
     static const rb_data_type_t wormhole_type = {
-        "RubyVM::Wormhole", wormhole_mark, wormhole_free, wormhole_memsize,
+        "RubyVM::Channel", wormhole_mark, wormhole_free, wormhole_memsize,
     };
     static const struct RTypedData template = {
         { T_DATA, Qundef, }, &wormhole_type, 1, 0,
@@ -376,13 +376,28 @@ wormhole_alloc(klass)
     return ret;
 }
 
+/*
+ *  call-seq:
+ *     RubyVM::Channel.new -> a channel
+ *
+ *  A channel is much  like a queue -- as long as that  do not travel outside a
+ *  VM.   Once  explicitly  shared  among   VMs,  it  can  act  as  a  inter-VM
+ *  communication courier.
+ *
+ *     c = RubyVM::Channel.new
+ *     v = RubyVM.new(...)
+ *     v.start c # shares c among this VM and v
+ *     v.send "foobarbaz" # or something.
+ *
+ *  A real-world example is lib/drb/mvm.rb
+ */
 VALUE
 wormhole_initialize(self)
     VALUE self;
 {
-    /* A wormhole  object, visible from  Ruby level, is  actually a set  of two
-     * objects; one  for the VM, one for  inter-VM.  They both point  to a same
-     * data pointer:
+    /* A RubyVM::Channel object, visible from  Ruby level, is actually a set of
+     * two Wormhole objects; one for the VM, one for inter-VM.  They both point
+     * to a same data pointer:
      *
      *     VM1     inter-VM     VM2
      *   +-----+              +-----+
@@ -415,6 +430,12 @@ wormhole_initialize(self)
     }
 }
 
+/*
+ * call-seq:
+ *    ch.dup -> a new channel
+ *
+ * Duplicates a channel -- much like IO#dup.  Reads/writes are not independent.
+ */
 VALUE
 wormhole_init_copy(dest, src)
     VALUE dest, src;
@@ -441,7 +462,7 @@ wormhole_init_copy(dest, src)
 VALUE
 rb_intervm_wormhole_new(void)
 {
-    return wormhole_initialize(wormhole_alloc(rb_cWormhole));
+    return wormhole_initialize(wormhole_alloc(rb_cChannel));
 }
 
 void
@@ -586,13 +607,19 @@ wormhole_shift(hole)
     return dm;
 }
 
+/*
+ * call-seq:
+ *    ch.send(msg)
+ *
+ * A sent message can be recieved using ch.recv
+ */
 VALUE
 rb_intervm_wormhole_send(self, obj)
     VALUE self, obj;
 {
     /* Current limitation is that we can only usr strings or wormholes. */
     struct wormhole *ptr = RTYPEDDATA_DATA(self);
-    if (rb_obj_class(obj) == rb_cWormhole) {
+    if (rb_obj_class(obj) == rb_cChannel) {
         struct wormhole *ptr2 = RTYPEDDATA_DATA(obj);
         if (ptr == ptr2) {
             rb_raise(rb_eArgError, "infinite recursion detected");
@@ -640,7 +667,7 @@ wormhole_interpret_this_obj(obj, vm)
         return ret;
     case T_DATA:
         wormhole_descend(RTYPEDDATA_DATA(obj), vm);
-        ret = wormhole_alloc(rb_cWormhole);
+        ret = wormhole_alloc(rb_cChannel);
         return wormhole_init_copy(ret, obj);
     default:
         rb_bug("wormhole_interpret_this_obj(): unknown data type 0x%x(%p)",
@@ -649,6 +676,12 @@ wormhole_interpret_this_obj(obj, vm)
     }    
 }
 
+/*
+ * call-seq:
+ *    ch.recv -> msg
+ *
+ * Blocks when ncessesary.
+ */
 VALUE
 rb_intervm_wormhole_recv(self)
     VALUE self;

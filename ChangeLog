@@ -1,3 +1,9 @@
+Sat Jan  8 09:29:39 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (InitVM_Wormhole): rename to RubyVM::Channel because
+	  k1o doesn't like the former name.  Now struct wormhole is a pure
+	  C data structure, Channel is a Ruby class.
+
 Fri Jan  7 15:43:16 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* ext/fcntl/fcntl.c (InitVM_fcntl): MVM ready.

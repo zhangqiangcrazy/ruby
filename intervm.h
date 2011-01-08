@@ -145,27 +145,8 @@ extern void rb_intervm_str_ascend(VALUE self);
  * it, and another VM can receive the info through it.  Every VMs has their own
  * wormhole at the beginning of their execution.
  *
- * @code
- *
- * vm = RubyVM.new("ruby", "-e RubyVM.current.recv # => gets foo")
- * vm.start.send "foo"
- *
- * @endcode
- *
- * But this is not so convenient.  You can also create a dedicated wormhole any
- * time you want, and that  also can be sent/received through another wormhole.
- * With this you can handshake a session between/among any VMs.
- *
- * @code
- *
- * # vm1 and vm2 can communicate this way, by not directly knowing each other
- * vm1 = RubyVM.new("ruby", "-e RubyVM.current.send RubyVM::Wormhole.new")
- * vm2 = RubyVM.new("ruby", "-e RubyVM.current.recv # => ^ this wormhole")
- * vm1.start
- * vm2.start
- * vm2.send vm1.recv
- *
- * @endcode
+ * From  inside a  Ruby script  wormholes  can be  created /  manipulated as  a
+ * Channel.  See rdocs for the usage.
  */
 extern VALUE rb_intervm_wormhole_new(void);
 
