@@ -1,3 +1,7 @@
+Sun Jan  9 11:20:49 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* README: bit update.
+
 Sat Jan  8 17:36:05 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (rb_intervm_wormhole_send): can now send an array, as
