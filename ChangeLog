@@ -1,3 +1,10 @@
+Sun Jan 16 22:35:00 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (rb_intervm_wormhole_peek): signaling pump can happen
+	  prior to a wormhole allocation.
+
+	* vm.c (vm_init2): Proper initialize.
+
 Sun Jan  9 11:20:49 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* README: bit update.

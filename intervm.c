@@ -775,21 +775,23 @@ rb_intervm_wormhole_peek(self, ifnone)
 {
     struct planet *darkmatter;
     VALUE ret = ifnone;
-    struct wormhole *ptr = RTYPEDDATA_DATA(self);
-    ruby_native_thread_lock(&ptr->lock);
+    if (self != Qundef) {
+        struct wormhole *ptr = RTYPEDDATA_DATA(self);
+        ruby_native_thread_lock(&ptr->lock);
 
-    darkmatter = ptr->tail;
-    if (darkmatter) {
-        VALUE tmp = darkmatter->as.darkmatter.value;
-        ret = wormhole_interpret_this_obj(tmp, ptr);
-        ptr->tail = darkmatter->as.darkmatter.prev;
-        if (!ptr->tail) {
-            ptr->head = 0;
+        darkmatter = ptr->tail;
+        if (darkmatter) {
+            VALUE tmp = darkmatter->as.darkmatter.value;
+            ret = wormhole_interpret_this_obj(tmp, ptr);
+            ptr->tail = darkmatter->as.darkmatter.prev;
+            if (!ptr->tail) {
+                ptr->head = 0;
+            }
+            recycle(darkmatter);
         }
-        recycle(darkmatter);
-    }
 
-    ruby_native_thread_unlock(&ptr->lock);
+        ruby_native_thread_unlock(&ptr->lock);
+    }
     return ret;
 }
 

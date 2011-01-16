@@ -1635,6 +1635,7 @@ vm_init2(rb_vm_t *vm)
     MEMZERO(vm->cache, struct cache_entry, CACHE_SIZE);
     vm->at_exit.basic.flags = (T_ARRAY | RARRAY_EMBED_FLAG) & ~RARRAY_EMBED_LEN_MASK; /* len set 0 */
     vm->at_exit.basic.klass = 0;
+    vm->signal_hole = vm->message_hole = Qundef;
 }
 
 /* specific key management API */
