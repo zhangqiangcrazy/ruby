@@ -2184,6 +2184,7 @@ struct vm_create_args {
     rb_vm_t *parent;
     rb_thread_lock_t *lock;
     rb_thread_cond_t waiting;
+    VALUE argv;
     volatile int initialized;
 };
 
@@ -2202,6 +2203,7 @@ vm_create(void *arg)
     status = ruby_vm_init(vm);
     ruby_native_thread_lock(args->lock);
     vm->parent = TypedData_Wrap_Struct(rb_cRubyVM, &vm_data_type, args->parent);
+    rb_intervm_wormhole_send(vm->message_hole, args->argv);
     if (!status) ruby_vmmgr_add(vm);
     args->initialized = 1;
     ruby_native_cond_signal(&args->waiting);
@@ -2211,7 +2213,7 @@ vm_create(void *arg)
 }
 
 static VALUE
-rb_vm_start(VALUE self)
+rb_vm_start(int argc, VALUE *argv, VALUE self)
 {
     rb_vm_t *vm;
     rb_thread_t *th;
@@ -2230,6 +2232,7 @@ rb_vm_start(VALUE self)
     args.initialized = 0;
     args.lock = &GET_VM()->global_vm_lock;
     ruby_native_cond_initialize(&args.waiting);
+    args.argv = rb_ary_new4(argc, argv);
 
     ruby_threadptr_create(th);
     ruby_native_thread_unlock(&vm->global_vm_lock);
@@ -2377,7 +2380,7 @@ InitVM_VM(void)
     rb_define_alloc_func(rb_cRubyVM, rb_vm_s_alloc);
     rb_define_method(rb_cRubyVM, "initialize", rb_vm_initialize, -1);
     rb_define_method(rb_cRubyVM, "to_s", rb_vm_to_s, 0);
-    rb_define_method(rb_cRubyVM, "start", rb_vm_start, 0);
+    rb_define_method(rb_cRubyVM, "start", rb_vm_start, -1);
     rb_define_method(rb_cRubyVM, "send", rb_vm_send, 1);
     rb_define_method(rb_cRubyVM, "recv", rb_vm_recv, 0);
     rb_define_method(rb_cRubyVM, "join", rb_vm_join, 0);
