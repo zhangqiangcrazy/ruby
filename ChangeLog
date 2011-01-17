@@ -1,3 +1,13 @@
+Mon Jan 17 13:43:07 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* gc.c (gc_mark_children): Add assertion again.  No inter-VM
+	  objects should be stored onto another VM's object space.
+
+	* parse.y (rb_id2str): This string's class should always be
+	  updated because the string can be from other VM's object space,
+	  and hence klass can point to another rb_cString from different
+	  universe.
+
 Sun Jan 16 22:48:30 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (rb_vm_start): now takes variable arguments.

@@ -23,6 +23,7 @@
 #include <stdio.h>
 #include <setjmp.h>
 #include <sys/types.h>
+#include <assert.h>
 
 #ifdef HAVE_SYS_TIME_H
 #include <sys/time.h>
@@ -1552,7 +1553,7 @@ gc_mark_children(rb_objspace_t *objspace, VALUE ptr, int lev)
   again:
     obj = RANY(ptr);
     if (rb_special_const_p(ptr)) return; /* special const not marked */
-    if (!is_pointer_to_heap(objspace, obj)) return; /* from outer space */
+    assert(is_pointer_to_heap(objspace, obj));
     if (obj->as.basic.flags == 0) return;       /* free cell */
     if (obj->as.basic.flags & FL_MARK) return;  /* already marked */
     obj->as.basic.flags |= FL_MARK;

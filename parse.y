@@ -9798,8 +9798,7 @@ rb_id2str(ID id)
 
     if (st_lookup(global_symbols.id_str, id, &data)) {
         VALUE str = (VALUE)data;
-        if (RBASIC(str)->klass == 0)
-            RBASIC(str)->klass = rb_cString;
+        RBASIC(str)->klass = rb_cString;
 	return rb_str_new_shared(str);
     }
 
@@ -9816,8 +9815,7 @@ rb_id2str(ID id)
 	rb_intern_str(str);
 	if (st_lookup(global_symbols.id_str, id, &data)) {
             VALUE str = (VALUE)data;
-            if (RBASIC(str)->klass == 0)
-                RBASIC(str)->klass = rb_cString;
+            RBASIC(str)->klass = rb_cString;
             return rb_str_new_shared(str);
         }
     }
