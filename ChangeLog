@@ -1,3 +1,11 @@
+Tue Jan 18 02:48:47 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (vm_create): When a VM was created, it has inherited its
+	  parent VM's thread group.  This is a problem.  We kill that
+	  here.  But there should be discussions whether this operation is
+	  OK, because doing this makes a VM "escaped" from a thread group.
+	  Care might be taken?
+
 Mon Jan 17 13:43:07 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* gc.c (gc_mark_children): Add assertion again.  No inter-VM

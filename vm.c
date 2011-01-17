@@ -2200,6 +2200,7 @@ vm_create(void *arg)
     int status;
 
     ruby_native_thread_unlock(&vm->global_vm_lock);
+    vm->main_thread->thgroup = 0;
     status = ruby_vm_init(vm);
     ruby_native_thread_lock(args->lock);
     vm->parent = TypedData_Wrap_Struct(rb_cRubyVM, &vm_data_type, args->parent);
