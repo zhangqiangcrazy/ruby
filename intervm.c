@@ -479,19 +479,17 @@ wormhole_dealloc(self)
     for (p = q = self->head; p; p = q) {
         VALUE tmp = p->as.darkmatter.value;
         q = p->next;
-        if (RBASIC(tmp)->flags) {
-            switch (BUILTIN_TYPE(tmp)) {
-            case T_DATA:
-                if (wormholep((void *)tmp)) {
-                    /* wormholes cannot be  recursively deallocated since there
-                     * might be other references remaining to it. */
-                    wormhole_descend(RTYPEDDATA_DATA(tmp), (void *)self);
-                }
-                break;
-            case T_STRING:
-                rb_intervm_str_descend(tmp);
-                break;
+        switch (TYPE(tmp)) {
+        case T_DATA:
+            if (wormholep((void *)tmp)) {
+                /* wormholes  cannot  be  recursively deallocated  since  there
+                 * might be other references remaining to it. */
+                wormhole_descend(RTYPEDDATA_DATA(tmp), (void *)self);
             }
+            break;
+        case T_STRING:
+            rb_intervm_str_descend(tmp);
+            break;
         }
         recycle(p);
     }
@@ -638,7 +636,7 @@ wormhole_sendable_p(obj)
         return duplicatable;
     case T_DATA:
         /* channels are valid, otherd aren't. */
-        if (rb_obj_class(obj) == rb_cChannel) {
+        if (RTYPEDDATA_P(obj) && RTYPEDDATA_TYPE(obj)->dmark == wormhole_mark) {
             return valid;
         }
         else {
@@ -742,7 +740,7 @@ wormhole_interpret_this_obj(obj, vm)
         j = RARRAY_LEN(obj);
         ret = rb_ary_new2(j);
         for (i=0; i<j; i++) {
-            RARRAY_PTR(ret)[i] = wormhole_interpret_this_obj(RARRAY_PTR(obj)[i], vm);
+            rb_ary_push(ret, wormhole_interpret_this_obj(RARRAY_PTR(obj)[i], vm));
         }
         return ret;
     default:
