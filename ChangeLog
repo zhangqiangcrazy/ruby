@@ -1,3 +1,8 @@
+Wed Jan 19 01:55:01 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (vm_create): RubyVM#send argumenst are visible as
+	  RubyVM::ARGV from inside of a called VM.
+
 Wed Jan 19 01:44:00 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (wormhole_interpret_this_obj): Bug fix.  rb_ary_new2()

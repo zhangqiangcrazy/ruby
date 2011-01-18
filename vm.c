@@ -2198,13 +2198,18 @@ vm_create(void *arg)
     struct vm_create_args *args = arg;
     rb_vm_t *vm = args->vm;
     int status;
+    VALUE argv;
 
     ruby_native_thread_unlock(&vm->global_vm_lock);
     vm->main_thread->thgroup = 0;
     status = ruby_vm_init(vm);
     ruby_native_thread_lock(args->lock);
     vm->parent = TypedData_Wrap_Struct(rb_cRubyVM, &vm_data_type, args->parent);
+    /* let me know if there are some other appropriate place for
+     * RubyVM::ARGV initialization should go. */
     rb_intervm_wormhole_send(vm->message_hole, args->argv);
+    argv = rb_intervm_wormhole_recv(vm->message_hole);
+    rb_define_const(rb_cRubyVM, "ARGV", argv);
     if (!status) ruby_vmmgr_add(vm);
     args->initialized = 1;
     ruby_native_cond_signal(&args->waiting);
