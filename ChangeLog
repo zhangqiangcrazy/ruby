@@ -1,3 +1,10 @@
+Wed Jan 19 05:45:38 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (rb_intervm_wormhole_recv): wormhole_shift blocks, so
+	  it should release the interpreter lock.  RUBY_UBF_IO is arguable
+	  though there is no chance to interrupt the operation anyway
+	  because the lock is done using mutex.
+
 Wed Jan 19 01:55:01 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (vm_create): RubyVM#send argumenst are visible as

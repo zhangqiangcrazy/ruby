@@ -750,6 +750,10 @@ wormhole_interpret_this_obj(obj, vm)
     }    
 }
 
+extern void *rb_thread_call_without_gvl(
+    rb_blocking_function_t *func, void *data1,
+    rb_unblock_function_t *ubf, void *data2);
+
 /*
  * call-seq:
  *    ch.recv -> msg
@@ -761,7 +765,8 @@ rb_intervm_wormhole_recv(self)
     VALUE self;
 {
     struct wormhole *ptr = RTYPEDDATA_DATA(self);
-    struct planet *darkmatter = wormhole_shift(ptr);
+    struct planet *darkmatter = rb_thread_call_without_gvl(
+            (rb_blocking_function_t *)wormhole_shift, ptr, RUBY_UBF_IO, 0);
     VALUE ret = wormhole_interpret_this_obj(darkmatter->as.darkmatter.value, ptr);
     recycle(darkmatter);
     return ret;
