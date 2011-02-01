@@ -13,7 +13,7 @@ require 'drb'
 
 class RubyVM::DRbSocket
   def self.parse_uri uri
-    case uri when /\Adrbmvm:/ then
+    case uri when /\Adrb\+mvm:\/\// then
       return eval($')
     else
       raise DRb::DRbBadScheme, uri
