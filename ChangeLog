@@ -1,3 +1,7 @@
+Tue Feb  1 15:31:46 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* README: update.
+
 Tue Feb  1 15:15:58 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* lib/drb/mvm.rb (RubyVM::self.parse_uri): Now uses drb+mvm://

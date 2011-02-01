@@ -11,6 +11,50 @@ has RubyVM.new method.
 
 will show you a help string.
 
+### RubyVM#start
+
+RubyVM#start can take zero or more arguments.  The passed arguments
+are _copied_, and set as RubyVM::ARGV from inside of a created VM.  So
+for instance
+
+    RubyVM.new(%w"ruby -ep\ RubyVM::ARGV").start "foo", "bar"
+
+Will show you ["foo", "bar"].
+
+### Channels
+
+RubyVM#start arguments are the best suited for constructing
+communication channel(s) between two VMs.  RubyVM::Channel is used for
+that purpose
+
+    c = RubyVM::Channel.new
+    RubyVM.new("...").start c
+    c.send obj # <= passed to created VM.
+
+### DRb support
+
+There is a new library, drb/mvm, which makes a DRb transfar layer
+using MVMs and Channles.  Say, you have this server script:
+
+    class Foo
+       def foo
+          ...
+       end
+    end
+    
+    require 'drb/mvm'
+    DRb.start_server "drb+mvm://RubyVM::ARGV[0]", Foo.new
+
+Then you can create a VM for this server:
+
+    vm = RubyVM.new("ruby script.rb")
+    $ch = RubyVM::Channel.new
+    vm.start $ch
+
+And your client script should open a DRb connection by:
+
+    obj = DRbObject.new_with_uri "drb+mvm://$ch"
+
 Extensions
 ----------
 
