@@ -581,7 +581,7 @@ wormhole_push(hole, obj)
 
     d->value = obj;
     d->prev = hole->head;
-    if (hole->head) hole->head->as.darkmatter.prev = p;
+    if (hole->head) hole->head->as.darkmatter.next = p;
     if (!hole->tail) hole->tail = p;
     hole->head = p;
 
@@ -601,7 +601,7 @@ wormhole_shift(hole)
     }
 
     dm = hole->tail;
-    hole->tail = dm->as.darkmatter.prev;
+    hole->tail = dm->as.darkmatter.next;
     if (!hole->tail) hole->head = 0;
 
     ruby_native_thread_unlock(&hole->lock);
@@ -614,6 +614,9 @@ wormhole_sendable_p(obj)
     VALUE obj;
 {
     VALUE tmp;
+    if (rb_generic_ivar_table(obj)) {
+        return unacceptable;
+    }
     switch(TYPE(obj)) {
         int i;
     case T_FIXNUM:
@@ -694,18 +697,26 @@ rb_intervm_wormhole_send(self, obj)
 {
     /* Current limitation is that we can only usr strings or wormholes. */
     VALUE str = rb_check_string_type(obj);
+    struct wormhole *ptr = RTYPEDDATA_DATA(self);
     if (!NIL_P(str)) {
         obj = str;
     }
     switch (wormhole_sendable_p(obj)) {
-        struct wormhole *ptr;
         VALUE tmp;
     case unacceptable:
-        rb_raise(rb_eTypeError, "type mismatch (%s), String expected",
-                 rb_obj_classname(obj));
+        if (0) {
+            rb_raise(rb_eTypeError, "type mismatch (%s), String expected",
+                     rb_obj_classname(obj));
+        }
+        else {
+            tmp = rb_intervm_str(rb_marshal_dump(obj, Qnil));
+            rb_intervm_str_ascend(tmp); /* prevent deallocation */
+            FL_SET(tmp, FL_MARK); /* hack */
+            wormhole_push(ptr, tmp);
+            break;
+        }
     case valid:
     case duplicatable:
-        ptr = RTYPEDDATA_DATA(self);
         tmp = wormhole_convert_this_obj(obj, ptr);
         wormhole_push(ptr, tmp);
         break;
@@ -729,9 +740,14 @@ wormhole_interpret_this_obj(obj, vm)
         return obj;
     case T_STRING:
         rb_intervm_str_descend(obj);
-        ret = rb_str_new_shared(obj);
-        RSTRING(ret)->basic.klass = rb_cString;
-        return ret;
+        if(FL_TEST(obj, FL_MARK)) {
+            return rb_marshal_load(obj);
+        }
+        else {
+            ret = rb_str_new_shared(obj);
+            RSTRING(ret)->basic.klass = rb_cString;
+            return ret;
+        }
     case T_DATA:
         wormhole_descend(RTYPEDDATA_DATA(obj), vm);
         ret = wormhole_alloc(rb_cChannel);

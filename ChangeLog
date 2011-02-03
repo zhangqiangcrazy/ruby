@@ -1,3 +1,18 @@
+Thu Feb  3 19:16:35 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (rb_intervm_wormhole_send): Sends unacceptable objects
+	  anyway, by marshaling them.  Marshal output strings are
+	  distinguishable by missued FL_MARK.
+
+	* intervm.c (wormhole_sendable_p): Objects with instance variables
+	  are hereby recognized as unacceptable; making them reroute via
+	  marshaling.
+
+	* intervm.c (wormhole_push): Fixing embarrassing in wormhole's
+	  queue arrangement
+
+	* intervm.c (wormhole_shift): ditto.
+
 Tue Feb  1 15:31:46 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* README: update.
