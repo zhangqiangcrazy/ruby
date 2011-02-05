@@ -18,8 +18,8 @@
                          Data Type Definitions
    ======================================================================= */
 
-static VALUE StringScanner;
-static VALUE ScanError;
+static int vmkey_ScanError = 0;
+#define ScanError *ruby_vm_specific_ptr(vmkey_ScanError)
 
 struct strscanner
 {
@@ -1245,10 +1245,16 @@ inspect2(struct strscanner *p)
 void
 Init_strscan()
 {
+    vmkey_ScanError = rb_vm_key_create();
+}
+
+void
+InitVM_strscan()
+{
     ID id_scanerr = rb_intern("ScanError");
     VALUE tmp;
 
-    StringScanner = rb_define_class("StringScanner", rb_cObject);
+    VALUE StringScanner = rb_define_class("StringScanner", rb_cObject);
     ScanError = rb_define_class_under(StringScanner, "Error", rb_eStandardError);
     if (!rb_const_defined(rb_cObject, id_scanerr)) {
 	rb_const_set(rb_cObject, id_scanerr, ScanError);

@@ -1,3 +1,7 @@
+Sat Feb  5 23:54:58 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* ext/strscan/strscan.c (InitVM_strscan): MVM ready.
+
 Sat Feb  5 23:36:58 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* enc/trans/transdb.c (InitVM_transdb): MVM ready.
