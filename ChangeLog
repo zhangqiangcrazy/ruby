@@ -1,3 +1,9 @@
+Sat Feb  5 22:44:29 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c: support for ruby floats; they are fairly flat, having
+	  no pointers inside.  So a simple memory copy (rather than a
+	  complex of Marshal.dump) should suffice with much sppedup.
+
 Thu Feb  3 19:16:35 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (rb_intervm_wormhole_send): Sends unacceptable objects

@@ -25,6 +25,7 @@ struct multiveerse {              /**< set of universes */
             union {               /**< several possibilities are there: */
                 struct RString string;     /**< inter-VM string */
                 struct RArray array;       /**< inter-VM array */
+                struct RFloat real;        /**< inter-VM float */
                 struct RTypedData data;    /**< typed data (e.g. wormholes) */
                 struct darkmatter {        /**< or a new kind of Ruby object */
                     struct RBasic basic;   /**< flags, klass */
@@ -147,12 +148,10 @@ Final_intervm(void)
                         rb_bug("what's this? needs inspection.");
                     }
                     break;
+                case T_FLOAT:
+                    break;      /* needs nothing */
                 case T_ARRAY:
-                    if (FL_TEST(&r->as.darkmatter, RARRAY_EMBED_FLAG)) {
-                        /* wormhole_elements */
-                        break;
-                    }
-                    /* FALLTHROUGH */
+                    break;
                 default:
                     rb_bug("Final_intervm(): unknown data type 0x%x(%p)",
                            BUILTIN_TYPE(&r->as), r);
@@ -625,6 +624,7 @@ wormhole_sendable_p(obj)
     case T_FALSE:
     case T_NIL:
     case T_UNDEF:
+    case T_FLOAT:
         return valid;
     case T_STRING:
         /* all strings visible from Ruby levels are _not_ intervm. */
@@ -672,6 +672,7 @@ wormhole_convert_this_obj(obj, wh)
         j = RARRAY_LEN(obj);
         ret = (VALUE)&consume()->as.array;
         memcpy((void *)ret, (void *)obj, sizeof(struct RArray));
+        RBASIC(ret)->klass = 0;
         if (!FL_TEST(ret, RARRAY_EMBED_FLAG)) {
             FL_UNSET(ret, ELTS_SHARED); /* not used though */
             RARRAY(ret)->as.heap.ptr = malloc(sizeof(VALUE) * j);
@@ -679,6 +680,11 @@ wormhole_convert_this_obj(obj, wh)
         for (i=0; i<j; i++) {
             RARRAY_PTR(ret)[i] = wormhole_convert_this_obj(RARRAY_PTR(obj)[i], wh);
         }
+        return ret;
+    case T_FLOAT:
+        ret = (VALUE)&consume()->as.real;
+        memcpy((void *)ret, (void *)obj, sizeof(struct RFloat));
+        RBASIC(ret)->klass = 0;        
         return ret;
     default:
         return obj;
@@ -759,6 +765,8 @@ wormhole_interpret_this_obj(obj, vm)
             rb_ary_push(ret, wormhole_interpret_this_obj(RARRAY_PTR(obj)[i], vm));
         }
         return ret;
+    case T_FLOAT:
+        return rb_float_new(RFLOAT_VALUE(obj));
     default:
         rb_bug("wormhole_interpret_this_obj(): unknown data type 0x%x(%p)",
                BUILTIN_TYPE(obj), (void *)obj);
