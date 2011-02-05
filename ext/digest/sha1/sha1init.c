@@ -26,6 +26,11 @@ static const rb_digest_metadata_t sha1 = {
 void
 Init_sha1()
 {
+}
+
+void
+InitVM_sha1()
+{
     VALUE mDigest, cDigest_Base, cDigest_SHA1;
 
     rb_require("digest");

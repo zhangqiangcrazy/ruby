@@ -15,10 +15,13 @@
 
 #include "digest.h"
 
-static VALUE rb_mDigest;
-static VALUE rb_mDigest_Instance;
-static VALUE rb_cDigest_Class;
-static VALUE rb_cDigest_Base;
+
+static int vmkey_rb_mDigest_Instance = 0;
+#define rb_mDigest_Instance *ruby_vm_specific_ptr(vmkey_rb_mDigest_Instance)
+static int vmkey_rb_cDigest_Class = 0;
+#define rb_cDigest_Class *ruby_vm_specific_ptr(vmkey_rb_cDigest_Class)
+static int vmkey_rb_cDigest_Base = 0;
+#define rb_cDigest_Base *ruby_vm_specific_ptr(vmkey_rb_cDigest_Base)
 
 static ID id_reset, id_update, id_finish, id_digest, id_hexdigest, id_digest_length;
 static ID id_metadata;
@@ -582,11 +585,18 @@ Init_digest(void)
     id_digest          = rb_intern("digest");
     id_hexdigest       = rb_intern("hexdigest");
     id_digest_length   = rb_intern("digest_length");
+    vmkey_rb_mDigest_Instance = rb_vm_key_create();
+    vmkey_rb_cDigest_Class = rb_vm_key_create();
+    vmkey_rb_cDigest_Base = rb_vm_key_create();
+}
 
+void
+InitVM_digest(void)
+{
     /*
      * module Digest
      */
-    rb_mDigest = rb_define_module("Digest");
+    VALUE rb_mDigest = rb_define_module("Digest");
 
     /* module functions */
     rb_define_module_function(rb_mDigest, "hexencode", rb_digest_s_hexencode, 1);

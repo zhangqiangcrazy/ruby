@@ -26,6 +26,11 @@ static const rb_digest_metadata_t md5 = {
 void
 Init_md5()
 {
+}
+
+void
+InitVM_md5()
+{
     VALUE mDigest, cDigest_Base, cDigest_MD5;
 
     rb_require("digest");

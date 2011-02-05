@@ -31,6 +31,11 @@ FOREACH_BITLEN(DEFINE_ALGO_METADATA)
 void
 Init_sha2()
 {
+}
+
+void
+InitVM_sha2()
+{
     VALUE mDigest, cDigest_Base;
     ID id_metadata;
 

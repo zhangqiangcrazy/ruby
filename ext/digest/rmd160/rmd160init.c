@@ -26,6 +26,11 @@ static const rb_digest_metadata_t rmd160 = {
 void
 Init_rmd160()
 {
+}
+
+void
+InitVM_rmd160()
+{
     VALUE mDigest, cDigest_Base, cDigest_RMD160;
 
     rb_require("digest");

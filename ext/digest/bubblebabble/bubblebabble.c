@@ -121,6 +121,11 @@ rb_digest_instance_bubblebabble(VALUE self)
 void
 Init_bubblebabble(void)
 {
+}
+
+void
+InitVM_bubblebabble(void)
+{
     VALUE mDigest, mDigest_Instance, cDigest_Class;
 
     rb_require("digest");
