@@ -1,3 +1,7 @@
+Sat Feb  5 23:36:58 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* enc/trans/transdb.c (InitVM_transdb): MVM ready.
+
 Sat Feb  5 23:32:54 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* enc/encdb.c (InitVM_encdb): MVM ready.
