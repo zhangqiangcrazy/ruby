@@ -23,5 +23,10 @@ void rb_enc_set_base(const char *name, const char *orig);
 void
 Init_encdb(void)
 {
+}
+
+void
+InitVM_encdb(void)
+{
 #include "encdb.h"
 }
