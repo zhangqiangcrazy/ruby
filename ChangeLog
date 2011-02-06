@@ -1,3 +1,9 @@
+Sun Feb  6 11:48:01 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* lib/webrick/mvm.rb: New file.  This makes WEBrick to run parallel.
+
+	* sample/webrick/mvm.rb: Sample webrick application for it.
+
 Sun Feb  6 11:25:36 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* ext/socket/rubysocket.h (FMODE_NOREVLOOKUP): was an int, not a Fixnum.
