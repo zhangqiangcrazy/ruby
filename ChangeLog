@@ -1,3 +1,7 @@
+Sun Feb  6 11:25:36 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* ext/socket/rubysocket.h (FMODE_NOREVLOOKUP): was an int, not a Fixnum.
+
 Sun Feb  6 00:12:34 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* ext/digest/digest.c (InitVM_digest): MVM ready.

@@ -158,7 +158,7 @@ struct sockaddr_storage {
 
 extern int vmkey_rsock_do_not_reverse_lookup;
 #define rsock_do_not_reverse_lookup *ruby_vm_specific_ptr(vmkey_rsock_do_not_reverse_lookup)
-#define FMODE_NOREVLOOKUP INT2FIX(0x100)
+#define FMODE_NOREVLOOKUP 0x100
 
 extern int vmkey_rb_cBasicSocket;
 #define rb_cBasicSocket *rb_vm_specific_ptr(vmkey_rb_cBasicSocket)
