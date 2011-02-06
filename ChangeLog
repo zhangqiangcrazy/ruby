@@ -1,3 +1,7 @@
+Sun Feb  6 12:22:19 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* lib/webrick/mvm.rb (WEBrick::start): This "-d" was the unnecessary.
+
 Sun Feb  6 12:19:20 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* lib/webrick/mvm.rb (WEBrick::start): Just to edit debug message

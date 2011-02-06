@@ -54,7 +54,7 @@ module WEBrick::MVMplugin
 			@ch1 = RubyVM::Channel.new
 			@vms = Array.new nvms
 			@vms.map! do
-				vm = RubyVM.new "ruby", "-d", $0
+				vm = RubyVM.new "ruby", $0
 				@logger.debug "starting #{vm.inspect}"
 				vm.start @ch0
 			end
