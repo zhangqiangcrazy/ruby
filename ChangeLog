@@ -1,3 +1,7 @@
+Sun Feb  6 12:19:20 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* lib/webrick/mvm.rb (WEBrick::start): Just to edit debug message
+
 Sun Feb  6 12:17:14 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* lib/drb/mvm.rb : indent.

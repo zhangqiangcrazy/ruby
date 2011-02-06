@@ -22,7 +22,7 @@ module WEBrick::MVMplugin
 					sock.do_not_reverse_lookup = config[:DoNotReverseLookup]
 					ch.send true # pong
 					addr = sock.peeraddr
-					@logger.debug "dequeue #{sock.inspect} by #{RubyVM.current.inspect}"
+					@logger.debug "dequeue: #{sock.inspect} by #{RubyVM.current.inspect}"
 					@logger.debug "accept: #{addr[3]}:#{addr[1]}"
 					call_callback :AcceptCallback, sock
 					run sock
