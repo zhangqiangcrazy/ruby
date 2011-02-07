@@ -1,3 +1,9 @@
+Mon Feb  7 20:13:52 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): I'm really uncertain for this --
+	  commenting this line out reduces segmentation faults, seems like
+	  the freeing is suspicious.  But not sure.
+
 Mon Feb  7 17:20:28 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* signal.c (trap_last_mask): is a per-thread resource.  Not

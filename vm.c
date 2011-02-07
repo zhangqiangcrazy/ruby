@@ -1559,7 +1559,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
         if (vm->loading_table) {
             /* @shyouhei is not sure if a loading lock should be per
              * VM...  shouldn't it be process global? */
-            st_foreach(vm->loading_table, vm_free_locks, 0);
+            /* st_foreach(vm->loading_table, vm_free_locks, 0); */
             st_free_table(vm->loading_table);
         }
         ruby_native_thread_unlock(&vm->global_vm_lock);
