@@ -2837,7 +2837,7 @@ ruby_vm_send_signal(rb_vm_t *vm, int sig)
     thread_debug("main_thread: %s, sig: %d\n",
 		 thread_status_name(prev_status), sig);
     mth->interrupt_flag |= ruby_vm_signal_bit;
-    rb_intervm_wormhole_send(vm->signal_hole, INT2FIX(sig));
+    rb_intervm_wormhole_send_immediate(vm->signal_hole, INT2FIX(sig));
     if (mth->status != THREAD_KILLED) mth->status = THREAD_RUNNABLE;
     rb_threadptr_interrupt(mth);
     mth->status = prev_status;

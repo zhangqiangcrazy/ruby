@@ -727,7 +727,16 @@ rb_intervm_wormhole_send(self, obj)
         wormhole_push(ptr, tmp);
         break;
     }
-    return obj;
+    return self;
+}
+
+VALUE
+rb_intervm_wormhole_send_immediate(self, obj)
+    VALUE self, obj;
+{
+    assert(IMMEDIATE_P(obj));
+    wormhole_push(RTYPEDDATA_DATA(self), obj);
+    return self;
 }
 
 VALUE

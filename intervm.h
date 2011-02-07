@@ -159,6 +159,15 @@ extern VALUE rb_intervm_wormhole_new(void);
 extern VALUE rb_intervm_wormhole_send(VALUE hole, VALUE obj);
 
 /**
+ * @brief sends something through a wormhole, fast path variant.
+ * @param[out]  hole  target wormhole
+ * @param[in]   obj   an immediate, a string, or another wormhole
+ * @returns hole
+ * @note obj must be an immediate (in the sense of Ruby's).
+ */
+extern VALUE rb_intervm_wormhole_send_immediate(VALUE hole, VALUE obj);
+
+/**
  * @brief recieves something through a wormhole (blocking version)
  * @param[out]  hole  target wormhole
  * @returns something from another side of the hole

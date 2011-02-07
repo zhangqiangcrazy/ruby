@@ -1,3 +1,17 @@
+Mon Feb  7 16:05:17 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* thread.c (ruby_vm_send_signal): rb_intervm_wormhole_send() was
+	  not a right way to push a signal because that function needs to
+	  type-convert its argument i.e. needs a VM context.  As
+	  ruby_vm_send_signal() is out of a VM, we cannnot do so.
+
+	* intervm.h (rb_intervm_wormhole_send_immediate): New function to
+	  be used in above situation.
+
+	* intervm.h (rb_intervm_wormhole_send_immediate): ditto.
+
+	* intervm.c (rb_intervm_wormhole_send): bug fix to fit to doxygen.
+
 Sun Feb  6 12:22:19 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* lib/webrick/mvm.rb (WEBrick::start): This "-d" was the unnecessary.
