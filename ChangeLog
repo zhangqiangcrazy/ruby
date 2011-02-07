@@ -1,3 +1,10 @@
+Mon Feb  7 17:20:28 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* signal.c (trap_last_mask): is a per-thread resource.  Not
+	  process global, nor even VM-speicfic.
+
+	* eval.c (setup_exception): this rb_trap_restore_mask is a race.
+
 Mon Feb  7 16:05:17 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* thread.c (ruby_vm_send_signal): rb_intervm_wormhole_send() was

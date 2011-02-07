@@ -520,12 +520,16 @@ rb_signal_buff_size(void)
     return signal_buff.size;
 }
 
-#if USE_TRAP_MASK
-# ifdef HAVE_SIGPROCMASK
-static sigset_t trap_last_mask;
-# else
-static int trap_last_mask;
+#ifdef THREAD_SPECIFIC
+# if USE_TRAP_MASK
+#  ifdef HAVE_SIGPROCMASK
+static THREAD_SPECIFIC sigset_t trap_last_mask;
+#  else
+static THREAD_SPECIFIC int trap_last_mask;
+#  endif
 # endif
+#else
+# error "you lose.  Implement trap_last_mask using pthread_getspecific()."
 #endif
 
 #ifdef RUBY_DEBUG_ENV
