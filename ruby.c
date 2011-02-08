@@ -858,10 +858,10 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct rb_vm_options *opt, int
 	  case 'r':
 	    forbid_setid("-r");
 	    if (*++s) {
-		add_modules(&opt->req_list, s);
+		add_modules(&opt->req_list, strdup(s));
 	    }
 	    else if (argv[1]) {
-		add_modules(&opt->req_list, argv[1]);
+		add_modules(&opt->req_list, strdup(argv[1]));
 		argc--, argv++;
 	    }
 	    break;
@@ -1333,7 +1333,7 @@ process_options(rb_vm_t *vm, int argc, char **argv, struct rb_vm_options *opt)
 	}
 	else {
 	    const char *arg0 = argv[0];
-	    if (!opt->script) opt->script = arg0;
+	    if (!opt->script) opt->script = strdup(arg0);
 	    else arg0 = opt->script;
 	    if (opt->script[0] == '\0') {
 		opt->script = "-";
@@ -1349,7 +1349,7 @@ process_options(rb_vm_t *vm, int argc, char **argv, struct rb_vm_options *opt)
 		    opt->script = dln_find_file_r(arg0, getenv(PATH_ENV), fbuf, sizeof(fbuf));
 		}
 		if (!opt->script)
-		    opt->script = arg0;
+		    opt->script = strdup(arg0);
 	    }
 	    argc--;
 	    argv++;

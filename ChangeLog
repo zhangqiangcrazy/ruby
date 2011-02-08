@@ -1,3 +1,10 @@
+Tue Feb  8 16:43:05 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* ruby.c (process_options): My valgrind says that this arg0 is
+	  freed before it was used.
+
+	* ruby.c (proc_options): ditto.
+
 Tue Feb  8 15:56:40 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* thread_pthread.c (get_stack): This function seems broken due to
