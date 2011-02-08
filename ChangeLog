@@ -1,3 +1,8 @@
+Tue Feb  8 15:56:40 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* thread_pthread.c (get_stack): This function seems broken due to
+	  merge mistake. Copy & paste form ruby_1_9_2 at revision r30269.
+
 Mon Feb  7 20:13:52 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): I'm really uncertain for this --
