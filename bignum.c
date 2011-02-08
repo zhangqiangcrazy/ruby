@@ -899,6 +899,10 @@ static void
 power_cache_init(void)
 {
     VALUE cache_value = rb_ary_new2(35 * MAX_BIG2STR_TABLE_ENTRIES);
+    int i;
+    for (i=0; i < 35 * MAX_BIG2STR_TABLE_ENTRIES; i++) {
+        rb_ary_push(cache_value, Qnil);
+    }
     rb_big2str_power_cache = cache_value;
 }
 

@@ -1,3 +1,8 @@
+Tue Feb  8 21:02:30 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* bignum.c (power_cache_init): seems like cache_value needs
+	  initialization.
+
 Tue Feb  8 16:43:05 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* ruby.c (process_options): My valgrind says that this arg0 is
