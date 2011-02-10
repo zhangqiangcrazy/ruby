@@ -1,3 +1,14 @@
+Thu Feb 10 18:05:55 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* thread.c (InitVM_Thread): InitVM_native_thread() shall be called
+	  for ALL threads, including the main thread.  All other threads
+	  except the main one calls this function via rb_thread_create but
+	  the main thread is not invoked that way so the call of this
+	  function is needed somewhere.  I'm not sure this is the right
+	  position to do so because there might perhaps be a chance for a
+	  sugnal pump to touch uninitiaized native thread before this, but
+	  I'm totally uncertain.
+
 Thu Feb 10 16:53:14 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* eval.c (ruby_stop): Should not destruct a VM this case.

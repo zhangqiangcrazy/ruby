@@ -4471,6 +4471,8 @@ InitVM_Thread(void)
 
     (void)native_mutex_trylock;
     (void)ruby_thread_set_native;
+
+    InitVM_native_thread(GET_THREAD());
 }
 
 int
