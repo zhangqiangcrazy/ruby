@@ -1,3 +1,12 @@
+Thu Feb 10 19:17:27 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* ruby.c (proc_options): Instead of strdup (which causes memory
+	  leak), let GC terminate those strings.
+
+	* ruby.c (process_options): ditto.
+
+	* ruby.c (moreswitches): ditto.
+
 Thu Feb 10 18:05:55 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* thread.c (InitVM_Thread): InitVM_native_thread() shall be called

@@ -643,9 +643,16 @@ moreswitches(rb_vm_t *vm, const char *s, struct rb_vm_options *opt, int envopt)
 	}
     }
 
-    /* get rid of GC */
-    rb_str_resize(argary, 0);
-    rb_str_resize(argstr, 0);
+    {
+        ID id = rb_intern("moreswitches");
+        VALUE ary = rb_ivar_get(vm->self, id);
+        if (ary == Qnil) {
+            ary = rb_ary_new();
+            rb_ivar_set(vm->self, id, ary);
+        }
+        rb_ary_push(ary, argstr);
+        rb_str_resize(argary, 0);
+    }
 }
 
 #define NAME_MATCH_P(name, str, len) \
@@ -858,10 +865,10 @@ proc_options(rb_vm_t *vm, long argc, char **argv, struct rb_vm_options *opt, int
 	  case 'r':
 	    forbid_setid("-r");
 	    if (*++s) {
-		add_modules(&opt->req_list, strdup(s));
+		add_modules(&opt->req_list, s);
 	    }
 	    else if (argv[1]) {
-		add_modules(&opt->req_list, strdup(argv[1]));
+		add_modules(&opt->req_list, argv[1]);
 		argc--, argv++;
 	    }
 	    break;
@@ -1333,7 +1340,7 @@ process_options(rb_vm_t *vm, int argc, char **argv, struct rb_vm_options *opt)
 	}
 	else {
 	    const char *arg0 = argv[0];
-	    if (!opt->script) opt->script = strdup(arg0);
+	    if (!opt->script) opt->script = arg0;
 	    else arg0 = opt->script;
 	    if (opt->script[0] == '\0') {
 		opt->script = "-";
@@ -1349,7 +1356,7 @@ process_options(rb_vm_t *vm, int argc, char **argv, struct rb_vm_options *opt)
 		    opt->script = dln_find_file_r(arg0, getenv(PATH_ENV), fbuf, sizeof(fbuf));
 		}
 		if (!opt->script)
-		    opt->script = strdup(arg0);
+		    opt->script = arg0;
 	    }
 	    argc--;
 	    argv++;
