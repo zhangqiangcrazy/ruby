@@ -318,7 +318,11 @@ ruby_cleanup(int ex)
 void
 ruby_stop(int ex)
 {
-    exit(ruby_cleanup(ex));
+    rb_vm_t *vm = GET_VM();
+    int status = ruby_vm_cleanup(vm, ex);
+    int signo = ruby_vm_exit_signal(vm);
+    if (signo) ruby_default_signal(signo);
+    exit(status);
 }
 
 int

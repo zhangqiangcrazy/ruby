@@ -1,3 +1,15 @@
+Thu Feb 10 16:53:14 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* eval.c (ruby_stop): Should not destruct a VM this case.
+	  ruby_stop() is called inside of rb_f_fork()'s child process
+	  side.  That case, all native threads except the current one has
+	  already been shut down (on POSIX at least).  The problem is,
+	  those shut down threads might have holded locks, i.e. there can
+	  be locked mutexes and they are not modifiabe.  Destructing a VM
+	  should touch them if any.  This process is about to suside so
+	  just ignoring those things and leave OS collect them should
+	  suffice I believe.
+
 Tue Feb  8 21:02:30 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* bignum.c (power_cache_init): seems like cache_value needs
