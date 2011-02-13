@@ -1,3 +1,8 @@
+Mon Feb 14 03:34:02 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (join_internal): New function.  RubyVM#join blocks so
+	  it shall not hold GVL while it waits other VM.
+
 Thu Feb 10 19:17:27 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* ruby.c (proc_options): Instead of strdup (which causes memory

@@ -940,6 +940,15 @@ ruby_vmmgr_add(vm)
     ruby_native_thread_unlock(&vm_manager.lock);
 }
 
+VALUE
+join_internal(ptr)
+    void *ptr;
+{
+    rb_vm_t* vm = ptr;
+    ruby_native_cond_wait(&vm->global_vm_waiting, &vm_manager.lock);
+    return Qnil;
+}
+
 int
 ruby_vm_join(vm)
     rb_vm_t *vm;
@@ -947,7 +956,7 @@ ruby_vm_join(vm)
     ruby_native_thread_lock(&vm_manager.lock);
     if (st_lookup(vm_manager.machines, (st_data_t)vm, 0)) {
         do {
-            ruby_native_cond_wait(&vm->global_vm_waiting, &vm_manager.lock);
+            rb_thread_call_without_gvl(join_internal, vm, RUBY_UBF_IO, 0);
         }
         while (vm->living_threads &&
                vm->living_threads->num_entries > 1 &&
