@@ -982,6 +982,7 @@ rb_file_lstat(VALUE obj)
 static int
 rb_group_member(GETGROUPS_T gid)
 {
+    int rv = FALSE;
 #ifndef _WIN32
     if (getgid() == gid || getegid() == gid)
 	return TRUE;
@@ -995,17 +996,22 @@ rb_group_member(GETGROUPS_T gid)
 #   endif
 #  endif
     {
-	GETGROUPS_T gary[NGROUPS];
+	GETGROUPS_T *gary;
 	int anum;
 
+	gary = xmalloc(NGROUPS * sizeof(GETGROUPS_T));
 	anum = getgroups(NGROUPS, gary);
-	while (--anum >= 0)
-	    if (gary[anum] == gid)
-		return TRUE;
+	while (--anum >= 0) {
+	    if (gary[anum] == gid) {
+		rv = TRUE;
+		break;
+	    }
+	}
+	xfree(gary);
     }
 # endif
 #endif
-    return FALSE;
+    return rv;
 }
 
 #ifndef S_IXUGO
@@ -3957,7 +3963,7 @@ rb_file_truncate(VALUE obj, VALUE len)
 	rb_sys_fail_path(fptr->pathv);
 #else /* defined(HAVE_CHSIZE) */
     if (chsize(fptr->fd, pos) < 0)
-	rb_sys_fail(fptr->pathv);
+	rb_sys_fail_path(fptr->pathv);
 #endif
     return INT2FIX(0);
 }

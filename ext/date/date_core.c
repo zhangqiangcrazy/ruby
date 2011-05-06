@@ -36,16 +36,25 @@
 #define LIGHTABLE_CWYEAR(y) LIGHTABLE_YEAR(y)
 
 #define ITALY 2299161
+#define ENGLAND 2361222
+#define JULIAN (NUM2DBL(rb_const_get(rb_cFloat, rb_intern("INFINITY"))))
+#define GREGORIAN (-NUM2DBL(rb_const_get(rb_cFloat, rb_intern("INFINITY"))))
 
 #define DAY_IN_SECONDS 86400
 #define SECOND_IN_NANOSECONDS 1000000000
-#define DAY_IN_NANOSECONDS 86400000000000LL
+#if (ULONG_MAX / DAY_IN_SECONDS) > SECOND_IN_NANOSECONDS
+#define DAY_IN_NANOSECONDS LONG2NUM(DAY_IN_SECONDS * SECOND_IN_NANOSECONDS)
+#elif defined HAVE_LONG_LONG
+#define DAY_IN_NANOSECONDS LL2NUM((LONG_LONG)DAY_IN_SECONDS * SECOND_IN_NANOSECONDS)
+#else
+#define DAY_IN_NANOSECONDS f_mul(INT2FIX(DAY_IN_SECONDS), INT2FIX(SECOND_IN_NANOSECONDS))
+#endif
 
 /* copied from time.c */
-#define NDIV(x,y) ((int)(-(-((x)+1)/(y))-1))
-#define NMOD(x,y) ((int)((y)-(-((x)+1)%(y))-1))
-#define DIV(n,d) ((int)((n)<0 ? NDIV((n),(d)) : (n)/(d)))
-#define MOD(n,d) ((int)((n)<0 ? NMOD((n),(d)) : (n)%(d)))
+#define NDIV(x,y) (-(-((x)+1)/(y))-1)
+#define NMOD(x,y) ((y)-(-((x)+1)%(y))-1)
+#define DIV(n,d) ((n)<0 ? NDIV((n),(d)) : (n)/(d))
+#define MOD(n,d) ((n)<0 ? NMOD((n),(d)) : (n)%(d))
 
 union DateData
 {
@@ -338,8 +347,8 @@ jd_to_commercial(long jd, double sg, int *ry, int *rw, int *rd)
 	commercial_to_jd(a, 1, 1, sg, &rjd2, &ns2);
 	*ry = a;
     }
-    *rw = 1 + DIV(jd - rjd2,  7);
-    *rd = MOD(jd + 1, 7);
+    *rw = 1 + (int)DIV(jd - rjd2,  7);
+    *rd = (int)MOD(jd + 1, 7);
     if (*rd == 0)
 	*rd = 7;
 }
@@ -368,8 +377,8 @@ jd_to_weeknum(long jd, int f, double sg, int *ry, int *rw, int *rd)
     find_fdoy(*ry, sg, &rjd, &ns);
     rjd += 6;
     j = jd - (rjd - MOD((rjd - f) + 1, 7)) + 7;
-    *rw = DIV(j, 7);
-    *rd = MOD(j, 7);
+    *rw = (int)DIV(j, 7);
+    *rd = (int)MOD(j, 7);
 }
 
 #ifndef NDEBUG
@@ -403,7 +412,7 @@ jd_to_nth_kday(long jd, double sg, int *ry, int *rm, int *rn, int *rk)
 
     jd_to_civil(jd, sg, ry, rm, &rd);
     find_fdom(*ry, *rm, sg, &rjd, &ns2);
-    *rn = DIV(jd - rjd, 7) + 1;
+    *rn = (int)DIV(jd - rjd, 7) + 1;
     *rk = jd_to_wday(jd);
 }
 #endif
@@ -440,7 +449,7 @@ static const int monthtab[2][13] = {
 inline static int
 leap_p(int y)
 {
-    return MOD(y, 4) == 0 && y % 100 != 0 || MOD(y, 400) == 0;
+    return (MOD(y, 4) == 0 && y % 100 != 0) || (MOD(y, 400) == 0);
 }
 
 static int
@@ -585,7 +594,13 @@ time_to_df(int h, int min, int s)
 inline static int
 jd_to_wday(long jd)
 {
-    return MOD(jd + 1, 7);
+    return (int)MOD(jd + 1, 7);
+}
+
+VALUE
+date_zone_to_diff(VALUE s)
+{
+    return rb_funcall(cDate, rb_intern("zone_to_diff"), 1, s);
 }
 
 static int
@@ -632,7 +647,7 @@ daydiff_to_sec(VALUE vof, int *rof)
 	}
       case T_STRING:
 	{
-	    VALUE vs = rb_funcall(cDate, rb_intern("zone_to_diff"), 1, vof);
+	    VALUE vs = date_zone_to_diff(vof);
 	    int n;
 
 	    if (!FIXNUM_P(vs))
@@ -785,149 +800,261 @@ k_numeric_p(VALUE x)
 }
 
 static VALUE
-date_s_valid_jd_p(int argc, VALUE *argv, VALUE klass)
+valid_jd_sub(int argc, VALUE *argv, VALUE klass)
+{
+    return argv[0];
+}
+
+#ifndef NDEBUG
+static VALUE
+date_s__valid_jd_p(int argc, VALUE *argv, VALUE klass)
 {
     VALUE vjd, vsg;
+    VALUE argv2[2];
 
     rb_scan_args(argc, argv, "11", &vjd, &vsg);
 
+    argv2[0] = vjd;
+    if (argc < 2)
+	argv[1] = DBL2NUM(GREGORIAN);
+    else
+	argv[1] = vsg;
+
+    return valid_jd_sub(2, argv2, klass);
+}
+#endif
+
+static VALUE
+date_s_valid_jd_p(int argc, VALUE *argv, VALUE klass)
+{
+    VALUE vjd, vsg;
+    VALUE argv2[2];
+
+    rb_scan_args(argc, argv, "11", &vjd, &vsg);
+
+    argv2[0] = vjd;
+    if (argc < 2)
+	argv[1] = INT2FIX(ITALY);
+    else
+	argv[1] = vsg;
+
+    if (NIL_P(valid_jd_sub(2, argv2, klass)))
+	return Qfalse;
     return Qtrue;
 }
 
 static VALUE
-date_s_valid_civil_p(int argc, VALUE *argv, VALUE klass)
+valid_civil_sub(int argc, VALUE *argv, VALUE klass, int need_jd)
 {
-    VALUE vy, vm, vd, vsg;
     int y, m, d, rm, rd;
     double sg;
 
-    rb_scan_args(argc, argv, "31", &vy, &vm, &vd, &vsg);
+    if (!(FIXNUM_P(argv[0]) &&
+	  FIXNUM_P(argv[1]) &&
+	  FIXNUM_P(argv[2])))
+	return cforwardv("_valid_civil_r?");
 
-    if (!(FIXNUM_P(vy) &&
-	  FIXNUM_P(vm) &&
-	  FIXNUM_P(vd)))
-	return cforwardv("valid_civil_r?");
+    y = NUM2INT(argv[0]);
+    if (!LIGHTABLE_YEAR(y))
+	return cforwardv("_valid_civil_r?");
 
-    if (!NIL_P(vsg))
-	sg = NUM2DBL(vsg);
-    else
-	sg = ITALY;
+    m = NUM2INT(argv[1]);
+    d = NUM2INT(argv[2]);
+    sg = NUM2DBL(argv[3]);
 
-    y = -4712;
-    m = 1;
-    d = 1;
-
-    switch (argc) {
-      case 4:
-      case 3:
-	d = NUM2INT(vd);
-      case 2:
-	m = NUM2INT(vm);
-      case 1:
-	y = NUM2INT(vy);
-	if (!LIGHTABLE_YEAR(y))
-	    return cforwardv("valid_civil_r?");
-    }
-
-    if (isinf(sg) && sg < 0) {
+    if (!need_jd && isinf(sg) && sg < 0) {
 	if (!valid_gregorian_p(y, m, d, &rm, &rd))
-	    return Qfalse;
-	return Qtrue;
+	    return Qnil;
+	return INT2FIX(0); /* dummy */
     }
     else {
 	long jd;
 	int ns;
 
 	if (!valid_civil_p(y, m, d, sg, &rm, &rd, &jd, &ns))
-	    return Qfalse;
-	return Qtrue;
+	    return Qnil;
+	return LONG2NUM(jd);
     }
 }
 
+#ifndef NDEBUG
 static VALUE
-date_s_valid_ordinal_p(int argc, VALUE *argv, VALUE klass)
+date_s__valid_civil_p(int argc, VALUE *argv, VALUE klass)
 {
-    VALUE vy, vd, vsg;
+    VALUE vy, vm, vd, vsg;
+    VALUE argv2[4];
+
+    rb_scan_args(argc, argv, "31", &vy, &vm, &vd, &vsg);
+
+    argv2[0] = vy;
+    argv2[1] = vm;
+    argv2[2] = vd;
+    if (argc < 4)
+	argv2[3] = DBL2NUM(GREGORIAN);
+    else
+	argv2[3] = vsg;
+
+    return valid_civil_sub(4, argv2, klass, 1);
+}
+#endif
+
+static VALUE
+date_s_valid_civil_p(int argc, VALUE *argv, VALUE klass)
+{
+    VALUE vy, vm, vd, vsg;
+    VALUE argv2[4];
+
+    rb_scan_args(argc, argv, "31", &vy, &vm, &vd, &vsg);
+
+    argv2[0] = vy;
+    argv2[1] = vm;
+    argv2[2] = vd;
+    if (argc < 4)
+	argv2[3] = INT2FIX(ITALY);
+    else
+	argv2[3] = vsg;
+
+    if (NIL_P(valid_civil_sub(4, argv2, klass, 0)))
+	return Qfalse;
+    return Qtrue;
+}
+
+static VALUE
+valid_ordinal_sub(int argc, VALUE *argv, VALUE klass)
+{
     int y, d, rd;
     double sg;
 
-    rb_scan_args(argc, argv, "21", &vy, &vd, &vsg);
+    if (!(FIXNUM_P(argv[0]) &&
+	  FIXNUM_P(argv[1])))
+	return cforwardv("_valid_ordinal_r?");
 
-    if (!(FIXNUM_P(vy) &&
-	  FIXNUM_P(vd)))
-	return cforwardv("valid_ordinal_r?");
+    y = NUM2INT(argv[0]);
+    if (!LIGHTABLE_YEAR(y))
+	return cforwardv("_valid_ordinal_r?");
 
-    if (!NIL_P(vsg))
-	sg = NUM2DBL(vsg);
-    else
-	sg = ITALY;
-
-    y = -4712;
-    d = 1;
-
-    switch (argc) {
-      case 3:
-      case 2:
-	d = NUM2INT(vd);
-      case 1:
-	y = NUM2INT(vy);
-	if (!LIGHTABLE_YEAR(y))
-	    return cforwardv("valid_ordinal_r?");
-    }
+    d = NUM2INT(argv[1]);
+    sg = NUM2DBL(argv[2]);
 
     {
 	long jd;
 	int ns;
 
 	if (!valid_ordinal_p(y, d, sg, &rd, &jd, &ns))
-	    return Qfalse;
-	return Qtrue;
+	    return Qnil;
+	return LONG2NUM(jd);
     }
 }
 
+#ifndef NDEBUG
 static VALUE
-date_s_valid_commercial_p(int argc, VALUE *argv, VALUE klass)
+date_s__valid_ordinal_p(int argc, VALUE *argv, VALUE klass)
 {
-    VALUE vy, vw, vd, vsg;
+    VALUE vy, vd, vsg;
+    VALUE argv2[3];
+
+    rb_scan_args(argc, argv, "21", &vy, &vd, &vsg);
+
+    argv2[0] = vy;
+    argv2[1] = vd;
+    if (argc < 3)
+	argv2[2] = DBL2NUM(GREGORIAN);
+    else
+	argv2[2] = vsg;
+
+    return valid_ordinal_sub(3, argv2, klass);
+}
+#endif
+
+static VALUE
+date_s_valid_ordinal_p(int argc, VALUE *argv, VALUE klass)
+{
+    VALUE vy, vd, vsg;
+    VALUE argv2[3];
+
+    rb_scan_args(argc, argv, "21", &vy, &vd, &vsg);
+
+    argv2[0] = vy;
+    argv2[1] = vd;
+    if (argc < 3)
+	argv2[2] = INT2FIX(ITALY);
+    else
+	argv2[2] = vsg;
+
+    if (NIL_P(valid_ordinal_sub(3, argv2, klass)))
+	return Qfalse;
+    return Qtrue;
+}
+
+static VALUE
+valid_commercial_sub(int argc, VALUE *argv, VALUE klass)
+{
     int y, w, d, rw, rd;
     double sg;
 
-    rb_scan_args(argc, argv, "31", &vy, &vw, &vd, &vsg);
+    if (!(FIXNUM_P(argv[0]) &&
+	  FIXNUM_P(argv[1]) &&
+	  FIXNUM_P(argv[2])))
+	return cforwardv("_valid_commercial_r?");
 
-    if (!(FIXNUM_P(vy) &&
-	  FIXNUM_P(vw) &&
-	  FIXNUM_P(vd)))
-	return cforwardv("valid_commercial_r?");
+    y = NUM2INT(argv[0]);
+    if (!LIGHTABLE_CWYEAR(y))
+	return cforwardv("_valid_commercial_r?");
 
-    if (!NIL_P(vsg))
-	sg = NUM2DBL(vsg);
-    else
-	sg = ITALY;
-
-    y = -4712;
-    w = 1;
-    d = 1;
-
-    switch (argc) {
-      case 4:
-      case 3:
-	d = NUM2INT(vd);
-      case 2:
-	w = NUM2INT(vw);
-      case 1:
-	y = NUM2INT(vy);
-	if (!LIGHTABLE_CWYEAR(y))
-	    return cforwardv("valid_commercial_r?");
-    }
+    w = NUM2INT(argv[1]);
+    d = NUM2INT(argv[2]);
+    sg = NUM2DBL(argv[3]);
 
     {
 	long jd;
 	int ns;
 
 	if (!valid_commercial_p(y, w, d, sg, &rw, &rd, &jd, &ns))
-	    return Qfalse;
-	return Qtrue;
+	    return Qnil;
+	return LONG2NUM(jd);
     }
+}
+
+#ifndef NDEBUG
+static VALUE
+date_s__valid_commercial_p(int argc, VALUE *argv, VALUE klass)
+{
+    VALUE vy, vw, vd, vsg;
+    VALUE argv2[4];
+
+    rb_scan_args(argc, argv, "31", &vy, &vw, &vd, &vsg);
+
+    argv2[0] = vy;
+    argv2[1] = vw;
+    argv2[2] = vd;
+    if (argc < 4)
+	argv2[3] = DBL2NUM(GREGORIAN);
+    else
+	argv2[3] = vsg;
+
+    return valid_commercial_sub(4, argv2, klass);
+}
+#endif
+
+static VALUE
+date_s_valid_commercial_p(int argc, VALUE *argv, VALUE klass)
+{
+    VALUE vy, vw, vd, vsg;
+    VALUE argv2[4];
+
+    rb_scan_args(argc, argv, "31", &vy, &vw, &vd, &vsg);
+
+    argv2[0] = vy;
+    argv2[1] = vw;
+    argv2[2] = vd;
+    if (argc < 4)
+	argv2[3] = INT2FIX(ITALY);
+    else
+	argv2[3] = vsg;
+
+    if (NIL_P(valid_commercial_sub(4, argv2, klass)))
+	return Qfalse;
+    return Qtrue;
 }
 
 static void
@@ -1321,7 +1448,7 @@ date_s_today(int argc, VALUE *argv, VALUE klass)
     double sg;
     time_t t;
     struct tm tm;
-    long y;
+    int y;
     int m, d;
 
     rb_scan_args(argc, argv, "01", &vsg);
@@ -1343,17 +1470,124 @@ date_s_today(int argc, VALUE *argv, VALUE klass)
 	rb_raise(rb_eArgError, "cannot create");
 
     if (isinf(sg) && sg < 0)
-	return d_lite_s_new_internal(klass, 0, sg, (int)y, m, d,
+	return d_lite_s_new_internal(klass, 0, sg, y, m, d,
 				     LIGHT_MODE | HAVE_CIVIL);
     else {
 	long jd;
 	int ns;
 
-	civil_to_jd((int)y, m, d, sg, &jd, &ns);
+	civil_to_jd(y, m, d, sg, &jd, &ns);
 
-	return d_lite_s_new_internal(klass, jd, sg, (int)y, m, d,
+	return d_lite_s_new_internal(klass, jd, sg, y, m, d,
 				     LIGHT_MODE | HAVE_JD | HAVE_CIVIL);
     }
+}
+
+VALUE
+date__strptime(const char *str, size_t slen,
+	       const char *fmt, size_t flen, VALUE hash);
+
+static VALUE
+date_s__strptime_internal(int argc, VALUE *argv, VALUE klass,
+			  const char *default_fmt)
+{
+    VALUE vstr, vfmt, hash;
+    const char *str, *fmt;
+    size_t slen, flen;
+
+    rb_scan_args(argc, argv, "11", &vstr, &vfmt);
+
+    StringValue(vstr);
+    if (!rb_enc_str_asciicompat_p(vstr))
+	rb_raise(rb_eArgError,
+		 "string should have ASCII compatible encoding");
+    str = RSTRING_PTR(vstr);
+    slen = RSTRING_LEN(vstr);
+    if (argc < 2) {
+	fmt = default_fmt;
+	flen = strlen(default_fmt);
+    }
+    else {
+	StringValue(vfmt);
+	if (!rb_enc_str_asciicompat_p(vfmt))
+	    rb_raise(rb_eArgError,
+		     "format should have ASCII compatible encoding");
+	fmt = RSTRING_PTR(vfmt);
+	flen = RSTRING_LEN(vfmt);
+    }
+    hash = rb_hash_new();
+    if (NIL_P(date__strptime(str, slen, fmt, flen, hash)))
+	return Qnil;
+
+    {
+	VALUE zone = rb_hash_aref(hash, ID2SYM(rb_intern("zone")));
+	VALUE left = rb_hash_aref(hash, ID2SYM(rb_intern("leftover")));
+
+	if (!NIL_P(zone)) {
+	    rb_enc_copy(zone, vstr);
+	    rb_hash_aset(hash, ID2SYM(rb_intern("zone")), zone);
+	}
+	if (!NIL_P(left)) {
+	    rb_enc_copy(left, vstr);
+	    rb_hash_aset(hash, ID2SYM(rb_intern("leftover")), left);
+	}
+    }
+
+    return hash;
+}
+
+/*
+ * call-seq:
+ *    Date._strptime(string[, format="%F"])
+ *
+ * Return a hash of parsed elements.
+ */
+static VALUE
+date_s__strptime(int argc, VALUE *argv, VALUE klass)
+{
+    return date_s__strptime_internal(argc, argv, klass, "%F");
+}
+
+VALUE
+date__parse(VALUE str, VALUE comp);
+
+static VALUE
+date_s__parse_internal(int argc, VALUE *argv, VALUE klass)
+{
+    VALUE vstr, vcomp, hash;
+
+    rb_scan_args(argc, argv, "11", &vstr, &vcomp);
+    StringValue(vstr);
+    if (!rb_enc_str_asciicompat_p(vstr))
+	rb_raise(rb_eArgError,
+		 "string should have ASCII compatible encoding");
+    if (argc < 2)
+	vcomp = Qtrue;
+
+    hash = date__parse(vstr, vcomp);
+
+    {
+	VALUE zone = rb_hash_aref(hash, ID2SYM(rb_intern("zone")));
+
+	if (!NIL_P(zone)) {
+	    rb_enc_copy(zone, vstr);
+	    rb_hash_aset(hash, ID2SYM(rb_intern("zone")), zone);
+	}
+    }
+
+    return hash;
+}
+
+/*
+ * call-seq:
+ *    Date._parse(string[, comp=true])
+ *
+ * Return a hash of parsed elements.
+ */
+static VALUE
+date_s__parse(int argc, VALUE *argv, VALUE klass)
+{
+    return date_s__parse_internal(argc, argv, klass);
 }
 
 /*
@@ -1486,8 +1720,6 @@ civil_to_yday(int y, int m, int d)
 static VALUE
 d_lite_yday(VALUE self)
 {
-    int ry, rd;
-
     get_d1(self);
     if (!light_mode_p(dat))
 	return iforward0("yday_r");
@@ -2333,16 +2565,16 @@ d_lite_inspect(VALUE self)
 }
 
 #include <errno.h>
-#include "timev.h"
+#include "date_tmx.h"
 
 size_t
 date_strftime(char *s, size_t maxsize, const char *format,
-	      const struct vtm *vtm, VALUE timev);
+	      const struct tmx *tmx);
 
 #define SMALLBUF 100
 static size_t
 date_strftime_alloc(char **buf, const char *format,
-		    struct vtm *vtm, VALUE timev)
+		    struct tmx *tmx)
 {
     size_t size, len, flen;
 
@@ -2352,12 +2584,12 @@ date_strftime_alloc(char **buf, const char *format,
 	return 0;
     }
     errno = 0;
-    len = date_strftime(*buf, SMALLBUF, format, vtm, timev);
+    len = date_strftime(*buf, SMALLBUF, format, tmx);
     if (len != 0 || (**buf == '\0' && errno != ERANGE)) return len;
     for (size=1024; ; size*=2) {
 	*buf = xmalloc(size);
 	(*buf)[0] = '\0';
-	len = date_strftime(*buf, size, format, vtm, timev);
+	len = date_strftime(*buf, size, format, tmx);
 	/*
 	 * buflen can be zero EITHER because there's not enough
 	 * room in the string, or because the control command
@@ -2372,52 +2604,49 @@ date_strftime_alloc(char **buf, const char *format,
 }
 
 static void
-d_lite_set_vtm_and_timev(VALUE self, struct vtm *vtm, VALUE *timev)
+d_lite_set_tmx(VALUE self, struct tmx *tmx)
 {
     get_d1(self);
 
     if (!light_mode_p(dat)) {
-	vtm->year = iforward0("year_r");
-	vtm->mon = FIX2INT(iforward0("mon_r"));
-	vtm->mday = FIX2INT(iforward0("mday_r"));
-	vtm->hour = FIX2INT(iforward0("hour_r"));
-	vtm->min = FIX2INT(iforward0("min_r"));
-	vtm->sec = FIX2INT(iforward0("sec_r"));
-	vtm->subsecx = iforward0("sec_fraction_r");
-	vtm->utc_offset = INT2FIX(0);
-	vtm->wday = FIX2INT(iforward0("wday_r"));
-	vtm->yday = FIX2INT(iforward0("yday_r"));
-	vtm->isdst = 0;
-	vtm->zone = RSTRING_PTR(iforward0("zone_r"));
-	*timev = f_mul(f_sub(dat->r.ajd,
-			     rb_rational_new2(INT2FIX(4881175), INT2FIX(2))),
-		       INT2FIX(86400));
+	tmx->year = iforward0("year_r");
+	tmx->yday = FIX2INT(iforward0("yday_r"));
+	tmx->mon = FIX2INT(iforward0("mon_r"));
+	tmx->mday = FIX2INT(iforward0("mday_r"));
+	tmx->hour = FIX2INT(iforward0("hour_r"));
+	tmx->min = FIX2INT(iforward0("min_r"));
+	tmx->sec = FIX2INT(iforward0("sec_r"));
+	tmx->wday = FIX2INT(iforward0("wday_r"));
+	tmx->offset = INT2FIX(0);
+	tmx->zone = RSTRING_PTR(iforward0("zone_r"));
+	tmx->timev = f_mul(f_sub(dat->r.ajd,
+				 rb_rational_new2(INT2FIX(4881175),
+						  INT2FIX(2))),
+			   INT2FIX(86400));
     }
     else {
 	get_d_jd(dat);
 	get_d_civil(dat);
 
-	vtm->year = LONG2NUM(dat->l.year);
-	vtm->mon = dat->l.mon;
-	vtm->mday = dat->l.mday;
-	vtm->hour = 0;
-	vtm->min = 0;
-	vtm->sec = 0;
-	vtm->subsecx = INT2FIX(0);
-	vtm->utc_offset = INT2FIX(0);
-	vtm->wday = jd_to_wday(dat->l.jd);
-	vtm->yday = civil_to_yday(dat->l.year, dat->l.mon, dat->l.mday);
-	vtm->isdst = 0;
-	vtm->zone = "+00:00";
-	*timev = f_mul(INT2FIX(dat->l.jd - 2440588),
-		       INT2FIX(86400));
+	tmx->year = LONG2NUM(dat->l.year);
+	tmx->yday = civil_to_yday(dat->l.year, dat->l.mon, dat->l.mday);
+	tmx->mon = dat->l.mon;
+	tmx->mday = dat->l.mday;
+	tmx->hour = 0;
+	tmx->min = 0;
+	tmx->sec = 0;
+	tmx->wday = jd_to_wday(dat->l.jd);
+	tmx->offset = INT2FIX(0);
+	tmx->zone = "+00:00";
+	tmx->timev = f_mul(INT2FIX(dat->l.jd - 2440588),
+			   INT2FIX(86400));
     }
 }
 
 static VALUE
 date_strftime_internal(int argc, VALUE *argv, VALUE self,
 		       const char *default_fmt,
-		       void (*func)(VALUE, struct vtm *, VALUE *))
+		       void (*func)(VALUE, struct tmx *))
 {
     get_d1(self);
     {
@@ -2425,8 +2654,7 @@ date_strftime_internal(int argc, VALUE *argv, VALUE self,
 	const char *fmt;
 	long len;
 	char buffer[SMALLBUF], *buf = buffer;
-	struct vtm vtm;
-	VALUE timev;
+	struct tmx tmx;
 	VALUE str;
 
 	rb_scan_args(argc, argv, "01", &vfmt);
@@ -2442,14 +2670,14 @@ date_strftime_internal(int argc, VALUE *argv, VALUE self,
 	}
 	fmt = RSTRING_PTR(vfmt);
 	len = RSTRING_LEN(vfmt);
-	(*func)(self, &vtm, &timev);
+	(*func)(self, &tmx);
 	if (memchr(fmt, '\0', len)) {
 	    /* Ruby string may contain \0's. */
 	    const char *p = fmt, *pe = fmt + len;
 
 	    str = rb_str_new(0, 0);
 	    while (p < pe) {
-		len = date_strftime_alloc(&buf, p, &vtm, timev);
+		len = date_strftime_alloc(&buf, p, &tmx);
 		rb_str_cat(str, buf, len);
 		p += strlen(p);
 		if (buf != buffer) {
@@ -2462,7 +2690,7 @@ date_strftime_internal(int argc, VALUE *argv, VALUE self,
 	    return str;
 	}
 	else
-	    len = date_strftime_alloc(&buf, fmt, &vtm, timev);
+	    len = date_strftime_alloc(&buf, fmt, &tmx);
 
 	str = rb_str_new(buf, len);
 	if (buf != buffer) xfree(buf);
@@ -2481,7 +2709,7 @@ static VALUE
 d_lite_strftime(int argc, VALUE *argv, VALUE self)
 {
     return date_strftime_internal(argc, argv, self,
-				  "%F", d_lite_set_vtm_and_timev);
+				  "%F", d_lite_set_tmx);
 }
 
 /*
@@ -3024,8 +3252,8 @@ datetime_s_now(int argc, VALUE *argv, VALUE klass)
 #endif
     time_t sec;
     struct tm tm;
-    long y, sf;
-    int m, d, h, min, s, of;
+    long sf;
+    int y, m, d, h, min, s, of;
 
     rb_scan_args(argc, argv, "01", &vsg);
 
@@ -3069,23 +3297,35 @@ datetime_s_now(int argc, VALUE *argv, VALUE klass)
 
     if (isinf(sg) && sg < 0)
 	return dt_lite_s_new_internal(klass, 0, 0, sf, of, sg,
-				      (int)y, m, d, h, min, s,
+				      y, m, d, h, min, s,
 				      LIGHT_MODE | HAVE_CIVIL | HAVE_TIME);
     else {
 	long jd;
 	int ns;
 
-	civil_to_jd((int)y, m, d, sg, &jd, &ns);
+	civil_to_jd(y, m, d, sg, &jd, &ns);
 
 	return dt_lite_s_new_internal(klass,
 				      jd_local_to_utc(jd,
 						      time_to_df(h, min, s),
 						      of),
 				      0, sf, of, sg,
-				      (int)y, m, d, h, min, s,
+				      y, m, d, h, min, s,
 				      LIGHT_MODE | HAVE_JD |
 				      HAVE_CIVIL | HAVE_TIME);
     }
+}
+
+/*
+ * call-seq:
+ *    DateTime._strptime(string[, format="%FT%T%z"])
+ *
+ * Return a hash of parsed elements.
+ */
+static VALUE
+datetime_s__strptime(int argc, VALUE *argv, VALUE klass)
+{
+    return date_s__strptime_internal(argc, argv, klass, "%FT%T%z");
 }
 
 /*
@@ -3230,8 +3470,6 @@ dt_lite_year(VALUE self)
 static VALUE
 dt_lite_yday(VALUE self)
 {
-    int ry, rd;
-
     get_dt1(self);
     if (!light_mode_p(dat))
 	return iforward0("yday_r");
@@ -3967,47 +4205,46 @@ dt_lite_inspect(VALUE self)
 }
 
 static void
-dt_lite_set_vtm_and_timev(VALUE self, struct vtm *vtm, VALUE *timev)
+dt_lite_set_tmx(VALUE self, struct tmx *tmx)
 {
     get_dt1(self);
 
     if (!light_mode_p(dat)) {
-	vtm->year = iforward0("year_r");
-	vtm->mon = FIX2INT(iforward0("mon_r"));
-	vtm->mday = FIX2INT(iforward0("mday_r"));
-	vtm->hour = FIX2INT(iforward0("hour_r"));
-	vtm->min = FIX2INT(iforward0("min_r"));
-	vtm->sec = FIX2INT(iforward0("sec_r"));
-	vtm->subsecx = iforward0("sec_fraction_r");
-	vtm->utc_offset = INT2FIX(0);
-	vtm->wday = FIX2INT(iforward0("wday_r"));
-	vtm->yday = FIX2INT(iforward0("yday_r"));
-	vtm->isdst = 0;
-	vtm->zone = RSTRING_PTR(iforward0("zone_r"));
-	*timev = f_mul(f_sub(dat->r.ajd,
-			     rb_rational_new2(INT2FIX(4881175), INT2FIX(2))),
-		       INT2FIX(86400));
+	tmx->year = iforward0("year_r");
+	tmx->yday = FIX2INT(iforward0("yday_r"));
+	tmx->mon = FIX2INT(iforward0("mon_r"));
+	tmx->mday = FIX2INT(iforward0("mday_r"));
+	tmx->hour = FIX2INT(iforward0("hour_r"));
+	tmx->min = FIX2INT(iforward0("min_r"));
+	tmx->sec = FIX2INT(iforward0("sec_r"));
+	tmx->wday = FIX2INT(iforward0("wday_r"));
+	tmx->offset = INT2FIX(0);
+	tmx->zone = RSTRING_PTR(iforward0("zone_r"));
+	tmx->timev = f_mul(f_sub(dat->r.ajd,
+				 rb_rational_new2(INT2FIX(4881175),
+						  INT2FIX(2))),
+			   INT2FIX(86400));
     }
     else {
 	get_dt_jd(dat);
+	get_dt_df(dat);
 	get_dt_civil(dat);
 	get_dt_time(dat);
 
-	vtm->year = LONG2NUM(dat->l.year);
-	vtm->mon = dat->l.mon;
-	vtm->mday = dat->l.mday;
-	vtm->hour = dat->l.hour;
-	vtm->min = dat->l.min;
-	vtm->sec = dat->l.sec;
-	vtm->subsecx = LONG2NUM(dat->l.sf);
-	vtm->utc_offset = INT2FIX(dat->l.of);
-	vtm->wday = jd_to_wday(local_jd(dat));
-	vtm->yday = civil_to_yday(dat->l.year, dat->l.mon, dat->l.mday);
-	vtm->isdst = 0;
-	vtm->zone = RSTRING_PTR(dt_lite_zone(self));
-	*timev = f_mul(f_sub(dt_lite_ajd(self),
-			     rb_rational_new2(INT2FIX(4881175), INT2FIX(2))),
-		       INT2FIX(86400));
+	tmx->year = LONG2NUM(dat->l.year);
+	tmx->yday = civil_to_yday(dat->l.year, dat->l.mon, dat->l.mday);
+	tmx->mon = dat->l.mon;
+	tmx->mday = dat->l.mday;
+	tmx->hour = dat->l.hour;
+	tmx->min = dat->l.min;
+	tmx->sec = dat->l.sec;
+	tmx->wday = jd_to_wday(local_jd(dat));
+	tmx->offset = INT2FIX(dat->l.of);
+	tmx->zone = RSTRING_PTR(dt_lite_zone(self));
+	tmx->timev = f_mul(f_sub(dt_lite_ajd(self),
+				 rb_rational_new2(INT2FIX(4881175),
+						  INT2FIX(2))),
+			   INT2FIX(86400));
     }
 }
 
@@ -4021,7 +4258,7 @@ static VALUE
 dt_lite_strftime(int argc, VALUE *argv, VALUE self)
 {
     return date_strftime_internal(argc, argv, self,
-				  "%FT%T%:z", dt_lite_set_vtm_and_timev);
+				  "%FT%T%:z", dt_lite_set_tmx);
 }
 
 /*
@@ -4353,7 +4590,7 @@ Init_date_core(void)
 
     rzero = rb_rational_new1(INT2FIX(0));
     rhalf = rb_rational_new2(INT2FIX(1), INT2FIX(2));
-    day_in_nanoseconds = rb_ll2inum(DAY_IN_NANOSECONDS);
+    day_in_nanoseconds = DAY_IN_NANOSECONDS;
 
     rb_gc_register_mark_object(rzero);
     rb_gc_register_mark_object(rhalf);
@@ -4366,7 +4603,18 @@ Init_date_core(void)
     rb_define_alloc_func(cDate, d_lite_s_alloc);
     rb_define_singleton_method(cDate, "new_r!", date_s_new_r_bang, -1);
     rb_define_singleton_method(cDate, "new_l!", date_s_new_l_bang, -1);
-
+#ifndef NDEBUG
+    rb_define_private_method(CLASS_OF(cDate), "_valid_jd?",
+			     date_s__valid_jd_p, -1);
+    rb_define_private_method(CLASS_OF(cDate), "_valid_ordinal?",
+			     date_s__valid_ordinal_p, -1);
+    rb_define_private_method(CLASS_OF(cDate), "_valid_civil?",
+			     date_s__valid_civil_p, -1);
+    rb_define_private_method(CLASS_OF(cDate), "_valid_date?",
+			     date_s__valid_civil_p, -1);
+    rb_define_private_method(CLASS_OF(cDate), "_valid_commercial?",
+			     date_s__valid_commercial_p, -1);
+#endif
     rb_define_singleton_method(cDate, "valid_jd?", date_s_valid_jd_p, -1);
     rb_define_singleton_method(cDate, "valid_ordinal?",
 			       date_s_valid_ordinal_p, -1);
@@ -4380,6 +4628,8 @@ Init_date_core(void)
     rb_define_singleton_method(cDate, "new", date_s_civil, -1);
     rb_define_singleton_method(cDate, "commercial", date_s_commercial, -1);
     rb_define_singleton_method(cDate, "today", date_s_today, -1);
+    rb_define_singleton_method(cDate, "_strptime", date_s__strptime, -1);
+    rb_define_singleton_method(cDate, "_parse", date_s__parse, -1);
 
     rb_define_method(cDate, "ajd", d_lite_ajd, 0);
     rb_define_method(cDate, "amjd", d_lite_amjd, 0);
@@ -4455,6 +4705,8 @@ Init_date_core(void)
     rb_define_singleton_method(cDateTime, "commercial",
 			       datetime_s_commercial, -1);
     rb_define_singleton_method(cDateTime, "now", datetime_s_now, -1);
+    rb_define_singleton_method(cDateTime, "_strptime",
+			       datetime_s__strptime, -1);
 
     rb_define_method(cDateTime, "ajd", dt_lite_ajd, 0);
     rb_define_method(cDateTime, "amjd", dt_lite_amjd, 0);

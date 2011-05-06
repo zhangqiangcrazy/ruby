@@ -154,11 +154,11 @@ require "stringio"
 #   CSV(csv = "")   { |csv_str| csv_str << %w{my data here} }  # to a String
 #   CSV($stderr)    { |csv_err| csv_err << %w{my data here} }  # to $stderr
 #   CSV($stdin)     { |csv_in|  csv_in.each { |row| p row } }  # from $stdin
-# 
+#
 # == Advanced Usage
-# 
+#
 # === Wrap an IO Object
-# 
+#
 #   csv = CSV.new(io, options)
 #   # ... read (with gets() or each()) from and write (with <<) to csv here ...
 #
@@ -836,7 +836,7 @@ class CSV
     #
     # This method assumes you want the Table.headers(), unless you explicitly
     # pass <tt>:write_headers => false</tt>.
-    # 
+    #
     def to_csv(options = Hash.new)
       wh = options.fetch(:write_headers, true)
       @table.inject(wh ? [headers.to_csv(options)] : [ ]) do |rows, row|
@@ -1334,10 +1334,18 @@ class CSV
   def self.open(*args)
     # find the +options+ Hash
     options = if args.last.is_a? Hash then args.pop else Hash.new end
-    # default to a binary open mode
-    args << "rb" if args.size == 1 and !options.key?(:mode)
-    # wrap a File opened with the remaining +args+
-    csv     = new(File.open(*args, options), options)
+    # wrap a File opened with the remaining +args+ with no newline
+    # decorator
+    file_opts = {universal_newline: false}.merge(options)
+    begin
+      f = File.open(*args, file_opts)
+    rescue ArgumentError => e
+      raise unless /needs binmode/ =~ e.message and args.size == 1
+      args << "rb"
+      file_opts = {encoding: Encoding.default_external}.merge(file_opts)
+      retry
+    end
+    csv = new(f, options)
 
     # handle blocks like Ruby's open(), not like the CSV library
     if block_given?
@@ -1398,11 +1406,8 @@ class CSV
   # <tt>encoding: "UTF-32BE:UTF-8"</tt> would read UTF-32BE data from the file
   # but transcode it to UTF-8 before CSV parses it.
   #
-  def self.read(path, options = Hash.new)
-    encoding =  options.delete(:encoding)
-    mode     =  "rb"
-    mode     << ":#{encoding}" if encoding
-    open(path, mode, options) { |csv| csv.read }
+  def self.read(path, *options)
+    open(path, *options) { |csv| csv.read }
   end
 
   # Alias for CSV::read().

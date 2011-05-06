@@ -1060,6 +1060,12 @@ CreateChild(const WCHAR *cmd, const WCHAR *prog, SECURITY_ATTRIBUTES *psa,
 
     dwCreationFlags = (NORMAL_PRIORITY_CLASS);
 
+    if (lstrlenW(cmd) > 32767) {
+	child->pid = 0;		/* release the slot */
+	errno = E2BIG;
+	return NULL;
+    }
+
     RUBY_CRITICAL({
 	fRet = CreateProcessW(prog, (WCHAR *)cmd, psa, psa,
 			      psa->bInheritHandle, dwCreationFlags, NULL, NULL,
@@ -1337,7 +1343,7 @@ cmdglob(NtCmdLineElement *patt, NtCmdLineElement **tail)
     return tail;
 }
 
-// 
+//
 // Check a command string to determine if it has I/O redirection
 // characters that require it to be executed by a command interpreter
 //
@@ -1397,7 +1403,7 @@ skipspace(char *ptr)
     return ptr;
 }
 
-int 
+int
 rb_w32_cmdvector(const char *cmd, char ***vec)
 {
     int globbing, len;
@@ -1425,9 +1431,9 @@ rb_w32_cmdvector(const char *cmd, char ***vec)
     //
     // Ok, parse the command line, building a list of CmdLineElements.
     // When we've finished, and it's an input command (meaning that it's
-    // the processes argv), we'll do globing and then build the argument 
+    // the processes argv), we'll do globing and then build the argument
     // vector.
-    // The outer loop does one interation for each element seen. 
+    // The outer loop does one interation for each element seen.
     // The inner loop does one interation for each character in the element.
     //
 
@@ -1464,7 +1470,7 @@ rb_w32_cmdvector(const char *cmd, char ***vec)
 	      case '?':
 	      case '[':
 	      case '{':
-		// 
+		//
 		// record the fact that this element has a wildcard character
 		// N.B. Don't glob if inside a single quoted string
 		//
@@ -1478,7 +1484,7 @@ rb_w32_cmdvector(const char *cmd, char ***vec)
 	      case '\"':
 		//
 		// if we're already in a string, see if this is the
-		// terminating close-quote. If it is, we're finished with 
+		// terminating close-quote. If it is, we're finished with
 		// the string, but not neccessarily with the element.
 		// If we're not already in a string, start one.
 		//
@@ -1514,7 +1520,7 @@ rb_w32_cmdvector(const char *cmd, char ***vec)
 	if (done) --len;
 
 	//
-	// if it's an input vector element and it's enclosed by quotes, 
+	// if it's an input vector element and it's enclosed by quotes,
 	// we can remove them.
 	//
 
@@ -1576,10 +1582,10 @@ rb_w32_cmdvector(const char *cmd, char ***vec)
     }
 
     //
-    // Almost done! 
+    // Almost done!
     // Count up the elements, then allocate space for a vector of pointers
     // (argv) and a string table for the elements.
-    // 
+    //
 
     for (elements = 0, strsz = 0, curr = cmdhead; curr; curr = curr->next) {
 	elements++;
@@ -1599,7 +1605,7 @@ rb_w32_cmdvector(const char *cmd, char ***vec)
 	for (vptr = *vec; *vptr; ++vptr);
 	return vptr - *vec;
     }
-    
+
     //
     // make vptr point to the start of the buffer
     // and ptr point to the area we'll consider the string table.
@@ -1640,7 +1646,7 @@ rb_w32_cmdvector(const char *cmd, char ***vec)
 //
 // The idea here is to read all the directory names into a string table
 // (separated by nulls) and when one of the other dir functions is called
-// return the pointer to the current file name. 
+// return the pointer to the current file name.
 //
 
 #define GetBit(bits, i) ((bits)[(i) / CHAR_BIT] &  (1 << (i) % CHAR_BIT))
@@ -1684,14 +1690,30 @@ open_dir_handle(const WCHAR *filename, WIN32_FIND_DATAW *fd)
 }
 
 static DIR *
-opendir_internal(HANDLE fh, WIN32_FIND_DATAW *fd)
+opendir_internal(WCHAR *wpath, const char *filename)
 {
+    struct stati64 sbuf;
+    WIN32_FIND_DATAW fd;
+    HANDLE fh;
     DIR *p;
     long len;
     long idx;
     WCHAR *tmpW;
     char *tmp;
 
+    //
+    // check to see if we've got a directory
+    //
+    if (wstati64(wpath, &sbuf) < 0) {
+	return NULL;
+    }
+    if (!(sbuf.st_mode & S_IFDIR) &&
+	(!ISALPHA(filename[0]) || filename[1] != ':' || filename[2] != '\0' ||
+	 ((1 << ((filename[0] & 0x5f) - 'A')) & GetLogicalDrives()) == 0)) {
+	errno = ENOTDIR;
+	return NULL;
+    }
+    fh = open_dir_handle(wpath, &fd);
     if (fh == INVALID_HANDLE_VALUE) {
 	return NULL;
     }
@@ -1712,11 +1734,11 @@ opendir_internal(HANDLE fh, WIN32_FIND_DATAW *fd)
     // of the previous string found.
     //
     do {
-	len = lstrlenW(fd->cFileName) + 1;
+	len = lstrlenW(fd.cFileName) + 1;
 
 	//
 	// bump the string table size by enough for the
-	// new name and it's null terminator 
+	// new name and it's null terminator
 	//
 	tmpW = realloc(p->start, (idx + len) * sizeof(WCHAR));
 	if (!tmpW) {
@@ -1728,7 +1750,7 @@ opendir_internal(HANDLE fh, WIN32_FIND_DATAW *fd)
 	}
 
 	p->start = tmpW;
-	memcpy(&p->start[idx], fd->cFileName, len * sizeof(WCHAR));
+	memcpy(&p->start[idx], fd.cFileName, len * sizeof(WCHAR));
 
 	if (p->nfiles % DIRENT_PER_CHAR == 0) {
 	    tmp = realloc(p->bits, p->nfiles / DIRENT_PER_CHAR + 1);
@@ -1737,14 +1759,14 @@ opendir_internal(HANDLE fh, WIN32_FIND_DATAW *fd)
 	    p->bits = tmp;
 	    p->bits[p->nfiles / DIRENT_PER_CHAR] = 0;
 	}
-	if (fd->dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
+	if (fd.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 	    SetBit(p->bits, BitOfIsDir(p->nfiles));
-	if (fd->dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
+	if (fd.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT)
 	    SetBit(p->bits, BitOfIsRep(p->nfiles));
 
 	p->nfiles++;
 	idx += len;
-    } while (FindNextFileW(fh, fd));
+    } while (FindNextFileW(fh, &fd));
     FindClose(fh);
     p->size = idx;
     p->curr = p->start;
@@ -1783,31 +1805,25 @@ mbstr_to_wstr(UINT cp, const char *str, int clen, long *plen)
 DIR *
 rb_w32_opendir(const char *filename)
 {
-    struct stati64 sbuf;
-    WIN32_FIND_DATAW fd;
-    HANDLE fh;
-    WCHAR *wpath;
-
-    if (!(wpath = filecp_to_wstr(filename, NULL)))
+    DIR *ret;
+    WCHAR *wpath = filecp_to_wstr(filename, NULL);
+    if (!wpath)
 	return NULL;
-
-    //
-    // check to see if we've got a directory
-    //
-    if (wstati64(wpath, &sbuf) < 0) {
-	free(wpath);
-	return NULL;
-    }
-    if (!(sbuf.st_mode & S_IFDIR) &&
-	(!ISALPHA(filename[0]) || filename[1] != ':' || filename[2] != '\0' ||
-	 ((1 << ((filename[0] & 0x5f) - 'A')) & GetLogicalDrives()) == 0)) {
-	free(wpath);
-	errno = ENOTDIR;
-	return NULL;
-    }
-    fh = open_dir_handle(wpath, &fd);
+    ret = opendir_internal(wpath, filename);
     free(wpath);
-    return opendir_internal(fh, &fd);
+    return ret;
+}
+
+DIR *
+rb_w32_uopendir(const char *filename)
+{
+    DIR *ret;
+    WCHAR *wpath = utf8_to_wstr(filename, NULL);
+    if (!wpath)
+	return NULL;
+    ret = opendir_internal(wpath, filename);
+    free(wpath);
+    return ret;
 }
 
 //
@@ -1912,7 +1928,8 @@ readdir_internal(DIR *dirp, BOOL (*conv)(const WCHAR *, struct direct *, rb_enco
 
 	return &(dirp->dirstr);
 
-    } else
+    }
+    else
 	return NULL;
 }
 
@@ -2178,7 +2195,7 @@ rb_w32_is_socket(int fd)
 }
 
 //
-// Since the errors returned by the socket error function 
+// Since the errors returned by the socket error function
 // WSAGetLastError() are not known by the library routine strerror
 // we have to roll our own.
 //
@@ -2278,7 +2295,7 @@ getegid(void)
 
 int
 setuid(rb_uid_t uid)
-{ 
+{
     return (uid == ROOT_UID ? 0 : -1);
 }
 
@@ -2350,9 +2367,21 @@ rb_w32_fdisset(int fd, fd_set *set)
     return ret;
 }
 
+void
+rb_w32_fdcopy(rb_fdset_t *dst, const rb_fdset_t *src)
+{
+    if ((UINT)dst->capa < src->fdset->fd_count) {
+	dst->capa = (src->fdset->fd_count / FD_SETSIZE + 1) * FD_SETSIZE;
+	dst->fdset = xrealloc(dst->fdset, sizeof(unsigned int) + sizeof(SOCKET) * dst->capa);
+    }
+
+    memcpy(dst->fdset->fd_array, src->fdset->fd_array,
+	   src->fdset->fd_count * sizeof(src->fdset->fd_array[0]));
+}
+
 //
 // Networking trampolines
-// These are used to avoid socket startup/shutdown overhead in case 
+// These are used to avoid socket startup/shutdown overhead in case
 // the socket routines aren't used.
 //
 
@@ -2383,7 +2412,7 @@ extract_fd(rb_fdset_t *dst, fd_set *src, int (*func)(SOCKET))
 	    }
 	    memmove(
 		&src->fd_array[s],
-		&src->fd_array[s+1], 
+		&src->fd_array[s+1],
 		sizeof(src->fd_array[0]) * (--src->fd_count - s));
 	}
 	else s++;
@@ -2512,8 +2541,12 @@ do_select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex,
     return r;
 }
 
-static inline int
-subtract(struct timeval *rest, const struct timeval *wait)
+/*
+ * rest -= wait
+ * return 0 if rest is smaller than wait.
+ */
+int
+rb_w32_time_subtract(struct timeval *rest, const struct timeval *wait)
 {
     if (rest->tv_sec < wait->tv_sec) {
 	return 0;
@@ -2652,7 +2685,7 @@ rb_w32_select(int nfds, fd_set *rd, fd_set *wr, fd_set *ex,
 		    struct timeval now;
 		    gettimeofday(&now, NULL);
 		    rest = limit;
-		    if (!subtract(&rest, &now)) break;
+		    if (!rb_w32_time_subtract(&rest, &now)) break;
 		    if (compare(&rest, &wait) < 0) dowait = &rest;
 		}
 		Sleep(dowait->tv_sec * 1000 + dowait->tv_usec / 1000);
@@ -2973,7 +3006,7 @@ rb_w32_send(int fd, const char *buf, int len, int flags)
 }
 
 int WSAAPI
-rb_w32_sendto(int fd, const char *buf, int len, int flags, 
+rb_w32_sendto(int fd, const char *buf, int len, int flags,
 	      const struct sockaddr *to, int tolen)
 {
     return overlapped_socket_io(FALSE, fd, (char *)buf, len, flags,
@@ -3139,7 +3172,7 @@ rb_w32_setsockopt(int s, int level, int optname, const char *optval, int optlen)
     });
     return r;
 }
-    
+
 #undef shutdown
 
 int WSAAPI
@@ -3583,7 +3616,8 @@ waitpid(rb_pid_t pid, int *stat_loc, int options)
 
     if (options == WNOHANG) {
 	timeout = 0;
-    } else {
+    }
+    else {
 	timeout = INFINITE;
     }
 
@@ -3727,7 +3761,7 @@ kill(int pid, int sig)
     int ret = 0;
     DWORD err;
 
-    if (pid <= 0) {
+    if (pid < 0 || pid == 0 && sig != SIGINT) {
 	errno = EINVAL;
 	return -1;
     }
@@ -3924,7 +3958,8 @@ wrename(const WCHAR *oldpath, const WCHAR *newpath)
 		if (IsWinNT()) {
 		    if (MoveFileExW(oldpath, newpath, MOVEFILE_REPLACE_EXISTING))
 			res = 0;
-		} else {
+		}
+		else {
 		    for (;;) {
 			if (!DeleteFileW(newpath) && GetLastError() != ERROR_FILE_NOT_FOUND)
 			    break;
@@ -4318,7 +4353,7 @@ rb_chsize(HANDLE h, off_t size)
 }
 
 int
-truncate(const char *path, off_t length)
+rb_w32_truncate(const char *path, off_t length)
 {
     HANDLE h;
     int ret;
@@ -4344,7 +4379,7 @@ truncate(const char *path, off_t length)
 }
 
 int
-ftruncate(int fd, off_t length)
+rb_w32_ftruncate(int fd, off_t length)
 {
     HANDLE h;
 
@@ -4417,7 +4452,7 @@ fseeko(FILE *stream, off_t offset, int whence)
 }
 
 off_t
-ftello(FILE *stream)
+rb_w32_ftello(FILE *stream)
 {
     off_t pos;
     if (fgetpos(stream, (fpos_t *)&pos)) return (off_t)-1;
@@ -4487,8 +4522,7 @@ rb_w32_getc(FILE* stream)
     if (enough_to_get(stream->FILE_COUNT)) {
 	c = (unsigned char)*stream->FILE_READPTR++;
     }
-    else 
-    {
+    else {
 	c = _filbuf(stream);
 #if defined __BORLANDC__
         if ((c == EOF) && (errno == EPIPE)) {
@@ -4507,8 +4541,7 @@ rb_w32_putc(int c, FILE* stream)
     if (enough_to_put(stream->FILE_COUNT)) {
 	c = (unsigned char)(*stream->FILE_READPTR++ = (char)c);
     }
-    else 
-    {
+    else {
 	c = _flsbuf(c, stream);
 	catch_interrupt();
     }
@@ -5045,7 +5078,7 @@ rb_w32_read(int fd, void *buf, size_t size)
     size_t ret;
     OVERLAPPED ol, *pol = NULL;
     BOOL isconsole;
-    BOOL islineinput;
+    BOOL islineinput = FALSE;
     int start = 0;
 
     if (is_socket(sock))
@@ -5070,7 +5103,7 @@ rb_w32_read(int fd, void *buf, size_t size)
 
     ret = 0;
     isconsole = is_console(_osfhnd(fd));
-    if(isconsole){
+    if (isconsole) {
 	DWORD mode;
 	GetConsoleMode((HANDLE)_osfhnd(fd),&mode);
 	islineinput = (mode & ENABLE_LINE_INPUT) != 0;

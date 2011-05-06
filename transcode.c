@@ -26,6 +26,9 @@ static VALUE sym_xml, sym_text, sym_attr;
 static VALUE sym_universal_newline;
 static VALUE sym_crlf_newline;
 static VALUE sym_cr_newline;
+#ifdef ENABLE_ECONV_NEWLINE_OPTION
+static VALUE sym_newline, sym_universal, sym_crlf, sym_cr, sym_lf;
+#endif
 static VALUE sym_partial_input;
 
 static VALUE sym_invalid_byte_sequence;
@@ -1025,13 +1028,15 @@ decorator_names(int ecflags, const char **decorators_ret)
 {
     int num_decorators;
 
-    if ((ecflags & ECONV_CRLF_NEWLINE_DECORATOR) &&
-        (ecflags & ECONV_CR_NEWLINE_DECORATOR))
+    switch (ecflags & ECONV_NEWLINE_DECORATOR_MASK) {
+      case ECONV_UNIVERSAL_NEWLINE_DECORATOR:
+      case ECONV_CRLF_NEWLINE_DECORATOR:
+      case ECONV_CR_NEWLINE_DECORATOR:
+      case 0:
+	break;
+      default:
         return -1;
-
-    if ((ecflags & (ECONV_CRLF_NEWLINE_DECORATOR|ECONV_CR_NEWLINE_DECORATOR)) &&
-        (ecflags & ECONV_UNIVERSAL_NEWLINE_DECORATOR))
-        return -1;
+    }
 
     if ((ecflags & ECONV_XML_TEXT_DECORATOR) &&
         (ecflags & ECONV_XML_ATTR_CONTENT_DECORATOR))
@@ -1965,7 +1970,7 @@ rb_econv_binmode(rb_econv_t *ec)
         }
     }
 
-    ec->flags &= ~(ECONV_UNIVERSAL_NEWLINE_DECORATOR|ECONV_CRLF_NEWLINE_DECORATOR|ECONV_CR_NEWLINE_DECORATOR);
+    ec->flags &= ~ECONV_NEWLINE_DECORATOR_MASK;
 
 }
 
@@ -1987,9 +1992,7 @@ econv_description(const char *sname, const char *dname, int ecflags, VALUE mesg)
         has_description = 1;
     }
 
-    if (ecflags & (ECONV_UNIVERSAL_NEWLINE_DECORATOR|
-                   ECONV_CRLF_NEWLINE_DECORATOR|
-                   ECONV_CR_NEWLINE_DECORATOR|
+    if (ecflags & (ECONV_NEWLINE_DECORATOR_MASK|
                    ECONV_XML_TEXT_DECORATOR|
                    ECONV_XML_ATTR_CONTENT_DECORATOR|
                    ECONV_XML_ATTR_QUOTE_DECORATOR)) {
@@ -2423,10 +2426,9 @@ str_transcoding_resize(VALUE destination, size_t len, size_t new_len)
 }
 
 static int
-econv_opts(VALUE opt)
+econv_opts(VALUE opt, int ecflags)
 {
     VALUE v;
-    int ecflags = 0;
 
     v = rb_hash_aref(opt, sym_invalid);
     if (NIL_P(v)) {
@@ -2469,25 +2471,62 @@ econv_opts(VALUE opt)
         }
     }
 
-    v = rb_hash_aref(opt, sym_universal_newline);
-    if (RTEST(v))
-        ecflags |= ECONV_UNIVERSAL_NEWLINE_DECORATOR;
+#ifdef ENABLE_ECONV_NEWLINE_OPTION
+    v = rb_hash_aref(opt, sym_newline);
+    if (!NIL_P(v)) {
+	ecflags &= ~ECONV_NEWLINE_DECORATOR_MASK;
+	if (v == sym_universal) {
+	    ecflags |= ECONV_UNIVERSAL_NEWLINE_DECORATOR;
+	}
+	else if (v == sym_crlf) {
+	    ecflags |= ECONV_CRLF_NEWLINE_DECORATOR;
+	}
+	else if (v == sym_cr) {
+	    ecflags |= ECONV_CR_NEWLINE_DECORATOR;
+	}
+	else if (v == sym_lf) {
+	    /* ecflags |= ECONV_LF_NEWLINE_DECORATOR; */
+	}
+	else if (SYMBOL_P(v)) {
+	    rb_raise(rb_eArgError, "unexpected value for newline option: %s",
+		     rb_id2name(SYM2ID(v)));
+	}
+	else {
+	    rb_raise(rb_eArgError, "unexpected value for newline option");
+	}
+    }
+    else
+#endif
+    {
+	int setflags = 0, newlineflag = 0;
 
-    v = rb_hash_aref(opt, sym_crlf_newline);
-    if (RTEST(v))
-        ecflags |= ECONV_CRLF_NEWLINE_DECORATOR;
+	v = rb_hash_aref(opt, sym_universal_newline);
+	if (RTEST(v))
+	    setflags |= ECONV_UNIVERSAL_NEWLINE_DECORATOR;
+	newlineflag |= !NIL_P(v);
 
-    v = rb_hash_aref(opt, sym_cr_newline);
-    if (RTEST(v))
-        ecflags |= ECONV_CR_NEWLINE_DECORATOR;
+	v = rb_hash_aref(opt, sym_crlf_newline);
+	if (RTEST(v))
+	    setflags |= ECONV_CRLF_NEWLINE_DECORATOR;
+	newlineflag |= !NIL_P(v);
+
+	v = rb_hash_aref(opt, sym_cr_newline);
+	if (RTEST(v))
+	    setflags |= ECONV_CR_NEWLINE_DECORATOR;
+	newlineflag |= !NIL_P(v);
+
+	if (newlineflag) {
+	    ecflags &= ~ECONV_NEWLINE_DECORATOR_MASK;
+	    ecflags |= setflags;
+	}
+    }
 
     return ecflags;
 }
 
 int
-rb_econv_prepare_opts(VALUE opthash, VALUE *opts)
+rb_econv_prepare_options(VALUE opthash, VALUE *opts, int ecflags)
 {
-    int ecflags;
     VALUE newhash = Qnil;
     VALUE v;
 
@@ -2495,7 +2534,7 @@ rb_econv_prepare_opts(VALUE opthash, VALUE *opts)
         *opts = Qnil;
         return 0;
     }
-    ecflags = econv_opts(opthash);
+    ecflags = econv_opts(opthash, ecflags);
 
     v = rb_hash_aref(opthash, sym_replace);
     if (!NIL_P(v)) {
@@ -2528,6 +2567,12 @@ rb_econv_prepare_opts(VALUE opthash, VALUE *opts)
     *opts = newhash;
 
     return ecflags;
+}
+
+int
+rb_econv_prepare_opts(VALUE opthash, VALUE *opts)
+{
+    return rb_econv_prepare_options(opthash, opts, 0);
 }
 
 rb_econv_t *
@@ -2647,9 +2692,7 @@ str_transcode0(int argc, VALUE *argv, VALUE *self, int ecflags, VALUE ecopts)
     arg2 = argc<=1 ? Qnil : argv[1];
     dencidx = str_transcode_enc_args(str, &arg1, &arg2, &sname, &senc, &dname, &denc);
 
-    if ((ecflags & (ECONV_UNIVERSAL_NEWLINE_DECORATOR|
-                    ECONV_CRLF_NEWLINE_DECORATOR|
-                    ECONV_CR_NEWLINE_DECORATOR|
+    if ((ecflags & (ECONV_NEWLINE_DECORATOR_MASK|
                     ECONV_XML_TEXT_DECORATOR|
                     ECONV_XML_ATTR_CONTENT_DECORATOR|
                     ECONV_XML_ATTR_QUOTE_DECORATOR)) == 0) {
@@ -3211,8 +3254,8 @@ rb_econv_init_by_convpath(VALUE self, VALUE convpath,
  *     :undef => :replace         # replace undefined conversion
  *     :replace => string         # replacement string ("?" or "\uFFFD" if not specified)
  *     :universal_newline => true # decorator for converting CRLF and CR to LF
- *     :crlf_newline => true      # decorator for converting LF to CRLF
- *     :cr_newline => true        # decorator for converting LF to CR
+ *     :crlf_newline => true      # decorator for converting CRLF to LF
+ *     :cr_newline => true        # decorator for converting CR to LF
  *     :xml => :text              # escape as XML CharData.
  *     :xml => :attr              # escape as XML AttValue
  *   integer form:
@@ -4309,6 +4352,14 @@ Init_transcode(void)
     sym_crlf_newline = ID2SYM(rb_intern("crlf_newline"));
     sym_cr_newline = ID2SYM(rb_intern("cr_newline"));
     sym_partial_input = ID2SYM(rb_intern("partial_input"));
+
+#ifdef ENABLE_ECONV_NEWLINE_OPTION
+    sym_newline = ID2SYM(rb_intern("newline"));
+    sym_universal = ID2SYM(rb_intern("universal"));
+    sym_crlf = ID2SYM(rb_intern("crlf"));
+    sym_cr = ID2SYM(rb_intern("cr"));
+    sym_lf = ID2SYM(rb_intern("lf"));
+#endif
 
     rb_define_method(rb_cString, "encode", str_encode, -1);
     rb_define_method(rb_cString, "encode!", str_encode_bang, -1);

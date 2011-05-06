@@ -46,6 +46,7 @@
 
 #include "eval_intern.h"
 #include "gc.h"
+#include "ruby/io.h"
 
 #ifndef USE_NATIVE_THREAD_PRIORITY
 #define USE_NATIVE_THREAD_PRIORITY 0
@@ -1465,7 +1466,7 @@ thread_fd_close_i(st_data_t key, st_data_t val, st_data_t data)
     if (THREAD_IO_WAITING_P(th)) {
 	native_mutex_lock(&th->interrupt_lock);
 	if (THREAD_IO_WAITING_P(th) && th->waiting_fd == fd) {
-	    th->errinfo = th->vm->special_exceptions[ruby_error_closed_stream];
+	    th->thrown_errinfo = th->vm->special_exceptions[ruby_error_closed_stream];
 	    RUBY_VM_SET_INTERRUPT(th);
 	    (th->unblock.func)(th->unblock.arg);
 	}
@@ -2381,14 +2382,15 @@ rb_fd_isset(int n, const rb_fdset_t *fds)
 }
 
 void
-rb_fd_copy(rb_fdset_t *dst, const fd_set *src, int max)
+rb_fd_copy(rb_fdset_t *dst, const rb_fdset_t *src)
 {
-    size_t size = howmany(max, NFDBITS) * sizeof(fd_mask);
+    size_t size = howmany(rb_fd_max(src), NFDBITS) * sizeof(fd_mask);
 
-    if (size < sizeof(fd_set)) size = sizeof(fd_set);
-    dst->maxfd = max;
+    if (size < sizeof(fd_set))
+	size = sizeof(fd_set);
+    dst->maxfd = src->maxfd;
     dst->fdset = xrealloc(dst->fdset, size);
-    memcpy(dst->fdset, src, size);
+    memcpy(dst->fdset, src->fdset, size);
 }
 
 int
@@ -2496,15 +2498,13 @@ subtract_tv(struct timeval *rest, const struct timeval *wait)
 #endif
 
 static int
-do_select(int n, fd_set *read, fd_set *write, fd_set *except,
+do_select(int n, rb_fdset_t *read, rb_fdset_t *write, rb_fdset_t *except,
 	  struct timeval *timeout)
 {
     int result, lerrno;
-    fd_set UNINITIALIZED_VAR(orig_read);
-    fd_set UNINITIALIZED_VAR(orig_write);
-    fd_set UNINITIALIZED_VAR(orig_except);
-
-#ifndef linux
+    rb_fdset_t UNINITIALIZED_VAR(orig_read);
+    rb_fdset_t UNINITIALIZED_VAR(orig_write);
+    rb_fdset_t UNINITIALIZED_VAR(orig_except);
     double limit = 0;
     struct timeval wait_rest;
 # if defined(__CYGWIN__) || defined(_WIN32)
@@ -2522,11 +2522,19 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
 	wait_rest = *timeout;
 	timeout = &wait_rest;
     }
-#endif
 
-    if (read) orig_read = *read;
-    if (write) orig_write = *write;
-    if (except) orig_except = *except;
+    if (read) {
+	rb_fd_init(&orig_read);
+	rb_fd_copy(&orig_read, read);
+    }
+    if (write) {
+	rb_fd_init(&orig_write);
+	rb_fd_copy(&orig_write, write);
+    }
+    if (except) {
+	rb_fd_init(&orig_except);
+	rb_fd_copy(&orig_except, except);
+    }
 
   retry:
     lerrno = 0;
@@ -2543,13 +2551,16 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
 	    wait = (timeout == 0 || cmp_tv(&wait_100ms, timeout) < 0) ? &wait_100ms : timeout;
 	    BLOCKING_REGION({
 		do {
-		    result = select(n, read, write, except, wait);
+		    result = rb_fd_select(n, read, write, except, wait);
 		    if (result < 0) lerrno = errno;
 		    if (result != 0) break;
 
-		    if (read) *read = orig_read;
-		    if (write) *write = orig_write;
-		    if (except) *except = orig_except;
+		    if (read)
+			rb_fd_copy(read, &orig_read);
+		    if (write)
+			rb_fd_copy(write, &orig_write);
+		    if (except)
+			rb_fd_copy(except, &orig_except);
 		    if (timeout) {
 			struct timeval elapsed;
 			gettimeofday(&elapsed, NULL);
@@ -2567,7 +2578,7 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
     }
 #else
     BLOCKING_REGION({
-	result = select(n, read, write, except, timeout);
+	result = rb_fd_select(n, read, write, except, timeout);
 	if (result < 0) lerrno = errno;
     }, ubf_select, GET_THREAD());
 #endif
@@ -2580,10 +2591,13 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
 #ifdef ERESTART
 	  case ERESTART:
 #endif
-	    if (read) *read = orig_read;
-	    if (write) *write = orig_write;
-	    if (except) *except = orig_except;
-#ifndef linux
+	    if (read)
+		rb_fd_copy(read, &orig_read);
+	    if (write)
+		rb_fd_copy(write, &orig_write);
+	    if (except)
+		rb_fd_copy(except, &orig_except);
+
 	    if (timeout) {
 		double d = limit - timeofday();
 
@@ -2592,7 +2606,7 @@ do_select(int n, fd_set *read, fd_set *write, fd_set *except,
 		if (wait_rest.tv_sec < 0)  wait_rest.tv_sec = 0;
 		if (wait_rest.tv_usec < 0) wait_rest.tv_usec = 0;
 	    }
-#endif
+
 	    goto retry;
 	  default:
 	    break;
@@ -2605,6 +2619,8 @@ static void
 rb_thread_wait_fd_rw(int fd, int read)
 {
     int result = 0;
+    int events = read ? RB_WAITFD_IN : RB_WAITFD_OUT;
+
     thread_debug("rb_thread_wait_fd_rw(%d, %s)\n", fd, read ? "read" : "write");
 
     if (fd < 0) {
@@ -2612,18 +2628,7 @@ rb_thread_wait_fd_rw(int fd, int read)
     }
     if (rb_thread_alone()) return;
     while (result <= 0) {
-	rb_fdset_t set;
-	rb_fd_init(&set);
-	FD_SET(fd, &set);
-
-	if (read) {
-	    result = do_select(fd + 1, rb_fd_ptr(&set), 0, 0, 0);
-	}
-	else {
-	    result = do_select(fd + 1, 0, rb_fd_ptr(&set), 0, 0);
-	}
-
-	rb_fd_term(&set);
+	result = rb_wait_for_single_fd(fd, events, NULL);
 
 	if (result < 0) {
 	    rb_sys_fail(0);
@@ -2659,7 +2664,17 @@ rb_thread_select(int max, fd_set * read, fd_set * write, fd_set * except,
 	return 0;
     }
     else {
-	return do_select(max, read, write, except, timeout);
+	int lerrno = errno;
+	int result;
+
+	BLOCKING_REGION({
+		result = select(max, read, write, except, timeout);
+		if (result < 0)
+		    lerrno = errno;
+	    }, ubf_select, GET_THREAD());
+	errno = lerrno;
+
+	return result;
     }
 }
 
@@ -2668,8 +2683,6 @@ int
 rb_thread_fd_select(int max, rb_fdset_t * read, rb_fdset_t * write, rb_fdset_t * except,
 		    struct timeval *timeout)
 {
-    fd_set *r = NULL, *w = NULL, *e = NULL;
-
     if (!read && !write && !except) {
 	if (!timeout) {
 	    rb_thread_sleep_forever();
@@ -2680,20 +2693,167 @@ rb_thread_fd_select(int max, rb_fdset_t * read, rb_fdset_t * write, rb_fdset_t *
     }
 
     if (read) {
-        rb_fd_resize(max - 1, read);
-        r = rb_fd_ptr(read);
+	rb_fd_resize(max - 1, read);
     }
     if (write) {
-        rb_fd_resize(max - 1, write);
-        w = rb_fd_ptr(write);
+	rb_fd_resize(max - 1, write);
     }
     if (except) {
-        rb_fd_resize(max - 1, except);
-        e = rb_fd_ptr(except);
+	rb_fd_resize(max - 1, except);
     }
-    return do_select(max, r, w, e, timeout);
+    return do_select(max, read, write, except, timeout);
 }
 
+/*
+ * poll() is supported by many OSes, but so far Linux is the only
+ * one we know of that supports using poll() in all places select()
+ * would work.
+ */
+#if defined(HAVE_POLL) && defined(linux)
+#  define USE_POLL
+#endif
+
+#ifdef USE_POLL
+
+
+/* The same with linux kernel. TODO: make platform independent definition. */
+#define POLLIN_SET (POLLRDNORM | POLLRDBAND | POLLIN | POLLHUP | POLLERR)
+#define POLLOUT_SET (POLLWRBAND | POLLWRNORM | POLLOUT | POLLERR)
+#define POLLEX_SET (POLLPRI)
+
+/*
+ * returns a mask of events
+ */
+int
+rb_wait_for_single_fd(int fd, int events, struct timeval *tv)
+{
+    struct pollfd fds;
+    int result, lerrno;
+    double start;
+    int timeout = tv ? tv->tv_sec * 1000 + (tv->tv_usec + 500) / 1000 : -1;
+
+    fds.fd = fd;
+    fds.events = (short)events;
+
+retry:
+    lerrno = 0;
+    start = timeofday();
+    BLOCKING_REGION({
+	result = poll(&fds, 1, timeout);
+	if (result < 0) lerrno = errno;
+    }, ubf_select, GET_THREAD());
+
+    if (result < 0) {
+	errno = lerrno;
+	switch (errno) {
+	  case EINTR:
+#ifdef ERESTART
+	  case ERESTART:
+#endif
+	    if (timeout > 0) {
+		timeout -= (timeofday() - start) * 1000;
+		if (timeout < 0)
+		    timeout = 0;
+	    }
+	    goto retry;
+	}
+	return -1;
+    }
+
+    if (fds.revents & POLLNVAL) {
+	errno = EBADF;
+	return -1;
+    }
+
+    /*
+     * POLLIN, POLLOUT have a different meanings from select(2)'s read/write bit.
+     * Therefore we need fix it up.
+     */
+    result = 0;
+    if (fds.revents & POLLIN_SET)
+	result |= RB_WAITFD_IN;
+    if (fds.revents & POLLOUT_SET)
+	result |= RB_WAITFD_OUT;
+    if (fds.revents & POLLEX_SET)
+	result |= RB_WAITFD_PRI;
+
+    return result;
+}
+#else /* ! USE_POLL - implement rb_io_poll_fd() using select() */
+static rb_fdset_t *init_set_fd(int fd, rb_fdset_t *fds)
+{
+    rb_fd_init(fds);
+    rb_fd_set(fd, fds);
+
+    return fds;
+}
+
+struct select_args {
+    union {
+	int fd;
+	int error;
+    } as;
+    rb_fdset_t *read;
+    rb_fdset_t *write;
+    rb_fdset_t *except;
+    struct timeval *tv;
+};
+
+static VALUE
+select_single(VALUE ptr)
+{
+    struct select_args *args = (struct select_args *)ptr;
+    int r;
+
+    r = rb_thread_fd_select(args->as.fd + 1,
+                            args->read, args->write, args->except, args->tv);
+    if (r == -1)
+	args->as.error = errno;
+    if (r > 0) {
+	r = 0;
+	if (args->read && rb_fd_isset(args->as.fd, args->read))
+	    r |= RB_WAITFD_IN;
+	if (args->write && rb_fd_isset(args->as.fd, args->write))
+	    r |= RB_WAITFD_OUT;
+	if (args->except && rb_fd_isset(args->as.fd, args->except))
+	    r |= RB_WAITFD_PRI;
+    }
+    return (VALUE)r;
+}
+
+static VALUE
+select_single_cleanup(VALUE ptr)
+{
+    struct select_args *args = (struct select_args *)ptr;
+
+    if (args->read) rb_fd_term(args->read);
+    if (args->write) rb_fd_term(args->write);
+    if (args->except) rb_fd_term(args->except);
+
+    return (VALUE)-1;
+}
+
+int
+rb_wait_for_single_fd(int fd, int events, struct timeval *tv)
+{
+    rb_fdset_t rfds, wfds, efds;
+    struct select_args args;
+    int r;
+    VALUE ptr = (VALUE)&args;
+
+    args.as.fd = fd;
+    args.read = (events & RB_WAITFD_IN) ? init_set_fd(fd, &rfds) : NULL;
+    args.write = (events & RB_WAITFD_OUT) ? init_set_fd(fd, &wfds) : NULL;
+    args.except = (events & RB_WAITFD_PRI) ? init_set_fd(fd, &efds) : NULL;
+    args.tv = tv;
+
+    r = (int)rb_ensure(select_single, ptr, select_single_cleanup, ptr);
+    if (r == -1)
+	errno = args.as.error;
+
+    return r;
+}
+#endif /* ! USE_POLL */
 
 /*
  * for GC
@@ -3208,24 +3368,54 @@ rb_mutex_trylock(VALUE self)
     return locked;
 }
 
+static struct timespec init_lock_timeout(int timeout_ms)
+{
+    struct timespec ts;
+    struct timeval tv;
+    int ret;
+
+    ret = gettimeofday(&tv, NULL);
+    if (ret < 0)
+	rb_sys_fail(0);
+
+    ts.tv_sec = tv.tv_sec;
+    ts.tv_nsec = tv.tv_usec * 1000 + timeout_ms * 1000 * 1000;
+    if (ts.tv_nsec >= 1000000000) {
+	ts.tv_sec++;
+	ts.tv_nsec -= 1000000000;
+    }
+
+    return ts;
+}
+
 static int
-lock_func(rb_thread_t *th, mutex_t *mutex, int last_thread)
+lock_func(rb_thread_t *th, mutex_t *mutex, int timeout_ms)
 {
     int interrupted = 0;
-#if 0 /* for debug */
-    native_thread_yield();
-#endif
 
     native_mutex_lock(&mutex->lock);
     th->transition_for_lock = 0;
-    while (mutex->th || (mutex->th = th, 0)) {
-	if (last_thread) {
-	    interrupted = 2;
+    for (;;) {
+	struct timespec ts;
+	int ret;
+
+	if (!mutex->th) {
+	    mutex->th = th;
 	    break;
 	}
 
 	mutex->cond_waiting++;
-	native_cond_wait(&mutex->cond, &mutex->lock);
+	if (timeout_ms) {
+	    ts = init_lock_timeout(timeout_ms);
+	    ret = native_cond_timedwait(&mutex->cond, &mutex->lock, &ts);
+	    if (ret == ETIMEDOUT) {
+		interrupted = 2;
+		break;
+	    }
+	}
+	else {
+	    native_cond_wait(&mutex->cond, &mutex->lock);
+	}
 	mutex->cond_notified--;
 
 	if (RUBY_VM_INTERRUPTED(th)) {
@@ -3235,11 +3425,6 @@ lock_func(rb_thread_t *th, mutex_t *mutex, int last_thread)
     }
     th->transition_for_lock = 1;
     native_mutex_unlock(&mutex->lock);
-
-    if (interrupted == 2) native_thread_yield();
-#if 0 /* for debug */
-    native_thread_yield();
-#endif
 
     return interrupted;
 }
@@ -3280,20 +3465,26 @@ rb_mutex_lock(VALUE self)
 	while (mutex->th != th) {
 	    int interrupted;
 	    enum rb_thread_status prev_status = th->status;
-	    int last_thread = 0;
+	    int timeout_ms = 0;
 	    struct rb_unblock_callback oldubf;
 
 	    set_unblock_function(th, lock_interrupt, mutex, &oldubf);
 	    th->status = THREAD_STOPPED_FOREVER;
 	    th->vm->sleeper++;
 	    th->locking_mutex = self;
+
+	    /*
+	     * Carefully! while some contended threads are in lock_fun(),
+	     * vm->sleepr is unstable value. we have to avoid both deadlock
+	     * and busy loop.
+	     */
 	    if (vm_living_thread_num(th->vm) == th->vm->sleeper) {
-		last_thread = 1;
+		timeout_ms = 100;
 	    }
 
 	    th->transition_for_lock = 1;
 	    BLOCKING_REGION_CORE({
-		interrupted = lock_func(th, mutex, last_thread);
+		interrupted = lock_func(th, mutex, timeout_ms);
 	    });
 	    th->transition_for_lock = 0;
 	    remove_signal_thread_list(th);

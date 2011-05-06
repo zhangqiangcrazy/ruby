@@ -1238,6 +1238,57 @@ class TestIO < Test::Unit::TestCase
     end
   end
 
+  def test_O_CLOEXEC
+    if !defined? File::CLOEXEC
+      return
+    end
+
+    mkcdtmpdir do
+      ary = []
+      begin
+        10.times {
+          ary.concat IO.pipe
+        }
+
+        normal_file = Tempfile.new("normal_file");
+        assert_equal(false, normal_file.close_on_exec?)
+        cloexec_file = Tempfile.new("cloexec_file", :mode => File::CLOEXEC);
+        assert_equal(true, cloexec_file.close_on_exec?)
+        arg, argw = IO.pipe
+        argw.puts normal_file.fileno
+        argw.puts cloexec_file.fileno
+        argw.flush
+        ret, retw = IO.pipe
+
+        while (e = ary.shift) != nil
+          e.close
+        end
+
+        spawn("ruby", "-e", <<-'End', :close_others=>false, :in=>arg, :out=>retw)
+          begin
+            puts IO.for_fd(gets.to_i).fileno
+            puts IO.for_fd(gets.to_i).fileno
+          rescue
+            puts "nofile"
+          ensure
+            exit
+          end
+        End
+        retw.close
+        Process.wait
+        assert_equal("#{normal_file.fileno}\nnofile\n", ret.read)
+      ensure
+        while (e = ary.shift) != nil
+          e.close
+        end
+        arg.close unless arg.closed?
+        argw.close unless argw.closed?
+        ret.close unless ret.closed?
+        retw.close unless retw.closed?
+      end
+    end
+  end
+
   def test_close_security_error
     with_pipe do |r, w|
       assert_raise(SecurityError) do
@@ -1808,5 +1859,45 @@ End
       Process.kill :TERM, pid
       Process.waitpid2(pid)
     end
+  end
+
+  def test_cross_thread_close_fd
+    skip "cross thread close causes hung-up if pipe." if /mswin|bccwin|mingw/ =~ RUBY_PLATFORM
+    with_pipe do |r,w|
+      read_thread = Thread.new do
+        begin
+          r.read(1)
+        rescue => e
+          e
+        end
+      end
+
+      sleep(0.1) until read_thread.stop?
+      r.close
+      read_thread.join
+      assert_kind_of(IOError, read_thread.value)
+    end
+  end
+
+  def test_cross_thread_close_stdio
+    with_pipe do |r,w|
+      pid = fork do
+        $stdin.reopen(r)
+        r.close
+        read_thread = Thread.new do
+          begin
+            $stdin.read(1)
+          rescue => e
+            e
+          end
+        end
+        sleep(0.1) until read_thread.stop?
+        $stdin.close
+        read_thread.join
+        exit(IOError === read_thread.value)
+      end
+      assert Process.waitpid2(pid)[1].success?
+    end
+    rescue NotImplementedError
   end
 end

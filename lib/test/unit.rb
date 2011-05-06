@@ -4,7 +4,6 @@ require 'minitest/unit'
 require 'test/unit/assertions'
 require 'test/unit/testcase'
 require 'optparse'
-require 'io/console'
 
 module Test
   module Unit
@@ -71,7 +70,7 @@ module Test
         end
 
         opts.on '-s', '--seed SEED', Integer, "Sets random seed" do |m|
-          options[:seed] = m.to_i
+          options[:seed] = m
         end
 
         opts.on '-v', '--verbose', "Verbose. Show progress processing files." do
@@ -83,8 +82,9 @@ module Test
           options[:filter] = a
         end
 
-        opts.on '--jobs-status [TYPE]', "Show status of jobs every file; Disabled when --jobs isn't specified." do |type|
-          options[:job_status] = (type && type.to_sym) || :normal
+        opts.on '--jobs-status [TYPE]', [:normal, :replace],
+                "Show status of jobs every file; Disabled when --jobs isn't specified." do |type|
+          options[:job_status] = type || :normal
         end
 
         opts.on '-j N', '--jobs N', "Allow run tests with N jobs at once" do |a|
@@ -234,13 +234,13 @@ module Test
           io = IO.popen([*ruby,
                         "#{File.dirname(__FILE__)}/unit/parallel.rb",
                         *args], "rb+")
-          new(io: io, pid: io.pid, status: :waiting)
+          new(io, io.pid, :waiting)
         end
 
-        def initialize(h={})
-          @io = h[:io]
-          @pid = h[:pid]
-          @status = h[:status]
+        def initialize(io, pid, status)
+          @io = io
+          @pid = pid
+          @status = status
           @file = nil
           @real_file = nil
           @loadpath = []
@@ -260,10 +260,10 @@ module Test
             puts "run #{task} #{type}"
             @status = :prepare
           rescue Errno::EPIPE
-            dead
+            died
           rescue IOError
             raise unless ["stream closed","closed stream"].include? $!.message
-            dead
+            died
           end
         end
 
@@ -283,10 +283,9 @@ module Test
           self
         end
 
-        def dead(*additional)
+        def died(*additional)
           @status = :quit
-          @in.close
-          @out.close
+          @io.close
 
           call_hook(:dead,*additional)
         end
@@ -330,7 +329,7 @@ module Test
         @@installed_at_exit = true
       end
 
-      def after_worker_down(worker, e=nil, c=1)
+      def after_worker_down(worker, e=nil, c=false)
         return unless @opts[:parallel]
         return if @interrupt
         if e
@@ -352,22 +351,27 @@ module Test
         return unless @opts[:job_status]
         puts "" unless @opts[:verbose]
         status_line = @workers.map(&:to_s).join(" ")
-        if @opts[:job_status] == :replace
-          @terminal_width ||= $stdout.winsize[1] || ENV["COLUMNS"].to_i || 80
+        if @opts[:job_status] == :replace and $stdout.tty?
+          @terminal_width ||=
+            begin
+              require 'io/console'
+              $stdout.winsize[1]
+            rescue LoadError, NoMethodError
+              ENV["COLUMNS"].to_i.nonzero? || 80
+            end
           @jstr_size ||= 0
           del_jobs_status
           $stdout.flush
           print status_line[0...@terminal_width]
           $stdout.flush
-          @jstr_size = status_line.size > @terminal_width ? \
-                         @terminal_width : status_line.size
+          @jstr_size = [status_line.size, @terminal_width].min
         else
           puts status_line
         end
       end
 
       def del_jobs_status
-        return unless @opts[:job_status] == :replace && @jstr_size
+        return unless @opts[:job_status] == :replace && @jstr_size.nonzero?
         print "\r"+" "*@jstr_size+"\r"
       end
 
@@ -405,11 +409,12 @@ module Test
           watchdog = Thread.new do
             while stat = Process.wait2
               break if @interrupt # Break when interrupt
-              w = (@workers + @dead_workers).find{|x| stat[0] == x.pid }.dup
+              pid, stat = stat
+              w = (@workers + @dead_workers).find{|x| pid == x.pid }.dup
               next unless w
               unless w.status == :quit
                 # Worker down
-                w.dead(nil, stat[1].to_i)
+                w.died(nil, !stat.signaled? && stat.exitstatus)
               end
             end
           end

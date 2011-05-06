@@ -322,7 +322,8 @@ rb_mod_s_constants(int argc, VALUE *argv, VALUE mod)
 
     while (cref) {
 	klass = cref->nd_clss;
-	if (!NIL_P(klass)) {
+	if (!(cref->flags & NODE_FL_CREF_PUSHED_BY_EVAL) &&
+	    !NIL_P(klass)) {
 	    data = rb_mod_const_at(cref->nd_clss, data);
 	    if (!cbase) {
 		cbase = klass;
@@ -752,12 +753,27 @@ rb_ensure(VALUE (*b_proc)(ANYARGS), VALUE data1, VALUE (*e_proc)(ANYARGS), VALUE
     return result;
 }
 
+static const rb_method_entry_t *
+method_entry_of_iseq(rb_control_frame_t *cfp, rb_iseq_t *iseq)
+{
+    rb_thread_t *th = GET_THREAD();
+    rb_control_frame_t *cfp_limit;
+
+    cfp_limit = (rb_control_frame_t *)(th->stack + th->stack_size);
+    while (cfp_limit > cfp) {
+	if (cfp->iseq == iseq)
+	    return cfp->me;
+	cfp = RUBY_VM_PREVIOUS_CONTROL_FRAME(cfp);
+    }
+    return 0;
+}
+
 static ID
 frame_func_id(rb_control_frame_t *cfp)
 {
+    const rb_method_entry_t *me_local;
     rb_iseq_t *iseq = cfp->iseq;
-    if (!iseq) {
-	if (!cfp->me) return 0;
+    if (cfp->me) {
 	return cfp->me->def->original_id;
     }
     while (iseq) {
@@ -765,6 +781,11 @@ frame_func_id(rb_control_frame_t *cfp)
 	    NODE *ifunc = (NODE *)iseq;
 	    if (ifunc->nd_aid) return ifunc->nd_aid;
 	    return rb_intern("<ifunc>");
+	}
+	me_local = method_entry_of_iseq(cfp, iseq);
+	if (me_local) {
+	    cfp->me = me_local;
+	    return me_local->def->original_id;
 	}
 	if (iseq->defined_method_id) {
 	    return iseq->defined_method_id;

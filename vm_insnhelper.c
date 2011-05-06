@@ -1155,15 +1155,20 @@ vm_get_ev_const(rb_thread_t *th, const rb_iseq_t *iseq,
 
     if (orig_klass == Qnil) {
 	/* in current lexical scope */
-	const NODE *cref = vm_get_cref(iseq, th->cfp->lfp, th->cfp->dfp);
-	const NODE *root_cref = NULL;
+	const NODE *root_cref = vm_get_cref(iseq, th->cfp->lfp, th->cfp->dfp);
+	const NODE *cref;
 	VALUE klass = orig_klass;
 
+	while (root_cref && root_cref->flags & NODE_FL_CREF_PUSHED_BY_EVAL) {
+	    root_cref = root_cref->nd_next;
+	}
+	cref = root_cref;
 	while (cref && cref->nd_next) {
-	    if (!(cref->flags & NODE_FL_CREF_PUSHED_BY_EVAL)) {
+	    if (cref->flags & NODE_FL_CREF_PUSHED_BY_EVAL) {
+		klass = Qnil;
+	    }
+	    else {
 		klass = cref->nd_clss;
-		if (root_cref == NULL)
-		    root_cref = cref;
 	    }
 	    cref = cref->nd_next;
 

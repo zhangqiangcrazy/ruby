@@ -145,11 +145,7 @@ readline_event(void)
 #if BUSY_WAIT
     rb_thread_schedule();
 #else
-    fd_set rset;
-
-    FD_ZERO(&rset);
-    FD_SET(fileno(rl_instream), &rset);
-    rb_thread_select(fileno(rl_instream) + 1, &rset, NULL, NULL, NULL);
+    rb_wait_for_single_fd(fileno(rl_instream), RB_WAITFD_IN, NULL);
     return 0;
 #endif
 }

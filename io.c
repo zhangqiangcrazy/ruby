@@ -217,15 +217,15 @@ static int max_file_descriptor = NOFILE;
 #  endif
 #endif
 
+#define NEED_NEWLINE_DECORATOR_ON_READ(fptr) ((fptr)->mode & FMODE_TEXTMODE)
+#define NEED_NEWLINE_DECORATOR_ON_WRITE(fptr) ((fptr)->mode & FMODE_TEXTMODE)
 #if defined(RUBY_TEST_CRLF_ENVIRONMENT) || defined(_WIN32)
 /* Windows */
-# define NEED_NEWLINE_DECORATOR_ON_READ(fptr) (!((fptr)->mode & FMODE_BINMODE))
-# define NEED_NEWLINE_DECORATOR_ON_WRITE(fptr) (!((fptr)->mode & FMODE_BINMODE))
+# define DEFAULT_TEXTMODE FMODE_TEXTMODE
 # define TEXTMODE_NEWLINE_DECORATOR_ON_WRITE ECONV_CRLF_NEWLINE_DECORATOR
 #else
 /* Unix */
-# define NEED_NEWLINE_DECORATOR_ON_READ(fptr) ((fptr)->mode & FMODE_TEXTMODE)
-# define NEED_NEWLINE_DECORATOR_ON_WRITE(fptr) 0
+# define DEFAULT_TEXTMODE 0
 #endif
 #define NEED_READCONV(fptr) ((fptr)->encs.enc2 != NULL || NEED_NEWLINE_DECORATOR_ON_READ(fptr))
 #define NEED_WRITECONV(fptr) (((fptr)->encs.enc != NULL && (fptr)->encs.enc != rb_ascii8bit_encoding()) || NEED_NEWLINE_DECORATOR_ON_WRITE(fptr) || ((fptr)->encs.ecflags & (ECONV_DECORATOR_MASK|ECONV_STATEFUL_DECORATOR_MASK)))
@@ -685,21 +685,9 @@ io_fflush(rb_io_t *fptr)
     return 0;
 }
 
-#ifdef HAVE_RB_FD_INIT
-static VALUE
-wait_readable(VALUE p)
-{
-    rb_fdset_t *rfds = (rb_fdset_t *)p;
-
-    return rb_thread_select(rb_fd_max(rfds), rb_fd_ptr(rfds), NULL, NULL, NULL);
-}
-#endif
-
 int
 rb_io_wait_readable(int f)
 {
-    rb_fdset_t rfds;
-
     if (f < 0) {
 	rb_raise(rb_eIOError, "closed stream");
     }
@@ -715,14 +703,7 @@ rb_io_wait_readable(int f)
 #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
       case EWOULDBLOCK:
 #endif
-	rb_fd_init(&rfds);
-	rb_fd_set(f, &rfds);
-#ifdef HAVE_RB_FD_INIT
-	rb_ensure(wait_readable, (VALUE)&rfds,
-		  (VALUE (*)(VALUE))rb_fd_term, (VALUE)&rfds);
-#else
-	rb_thread_select(f + 1, rb_fd_ptr(&rfds), NULL, NULL, NULL);
-#endif
+	rb_wait_for_single_fd(f, RB_WAITFD_IN, NULL);
 	return TRUE;
 
       default:
@@ -730,21 +711,9 @@ rb_io_wait_readable(int f)
     }
 }
 
-#ifdef HAVE_RB_FD_INIT
-static VALUE
-wait_writable(VALUE p)
-{
-    rb_fdset_t *wfds = (rb_fdset_t *)p;
-
-    return rb_thread_select(rb_fd_max(wfds), NULL, rb_fd_ptr(wfds), NULL, NULL);
-}
-#endif
-
 int
 rb_io_wait_writable(int f)
 {
-    rb_fdset_t wfds;
-
     if (f < 0) {
 	rb_raise(rb_eIOError, "closed stream");
     }
@@ -760,14 +729,7 @@ rb_io_wait_writable(int f)
 #if defined(EWOULDBLOCK) && EWOULDBLOCK != EAGAIN
       case EWOULDBLOCK:
 #endif
-	rb_fd_init(&wfds);
-	rb_fd_set(f, &wfds);
-#ifdef HAVE_RB_FD_INIT
-	rb_ensure(wait_writable, (VALUE)&wfds,
-		  (VALUE (*)(VALUE))rb_fd_term, (VALUE)&wfds);
-#else
-	rb_thread_select(f + 1, NULL, rb_fd_ptr(&wfds), NULL, NULL);
-#endif
+	rb_wait_for_single_fd(f, RB_WAITFD_OUT, NULL);
 	return TRUE;
 
       default:
@@ -789,7 +751,8 @@ make_writeconv(rb_io_t *fptr)
         ecflags = fptr->encs.ecflags;
         ecopts = fptr->encs.ecopts;
 #ifdef TEXTMODE_NEWLINE_DECORATOR_ON_WRITE
-        if (NEED_NEWLINE_DECORATOR_ON_WRITE(fptr))
+	if (NEED_NEWLINE_DECORATOR_ON_WRITE(fptr) &&
+	    !(ecflags & ECONV_NEWLINE_DECORATOR_MASK))
             ecflags |= TEXTMODE_NEWLINE_DECORATOR_ON_WRITE;
 #endif
 
@@ -1414,15 +1377,15 @@ rb_io_fsync(VALUE io)
  *
  *  Immediately writes all buffered data in <em>ios</em> to disk.
  *
- *  <code>NotImplementedError</code> is raised
- *  if the underlying operating system does not support <em>fdatasync(2)</em>.
+ *  If the underlying operating system does not support <em>fdatasync(2)</em>,
+ *  <code>IO#fsync</code> is called instead (which might raise a
+ *  <code>NotImplementedError</code>).
  */
 
 static VALUE
 rb_io_fdatasync(VALUE io)
 {
     rb_io_t *fptr;
-    int saved_errno = 0;
 
     io = GetWriteIO(io);
     GetOpenFile(io, fptr);
@@ -1672,8 +1635,6 @@ make_readconv(rb_io_t *fptr, int size)
         const char *sname, *dname;
         ecflags = fptr->encs.ecflags;
         ecopts = fptr->encs.ecopts;
-        if (NEED_NEWLINE_DECORATOR_ON_READ(fptr))
-            ecflags |= ECONV_UNIVERSAL_NEWLINE_DECORATOR;
         if (fptr->encs.enc2) {
             sname = rb_enc_name(fptr->encs.enc2);
             dname = rb_enc_name(fptr->encs.enc);
@@ -3918,7 +3879,7 @@ rb_io_syswrite(VALUE io, VALUE str)
         rb_io_check_closed(fptr);
     }
 
-    n = write(fptr->fd, RSTRING_PTR(str), RSTRING_LEN(str));
+    n = rb_write_internal(fptr->fd, RSTRING_PTR(str), RSTRING_LEN(str));
 
     if (n == -1) rb_sys_fail_path(fptr->pathv);
 
@@ -3994,7 +3955,7 @@ rb_io_binmode(VALUE io)
         rb_econv_binmode(fptr->writeconv);
     fptr->mode |= FMODE_BINMODE;
     fptr->mode &= ~FMODE_TEXTMODE;
-    fptr->writeconv_pre_ecflags &= ~(ECONV_UNIVERSAL_NEWLINE_DECORATOR|ECONV_CRLF_NEWLINE_DECORATOR|ECONV_CR_NEWLINE_DECORATOR);
+    fptr->writeconv_pre_ecflags &= ~ECONV_NEWLINE_DECORATOR_MASK;
     return io;
 }
 
@@ -4442,13 +4403,25 @@ rb_io_extract_encoding_option(VALUE opt, rb_encoding **enc_p, rb_encoding **enc2
 typedef struct rb_io_enc_t convconfig_t;
 
 static void
-validate_enc_binmode(int fmode, rb_encoding *enc, rb_encoding *enc2)
+validate_enc_binmode(int *fmode_p, int ecflags, rb_encoding *enc, rb_encoding *enc2)
 {
+    int fmode = *fmode_p;
+
     if ((fmode & FMODE_READABLE) &&
         !enc2 &&
         !(fmode & FMODE_BINMODE) &&
         !rb_enc_asciicompat(enc ? enc : rb_default_external_encoding()))
         rb_raise(rb_eArgError, "ASCII incompatible encoding needs binmode");
+
+    if (!(fmode & FMODE_BINMODE) &&
+	(ecflags & ECONV_NEWLINE_DECORATOR_MASK)) {
+	fmode |= DEFAULT_TEXTMODE;
+	*fmode_p = fmode;
+    }
+    else if (!(ecflags & ECONV_NEWLINE_DECORATOR_MASK)) {
+	fmode &= ~FMODE_TEXTMODE;
+	*fmode_p = fmode;
+    }
 }
 
 static void
@@ -4486,7 +4459,7 @@ rb_io_extract_modeenc(VALUE *vmode_p, VALUE *vperm_p, VALUE opthash,
     rb_io_ext_int_to_encs(NULL, NULL, &enc, &enc2);
 
     if (NIL_P(vmode)) {
-        fmode = FMODE_READABLE;
+        fmode = FMODE_READABLE | DEFAULT_TEXTMODE;
         oflags = O_RDONLY;
     }
     else if (!NIL_P(intmode = rb_check_to_integer(vmode, "to_int"))) {
@@ -4516,7 +4489,9 @@ rb_io_extract_modeenc(VALUE *vmode_p, VALUE *vperm_p, VALUE opthash,
     }
 
     if (NIL_P(opthash)) {
-        ecflags = 0;
+	ecflags = (fmode & FMODE_READABLE) ?
+	    MODE_BTMODE(ECONV_DEFAULT_NEWLINE_DECORATOR,
+			0, ECONV_UNIVERSAL_NEWLINE_DECORATOR) : 0;
         ecopts = Qnil;
     }
     else {
@@ -4549,7 +4524,10 @@ rb_io_extract_modeenc(VALUE *vmode_p, VALUE *vperm_p, VALUE opthash,
 		/* perm no use, just ignore */
 	    }
 	}
-        ecflags = rb_econv_prepare_opts(opthash, &ecopts);
+	ecflags = (fmode & FMODE_READABLE) ?
+	    MODE_BTMODE(ECONV_DEFAULT_NEWLINE_DECORATOR,
+			0, ECONV_UNIVERSAL_NEWLINE_DECORATOR) : 0;
+        ecflags = rb_econv_prepare_options(opthash, &ecopts, ecflags);
 
         if (rb_io_extract_encoding_option(opthash, &enc, &enc2, &fmode)) {
             if (has_enc) {
@@ -4558,7 +4536,7 @@ rb_io_extract_modeenc(VALUE *vmode_p, VALUE *vperm_p, VALUE opthash,
         }
     }
 
-    validate_enc_binmode(fmode, enc, enc2);
+    validate_enc_binmode(&fmode, ecflags, enc, enc2);
 
     *vmode_p = vmode;
 
@@ -4756,7 +4734,8 @@ rb_file_open_generic(VALUE io, VALUE filename, int oflags, int fmode, convconfig
         cc.ecopts = Qnil;
         convconfig = &cc;
     }
-    validate_enc_binmode(fmode, convconfig->enc, convconfig->enc2);
+    validate_enc_binmode(&fmode, convconfig->ecflags,
+			 convconfig->enc, convconfig->enc2);
 
     MakeOpenFile(io, fptr);
     fptr->mode = fmode;
@@ -5232,6 +5211,9 @@ pipe_open(struct rb_exec_arg *eargp, VALUE prog, const char *modestr, int fmode,
     fptr->mode = fmode | FMODE_SYNC|FMODE_DUPLEX;
     if (convconfig) {
         fptr->encs = *convconfig;
+    }
+    else if (NEED_NEWLINE_DECORATOR_ON_READ(fptr)) {
+        fptr->encs.ecflags |= ECONV_UNIVERSAL_NEWLINE_DECORATOR;
     }
     fptr->pid = pid;
 
@@ -7232,7 +7214,7 @@ rb_f_backquote(VALUE obj, VALUE str)
     rb_io_t *fptr;
 
     SafeStringValue(str);
-    port = pipe_open_s(str, "r", FMODE_READABLE, NULL);
+    port = pipe_open_s(str, "r", FMODE_READABLE|DEFAULT_TEXTMODE, NULL);
     if (NIL_P(port)) return rb_str_new(0,0);
 
     GetOpenFile(port, fptr);
@@ -7380,7 +7362,6 @@ struct select_args {
     rb_fdset_t fdsets[4];
 };
 
-#ifdef HAVE_RB_FD_INIT
 static VALUE
 select_call(VALUE arg)
 {
@@ -7399,7 +7380,6 @@ select_end(VALUE arg)
 	rb_fd_term(&p->fdsets[i]);
     return Qnil;
 }
-#endif
 
 static VALUE sym_normal,   sym_sequential, sym_random,
              sym_willneed, sym_dontneed, sym_noreuse;
@@ -7640,13 +7620,7 @@ rb_f_select(int argc, VALUE *argv, VALUE obj)
     for (i = 0; i < numberof(args.fdsets); ++i)
 	rb_fd_init(&args.fdsets[i]);
 
-#ifdef HAVE_RB_FD_INIT
     return rb_ensure(select_call, (VALUE)&args, select_end, (VALUE)&args);
-#else
-    return select_internal(args.read, args.write, args.except,
-			   args.timeout, args.fdsets);
-#endif
-
 }
 
 struct io_cntl_arg {
@@ -7853,7 +7827,7 @@ rb_f_syscall(int argc, VALUE *argv)
 #else
     VALUE arg[8];
 #endif
-#if SIZEOF_VOIDP == 8 && HAVE___SYSCALL && SIZEOF_INT != 8 /* mainly *BSD */
+#if SIZEOF_VOIDP == 8 && defined(HAVE___SYSCALL) && SIZEOF_INT != 8 /* mainly *BSD */
 # define SYSCALL __syscall
 # define NUM2SYSCALLID(x) NUM2LONG(x)
 # define RETVAL2NUM(x) LONG2NUM(x)
@@ -8024,7 +7998,7 @@ io_encoding_set(rb_io_t *fptr, VALUE v1, VALUE v2, VALUE opt)
 	    }
 	}
     }
-    validate_enc_binmode(fptr->mode, enc, enc2);
+    validate_enc_binmode(&fptr->mode, ecflags, enc, enc2);
     fptr->encs.enc = enc;
     fptr->encs.enc2 = enc2;
     fptr->encs.ecflags = ecflags;
@@ -8914,7 +8888,6 @@ copy_stream_body(VALUE arg)
         return copy_stream_fallback(stp);
     }
 
-    rb_fd_init(&stp->fds);
     rb_fd_set(src_fd, &stp->fds);
     rb_fd_set(dst_fd, &stp->fds);
 
@@ -8993,6 +8966,7 @@ rb_io_s_copy_stream(int argc, VALUE *argv, VALUE io)
     else
         st.src_offset = NUM2OFFT(src_offset);
 
+    rb_fd_init(&st.fds);
     rb_ensure(copy_stream_body, (VALUE)&st, copy_stream_finalize, (VALUE)&st);
 
     return OFFT2NUM(st.total);
@@ -10601,6 +10575,10 @@ Init_IO(void)
 #ifdef O_DIRECT
     /*  Try to minimize cache effects of the I/O to and from this file. */
     rb_file_const("DIRECT", INT2FIX(O_DIRECT));
+#endif
+#ifdef O_CLOEXEC
+    /* enable close-on-exec flag */
+    rb_file_const("CLOEXEC", INT2FIX(O_CLOEXEC)); /* Linux, POSIX-2008. */
 #endif
 
     sym_mode = ID2SYM(rb_intern("mode"));

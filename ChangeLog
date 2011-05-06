@@ -1,3 +1,941 @@
+Thu May  5 23:08:32 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* test/ruby/test_io.rb (TestIO#test_O_CLOEXEC): fix false positive
+	  detection.
+
+Thu May  5 22:23:34 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread_pthread.c (native_mutex_reinitialize_atfork): removed
+	  unused macro.
+	* thread_win32.c (native_mutex_reinitialize_atfork): ditto.
+
+Thu May  5 22:09:39 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/date/date_core.c (DAY_IN_NANOSECONDS): long long int is not
+	  available on all platforms.
+
+Thu May  5 17:36:31 2011  CHIKANAGA Tomoyuki  <nagachika00@gmail.com>
+
+	* eval.c (frame_func_id): store result of method_entry_of_iseq() to
+	  cfp->me because method_entry_of_iseq() might become expensive.
+
+Thu May  5 15:03:51 2011  CHIKANAGA Tomoyuki  <nagachika00@gmail.com>
+
+	* eval.c (frame_func_id): __method__ return different name from
+	  methods defined by Module#define_method with a same block.
+	  [ruby-core:35386] fixes #4606
+	* eval (method_entry_of_iseq): new helper function. search control
+	  frame stack for a method entry which has given iseq.
+	* test/ruby/test_method.rb: add tests for #4696
+
+Wed May  4 22:13:09 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* benchmark/bm_vm4_pipe.rb: Reduced iterations. Too slow benchmark
+	  is bad.
+	* benchmark/bm_vm4_thread_pass.rb: ditto.
+
+Wed May  4 22:08:22 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* test/date/test_date_base.rb: don't use no message skip().
+
+Wed May  4 21:11:28 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* benchmark/bm_io_select2.rb: reduce number of using file
+	  descriptors. because gdb need some fds.
+
+Wed May  4 20:22:12 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* io.c (Init_IO): Added File::CLOEXEC constant.
+	[ruby-core:22893] [Feature #1291]
+	* test/ruby/test_io.rb (TestIO#test_o_cloexec): test for File::CLOEXEC.
+
+Wed May  4 19:00:59 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_wait_for_single_fd): Fix wrong return value.
+	* test/-ext-/wait_for_single_fd/test_wait_for_single_fd.rb
+	(TestWaitForSingleFD#test_wait_for_closed_pipe): test for it.
+
+Wed May  4 18:46:39 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* ext/-test-/wait_for_single_fd: New. for testing
+	  rb_wait_for_single_fd() internal function.
+	  The patch was written by Eric Wong. [ruby-core:35991]
+
+	* test/-ext-/wait_for_single_fd/test_wait_for_single_fd.rb: ditto.
+
+Wed May  4 12:46:25 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_wait_for_single_fd): Added POLLNVAL check.
+	  based on a patch from Eric Wong at [ruby-core:35991].
+
+Wed May  4 11:51:01 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* io.c (rb_f_select): remove useless ifdef.
+
+Wed May  4 11:42:47 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* ext/socket/init.c (wait_connectable): fix error handling code.
+	  RB_WAITFD_OUT is turned on even though an error occur.
+
+Wed May  4 10:12:39 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* ext/readline/readline.c (readline_event): use rb_wait_for_single_fd().
+	The patch was written by Eric Wong. [Ruby 1.9 - Feature #4531]
+
+Wed May  4 10:10:28 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* ext/socket/init.c (wait_connectable): use rb_wait_for_single_fd().
+	The patch was written by Eric Wong. [Ruby 1.9 - Feature #4531]
+
+	* ext/socket/init.c (try_wait_connectable, wait_connectable_ensure):
+	  removed.
+
+Wed May  4 10:07:48 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* ext/io/wait/wait.c (io_wait): use rb_wait_for_single_fd().
+	The patch was written by Eric Wong. [Ruby 1.9 - Feature #4531]
+
+Wed May  4 10:01:27 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_wait_for_single_fd): new. poll(2) based backend for rb_wait_for_single_fd().
+	  Now only Linux uses it.
+
+	The patch was written by Eric Wong. [Ruby 1.9 - Feature #4531]
+
+Wed May  4 09:56:57 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_wait_for_single_fd): new.
+	* thread.c (select_single): select(2) based backend for rb_wait_for_single_fd().
+
+	* io.c (make_writeconv): use rb_wait_for_single_fd() instead of
+	  rb_thread_fd_select().
+	* io.c (rb_io_wait_readable): ditto.
+	* thread.c (rb_thread_wait_fd_rw): ditto.
+
+	* io.c (wait_readable): removed.
+	* thread.c (init_set_fd): new helper function.
+	* include/ruby/io.h (RB_WAITFD_IN, RB_WAITFD_PRI, RB_WAITFD_OUT):
+	  new constant for rb_single_wait_fd().
+
+	The patch was written by Eric Wong. [Ruby 1.9 - Feature #4531]
+
+Wed May  4 08:04:59 2011  Aaron Patterson <aaron@tenderlovemaking.com>
+
+	* ext/psych/lib/psych/visitors/yaml_tree.rb: fix time dumping so that
+	  Syck can load UTC times that Psych dumps.
+
+Wed May  4 07:33:00 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_fd_copy): fix wrong argument.This issue was pointed
+	  out by Eric Wong. [ruby-core:35982]
+
+Tue May  3 20:29:33 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* test/fileutils/test_fileutils.rb (TestFileUtils#test_chmod_symbol_mode):
+	  Skip sticky bit test if the platform is FreeBSD. It doesn't allow to
+	  change sticky bit if a target is regular file.
+
+Tue May  3 18:23:57 2011  Yuki Sonoda (Yugui)  <yugui@yugui.jp>
+
+	* test/date/test_date.rb (TestDate#test_coerce):
+	  test for [ruby-core:35127].
+
+Tue May  3 04:27:53 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread.c (rb_thread_select): preserve errno if no error
+	  occurred.
+
+Tue May  3 03:57:04 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/intern.h (rb_w32_fdcopy): add prototype.  fixes
+	  #4640
+
+Mon May  2 01:02:04 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* lib/fileutils.rb (FileUtils#chmod): accept symbolic mode argument.
+	  The patch was written by takkanm. [ruby-core:26029][Feature #2190]
+
+	* lib/fileutils.rb (FileUtils#fu_mode): new helper function.
+	* lib/fileutils.rb (FileUtils#symbolic_modes_to_i): ditto.
+	* lib/fileutils.rb (FileUtils#mode_mask): ditto.
+	* lib/fileutils.rb (FileUtils#user_mask): ditto.
+
+	* test/fileutils/test_fileutils.rb (TestFileUtils#test_chmod_symbol_mode):
+	  new test for the above symbolic mode.
+	* test/fileutils/test_fileutils.rb (TestFileUtils#test_chmod_R): ditto.
+
+Mon May  2 00:36:12 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* ext/socket/init.c (rsock_connect): add to care EINTR. based
+	  on a patch from Eric Wong at [ruby-core:35621][Bug #4555]
+
+Sun May  1 01:06:24 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_thread_select): release GVL while waiting select().
+
+Sat Apr 30 23:10:15 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* win32/win32.c (rb_w32_fdcopy): New. This can copy even though
+	  fdset size exceed FD_SETSIZE.
+	* include/ruby/intern.h (rb_fd_copy): use rb_w32_fdcopy()
+
+Sat Apr 30 20:18:43 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (do_select): Change argument type to rb_fdset_t.
+	  Now do_select() is free from unexpected hangup if
+	  HAVE_RB_FD_INIT=1 [Bug #4636]
+
+	* thread.c (rb_thread_fd_select, rb_thread_wait_fd_rw):
+	  adapt new argument type.
+
+	* thread.c (rb_thread_select): make dummy implementation.
+
+Sat Apr 30 20:16:53 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_fd_copy): Change function argument. Now
+	  rb_fd_copy() has fully copy semantics.
+	* include/ruby/intern.h: ditto.
+
+Sat Apr 30 20:11:47 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* include/ruby/intern.h (rb_thread_select): mark as deprecated.
+
+	* ext/io/wait/wait.c (wait_readable): use rb_thread_fd_select
+	  instead of rb_thread_select.
+	* ext/socket/init.c (wait_connectable0): ditto.
+	* ext/readline/readline.c (readline_event): ditto.
+	* io.c (rb_io_wait_readable, wait_readable, rb_io_wait_writable,
+	  wait_writable): ditto.
+
+Sat Apr 30 20:06:36 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (do_select): remove useless ifdef. time calculation
+	  is not heavy weight.
+
+Sat Apr 30 16:48:36 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* benchmark/bm_io_select3.rb: New.
+
+Sat Apr 30 16:27:09 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* io.c (copy_stream_body, rb_io_s_copy_stream): move rb_fd_init()
+	  from copy_stream_body to rb_io_s_copy_stream. fds of passing
+	  rb_fd_term() have to be guaranteed initialized.
+
+Sat Apr 30 16:13:17 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* benchmark/bm_io_select.rb, benchmark/bm_io_select2.rb: New.
+	  based on a patch from Eric Wong at [Feature #4531]
+
+Sat Apr 30 03:25:53 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* test/io/wait/test_io_wait.rb: New. for testing ext/io/wait.
+	  the patch was written by Eric Wong. [Feature #4531]
+
+Sat Apr 30 00:34:56 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* include/ruby/win32.h: remove redundant declaration of
+	  rb_w32_time_subtract().
+
+Sat Apr 30 00:16:40 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread_pthread.c (gvl_init): fix hangup if GVL_SIMPLE_LOCK=1.
+	  We don't have to call mutex_unlock() before initialize it!
+
+Fri Apr 29 13:15:15 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread_win32.c (native_cond_timedwait): New. r31373 caused
+	  win32 build failure.
+
+	* thread_win32.c (__cond_timedwait, abs_timespec_to_timeout_ms):
+	  New helper functions.
+
+	* win32/win32.c (rb_w32_time_subtract): rename from subtract and
+	  remove static.
+
+Fri Apr 29 10:43:09 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* benchmark/bm_vm4_pipe.rb: Add two new benchmark for GVL
+	  performance. They was written by Koichi Sasada.
+	* benchmark/bm_vm4_thread_pass.rb: ditto.
+
+Fri Apr 29 10:25:31 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* vm_method.c (rb_clear_cache_by_class): Revert r29673. It made
+	  a segmentation fault regression. [Bug #4289][ruby-core:34554].
+
+Fri Apr 29 10:24:51 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (make_writeconv): do not add textmode newline decorator if any
+	  newline decorator is set already.  fixes #4618, fixes #4619
+
+Fri Apr 29 10:17:42 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (lock_func): small cleanup.
+
+Fri Apr 29 10:07:13 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_mutex_lock, lock_func): Avoid busy loop and
+	  performance regression. bm_vm3_thread_mutex.rb performance
+	  change from 109.064sec to 16.331sec. [Feature #4607]
+
+	* thread.c (init_lock_timeout): New helper function.
+
+Thu Apr 28 16:15:49 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/{win32.c,dir.h} (rb_w32_uopendir): new API to pass UTF-8 path.
+
+	* win32/win32.c (opendir_internal, rb_w32_opendir): extract and merge
+	  common part of rb_w32_opendir() and rb_w32_uopendir().
+
+	* dir.c (do_opendir, glob_helper): encoding.
+
+	* dir.c (dir_initialize, do_opendir): convert path to UTF-8 and call
+	  rb_w32_uopendir() instead of rb_w32_opendir() on Windows.
+	  fixes #4491, reported by Joey Zhou.
+
+Thu Apr 28 15:32:53 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* test/dl/test_base.rb (DL::LIBC_SO): its always msvc*.dll on
+	  mswin/mingw.
+
+Thu Apr 28 06:07:06 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/csv.rb (CSV::open): suppress universal newline decorator.
+	  fixes #4603
+
+	* lib/csv.rb (CSV.read): no mode is needed.
+
+Thu Apr 28 06:06:56 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* io.c (rb_io_extract_modeenc, rb_f_backquote): set default text
+	  mode.  fixes #4619
+
+	* io.c (pipe_open): set universal newline decorator if needed.
+
+Wed Apr 27 11:33:08 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* enc/trans/emoji_iso2022_kddi.trans: ISO-2022-JP-KDDI doesn't have
+	  CP932 UDA. Another reason is emacs-mule: the implementation of
+	  stateless-iso-2022-jp doesn't support beyond 94x94 (0x7fxx);
+	  but CP932 UDA is in 7Fxx-92xx.
+
+Wed Apr 27 07:42:44 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* configure.in (STRIP): use proper toolchain.  based on a patch
+	  from Jon Forums at [ruby-core:35909].  fixes #4617
+
+Wed Apr 27 01:20:59 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_core.c (date_zone_to_diff): renamed.
+	* ext/date/date_parse.c: ditto.
+	* ext/date/date_strptime.c: ditto.
+
+Wed Apr 27 01:16:59 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* encoding.c (enc_find): accept Encoding objects.
+
+Wed Apr 27 00:55:56 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* transcode.c (econv_opts): add newline option.
+
+	* io.c (validate_enc_binmode, rb_io_extract_modeenc): set newline
+	  decorator according to open mode.
+
+	* transcode.c (rb_econv_prepare_options): new function, to prepare
+	  econv options with newline flags.
+
+	* include/ruby/encoding.h (ECONV_NEWLINE_DECORATOR_MASK): add.
+
+Wed Apr 27 00:51:01 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* file.c (rb_file_truncate): fix function.
+
+	* include/ruby/win32.h (ftruncate, truncate, ftello, fseeko): non-64
+	  versions on mingw are useless because they use int32_t.  fixes #4564
+
+Wed Apr 27 00:50:33 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_core.c: modified validation methods.
+	* ext/date/lib/date.rb: ditto.
+
+Wed Apr 27 00:00:37 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_core.c (dt_lite_set_tmx): should get df value.
+
+Tue Apr 26 22:34:04 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/lib/date/format.rb (_iso8601): allowed day only civil
+	  date.  disallowed separatorless day only ordinal date.
+
+Mon Apr 25 21:31:36 2011  Nobuhiro Iwamatsu  <iwamatsu@nigauri.org>
+
+	* ext/openssl/extconf.rb: Should check SSLv2_*method.
+	  openssl compiled with "no-ssl2" the extconf don't fail
+	  when running `make' having this compilation errors.
+	  Patched by Laurent Arnoud. fixes #4562, #4556
+
+Mon Apr 25 20:53:32 2011  Tajima, Akio <artonx@yahoo.co.jp>
+
+	* win32/win32.c (kill): accept 0 only sig is SIGINT #4596
+
+Mon Apr 25 19:59:47 2011  Tajima, Akio <artonx@yahoo.co.jp>
+
+	* win32/win32.c (kill): accept 0 as pid, fixes #4596
+
+Mon Apr 25 16:43:45 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* random.c (random_rand): remove unused variables.
+
+	* struct.c (rb_struct_define_without_accessor): ditto.
+
+	* strftime.c (rb_strftime_with_timespec): ditto.
+
+	* sprintf.c: ditto.
+
+	* time.c (time_asctime): remove useless GetTimeval().
+
+	* thread_pthread.c: cast to (void *) for %p.
+
+Mon Apr 25 11:02:11 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/ripper/lib/ripper/sexp.rb: fix rdoc around sexp.
+	  patched by Sho Hashimoto. fixes #4599
+
+Mon Apr 25 08:24:04 2011  Shota Fukumori  <sorah@tubusu.net>
+
+	* random.c (rb_f_rand, random_s_rand): RDocs for them.
+
+Mon Apr 25 07:18:00 2011  Kenta Murata  <mrkn@mrkn.jp>
+
+	* random.c (random_s_rand, Init_Random): Random.rand should behave as
+	  Random::DEFAULT.rand rather than Kernel#rand.
+
+	* random.c (rand_range, random_rand): rand_range function extracted
+	  from random_rand function.
+
+	* random.c (rb_f_rand): accept a Range argument as Random#rand
+	  [ruby-dev:43427] #4605
+
+Mon Apr 25 03:31:06 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* lib/time.rb: require 'date'.
+	* ext/date/lib/date/format.rb: removed require line.
+
+Mon Apr 25 03:08:39 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/lib/date/format.rb: require 'date'.
+
+Mon Apr 25 03:04:16 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/lib/date/format.rb (_iso8601): added a pattern.
+
+Mon Apr 25 02:51:22 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/date/lib/date/format.rb: require 'date_core.so'.
+	  date/format needs methods which are now in date_core.so.
+	  This breaks make rdoc which uses Date._parse from time.rb.
+
+Mon Apr 25 02:47:46 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/lib/date/format.rb (_iso8601): fixed a bug of regex.
+
+Mon Apr 25 02:12:26 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/lib/date/format.rb: an adjustment of regex.
+
+Mon Apr 25 01:58:50 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/lib/date/format.rb: omitted to call _parse.
+
+Mon Apr 25 01:03:03 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* string.c (rb_to_id): remove unused variable.
+
+Sun Apr 24 22:19:05 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* complex.c, rational.c: omitted some method calls.
+
+Sun Apr 24 02:57:27 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_parse.c (n2i): takes long.
+
+Sun Apr 24 02:51:06 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_parse.c: reverted.
+
+Sun Apr 24 02:25:23 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* include/ruby/intern.h: pcc can't use __builtin_constant_p.
+
+	* vm_exec.c: change condition.
+
+Sun Apr 24 01:58:01 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/date/date_core.c (leap_p): suppress warning: parentheses.
+
+	* ext/date/date_core.c (date_s__parse_internal): remove unused
+	  variable "str".
+
+	* ext/date/date_parse.c (parse_ddd_cb): use RSTRING_LENINT.
+
+	* ext/date/date_strftime.c (date_strftime_with_tmx): remove unused
+	  variable.
+
+Sun Apr 24 00:34:23 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_parse.c: removed some unused macros.  use strchr()
+	  instead of index().
+
+Sat Apr 23 21:29:42 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_core.c: replacement of implementation of
+	  _parse.  [experimental]
+	* ext/date/date_parse.c: new.
+	* ext/date/lib/date/format.rb: removed ruby version of _parse.
+
+Fri Apr 22 12:04:15 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* array.c (rb_ary_sort_bang): fix rdoc.
+	  patched by burningTyger. https://github.com/ruby/ruby/pull/11
+
+Fri Apr 22 11:49:49 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* lib/xmlrpc/create.rb (XMLRPC::Create#conv2value):
+	  XML-RPC's int is 32bit int, and Fixnum also may be beyond 32bit.
+
+	* lib/xmlrpc/create.rb (XMLRPC::Create#conv2value):
+	  XML-RPC doesn't allow Infinity and NaN.
+	  http://www.xmlrpc.com/spec
+
+Fri Apr 22 04:16:14 2011  Aaron Patterson <aaron@tenderlovemaking.com>
+
+	* ext/psych/parser.c (parse): strings from psych have proper taint
+	  markings.
+
+	* test/psych/test_tainted.rb: test for string taint
+
+Thu Apr 21 01:30:02 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* random.c (rb_f_srand): fix rdoc: srand(0)'s 0 is a seed.
+	  [ruby-core:35833] fixes #4590
+
+Thu Apr 21 01:01:28 2011  Masaya Tarui  <tarui@ruby-lang.org>
+
+	* win32/win32.c (CreateChild): maximum length of lpCommandLine is
+	  32,768 characters, including the Unicode terminating null character.
+
+Wed Apr 20 21:32:11 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_strptime.c (date__strptime_internal): do not
+	  overwrite local variables.
+
+Wed Apr 20 14:41:28 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c (rb_str_each_line): check string's length when compare
+	  separator and string. [ruby-core:35815] fixes #4586
+
+Wed Apr 20 00:02:13 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* misc/ruby-mode.el (ruby-parse-partial): use position of open paren.
+
+Tue Apr 19 01:00:21 2011  Tajima Akio <artonx@yahoo.co.jp>
+
+	* test/ruby/test_io.rb (TestIO#test_cross_thread_close_fd):
+	  skip cross thread pipe close if windows
+
+Mon Apr 18 12:15:46 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* test/ruby/test_range.rb (TestRange#test_step_ruby_core_35753):
+	  avoid float error. [ruby-core:35804]
+
+Sun Apr 17 00:20:14 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_{core,strftime}.c: use struct tmx instead of vtm.
+	* ext/date/date_tmx.h: new.
+
+Sat Apr 16 22:23:52 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_strftime.c (date_strftime_wo_timespec): changed
+	  the way of validation of locale modifiers.
+
+Sat Apr 16 21:55:12 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_core.c: replacement of implementation of
+	  _strptime.  [experimental]
+	* ext/date/date_strptime.c: new.
+	* ext/date/lib/date/format.rb: removed ruby version of _strptime.
+
+Sat Apr 16 10:18:30 2011  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* vm.c (Init_VM): suppress warning: "OPT_BASIC_OPERATIONS" is not
+	  defined.
+
+Fri Apr 15 23:41:18 2011  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* ruby.c (proc_options): suppress warning:
+	  "ALLOW_DEFAULT_SOURCE_ENCODING" is not defined.
+
+Fri Apr 15 15:10:29 2011  Akinori MUSHA  <knu@iDaemons.org>
+
+	* lib/uri/generic.rb (#route_from_path): Fix a bug where
+	  URI('http://h/b/').route_to('http://h/b') wrongly returned './'
+	  (should be '../b'). [Bug #4476]
+
+Fri Apr 15 14:58:06 2011  Akinori MUSHA  <knu@iDaemons.org>
+
+	* lib/fileutils.rb (FileUtils#touch): Fix corrupted output when
+	  mtime is specified in addition to nocreate (and verbose).
+	  ref [ruby-dev:43401]
+
+Thu Apr 14 23:43:43 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* numeric.c (ruby_float_step): wrong loop condition.
+	  fixes [ruby-core:35753], reported by Joey Zhou.
+
+	* test/ruby/test_range.rb (TestRange#test_step_ruby_core_35753):
+	  test above change.
+
+Thu Apr 14 22:48:12 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* lib/test/unit.rb (Test::Unit::Options#setup_options): set possible
+	  values for completion. no conversion is needed.
+
+	* lib/test/unit.rb (Test::Unit::Runner::Worker#initialize): use
+	  positional arguments instead of keyword arguments.
+
+	* lib/test/unit.rb (Test::Unit::Runner#jobs_status): io/console may
+	  not be available. use 80 as the last resort if IO#winsize and
+	  COLUMNS are unavailable.
+
+	* lib/test/unit.rb (Test::Unit::Runner::Worker#died): rename using a
+	  verb.
+
+	* lib/test/unit.rb (Test::Unit::Runner#_run_parallel): check if worker
+	  is signaled and use its exit status.
+
+	* lib/test/unit.rb (Test::Unit::Runner::Worker#dead): no longer @in
+	  and @out are separated.
+
+Thu Apr 14 21:23:29 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* variable.c (rb_autoload_p): search superclasses as same as actual
+	  loading.  fixes [ruby-core:35679]
+
+Thu Apr 14 21:21:06 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* include/ruby/win32.h (frexp, modf): wrongly declared as pure in
+	  mingw math.h.
+
+	* include/ruby/win32.h (ftruncate, truncate): mingw64 misses
+	  prototypes.
+
+	* win32/win32.c (rb_w32_read): suppress warning.
+
+Thu Apr 14 19:55:54 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* lib/fileutils.rb (FileUtils#touch): fix corrupted output when
+	  FileUtils.touch(:nocreate => true, :verbose => true) case.
+	  The patch was written by Hiroyuki Iwatsuki. [ruby-dev:43401]
+
+Thu Apr 14 16:01:45 2011  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* io.c (rb_f_syscall): suppress warning: "HAVE___SYSCALL" is not defined.
+
+Thu Apr 14 00:41:09 2011  CHIKANAGA Tomoyuki  <nagachika00@gmail.com>
+
+	* thread.c (thread_fd_close_i): IOError exception should be assigned
+	  to rb_thread_t::thrown_errinfo.
+
+Wed Apr 13 20:12:26 2011  Kazuhiro NISHIYAMA  <zn@mbf.nifty.com>
+
+	* io.c (rb_io_fdatasync): remove unused variable.
+
+Tue Apr 12 20:54:12 2011  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/st.h: parenthesize macro arguments.
+
+Tue Apr 12 19:19:50 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* lib/uri/common.rb: avoid race condition. fixes #4572
+
+Tue Apr 12 18:07:13 2011  TAKAO Kouji  <kouji@takao7.net>
+
+	* ext/readline/extconf.rb: --disable-libedit to disable
+	  libedit. fixes #4550
+
+Tue Apr 12 10:37:39 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* include/ruby/win32.h: VC doesn't have ftruncate() and others, but
+	  ruby needs HAVE_ macros to use our emulation functions.
+	  (fix the problem of 31262)
+
+Tue Apr 12 01:33:00 2011  Luis Lavena  <luislavena@gmail.com>
+
+	* configure.in: properly evaluate existence of truncate, ftruncate
+	  and ftello for MinGW. [ruby-core:35678]
+	* win32/win32.c: rename truncate, ftruncate and ftello to avoid 
+	  redefinitions.
+	* win32/win32.h: ditto.
+
+Mon Apr 11 21:51:52 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* io.c: revert r31230. Because it made a regression.
+	  [ruby-core:35631]
+
+Mon Apr 11 21:49:18 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* test/ruby/test_io.rb: Added TestIO#test_cross_thread_close_stdio
+	  and TestIO#test_cross_thread_close_fd.
+	  The patch was written by Eric Wong. [ruby-core:35669]
+
+Mon Apr 11 21:15:54 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* file.c (rb_group_member): kill 256K of stack usage.
+	  the patch was written by Eric Wong. [ruby-core:35699]
+
+Mon Apr 11 07:24:13 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* ext/openssl/ossl.c:  Fix typo, document version constants.
+
+Sun Apr 10 22:23:45 2011  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/ruby.h: parenthesize macro arguments.
+
+Sat Apr  9 23:31:47 2011  Shota Fukumori  <sorah@tubusu.net>
+
+	* ext/stringio/stringio.c (strio_each, strio_readlines):
+	  Use `NUM2LONG` instead of `FIX2INT`. Fixes [ruby-dev:43395].
+
+Sat Apr  9 23:22:27 2011  Shota Fukumori  <sorah@tubusu.net>
+
+	* ext/stringio/stringio.c (strio_each):
+	  Fix exception message and don't raise immediately if block is not given.
+	  Fixes [ruby-dev:43394].
+
+	* test/stringio/test_stringio.rb (test_each_line_limit_0):
+	  Fix test for above.
+
+Sat Apr  9 21:54:15 2011  Shota Fukumori  <sorah@tubusu.net>
+
+	* ext/stringio/stringio.c (strio_each, strio_readlines):
+	  limit must not be zero. Fixes [ruby-dev:43392].
+
+	* test/stringio/test_stringio.rb: Add tests for above.
+
+Sat Apr  9 18:01:36 2011  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/util.h: parenthesize macro arguments.
+
+Fri Apr  8 16:01:56 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/stringio/stringio.c (strio_getline): check whether str is
+	  a string when str and lim are given.
+	  https://twitter.com/watson1978/status/56225052152168449
+
+Thu Apr  7 20:03:52 2011  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/io.h: parenthesize macro arguments.
+
+Wed Apr  6 21:08:31 2011  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/intern.h: parenthesize macro arguments.
+
+Wed Apr  6 15:12:40 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/openssl/ossl_pkey_dh.c (ossl_dh_initialize):
+	  pop pushed error after each try of reading. fixes #4550
+
+	* ext/openssl/ossl_pkey_dsa.c (ossl_dsa_initialize): ditto.
+
+	* ext/openssl/ossl_pkey_ec.c (ossl_ec_initialize): ditto.
+
+Wed Apr  6 11:36:44 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/openssl/ossl_pkey_rsa.c (ossl_rsa_initialize):
+	  pop pushed error after each try of reading. fixes #4550
+
+Tue Apr  5 20:33:43 2011  Tanaka Akira  <akr@fsij.org>
+
+	* include/ruby/encoding.h: parenthesize macro arguments.
+
+Mon Apr  4 22:02:16 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* ext/io/nonblock/nonblock.c (io_nonblock_set): Avoid F_SETFL if
+	  we're not changing the O_NONBLOCK bit. F_SETFL is an expensive
+	  operation since it needs to affect all processes with the same
+	  file object.
+	  The patch is written by Eric Wong. [ruby-core:35556]
+
+Mon Apr  4 21:41:26 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* io.c (rb_io_syswrite): While local FS writes are usually
+	  buffered, the buffers can be full or the file opened with
+	  O_SYNC. IO#syswrite can also be used on blocking IOs
+	  (pipe/socket) just like IO#write.
+	  The patch is written by Eric Wong. [ruby-core:35554]
+
+Mon Apr  4 11:50:40 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* test/test_tempfile.rb: simply ignore platform dependent testcases
+	  instead of skipping.
+
+Sun Apr  3 22:52:22 2011  CHIKANAGA Tomoyuki  <nagachika00@gmail.com>
+
+	* ext/syslog/syslog.c: improve rdoc.
+	  a patch by Jonas Pfenniger. [ruby-core:35592] fixes #4545
+
+Sun Apr  3 22:10:09 2011  Tanaka Akira  <akr@fsij.org>
+
+	* ext/zlib/zlib.c: parenthesize macro arguments.
+
+Sun Apr  3 21:33:58 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* configure.in: disable fdatasync again on Mac OS X.
+	  [ruby-core:35493][Bug #4500]
+
+Sun Apr  3 21:16:20 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* io.c (io_reopen): IO#close releases GVL if possible.
+	  close() may block for certain file types (NFS, SO_LINGER
+	  sockets, inotify), so let other threads run. The patch was
+	  created by Eric Wong [ruby-core:35555][Bug #4527]
+
+	* io.c (fptr_finalize): ditto.
+
+	* io.c (maygvl_fclose): new.
+	* io.c (nogvl_fclose): ditto.
+	* io.c (maygvl_close): ditto.
+	* io.c (nogvl_close): ditto.
+
+Fri Apr  1 22:25:50 2011  Tanaka Akira  <akr@fsij.org>
+
+	* ext/syslog/syslog.c: parenthesize macro arguments.
+
+Fri Apr 1 18:53:06 2011  NAKAMURA, Hiroshi  <nahi@ruby-lang.org>
+
+	* lib/webrick/cookie.rb (WEBrick::Cookie.parse): 'white space is
+	  permitted between tokens' according to RFC2965. Though 'Netscape
+	  spec' does not define the syntax clearly, make it tolerant as a
+	  server. As a real-world example, rest-client gem sends
+	  'Cookie: foo=1;bar=2'
+
+	* test/webrick/test_cookie.rb (test_parse_non_whitespace): test it.
+
+Fri Apr  1 13:19:20 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* vm_core.h (RUBY_VM_CHECK_INTS_TH): merge a patch by ko1
+	  in [ruby-dev:43373].
+
+Thu Mar 31 23:15:46 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* misc/ruby-mode.el (ruby-brace-to-do-end, ruby-do-end-to-brace):
+	  adjust space between block beginning and block arguments
+
+Thu Mar 31 20:42:05 2011  Tanaka Akira  <akr@fsij.org>
+
+	* ext/strscan/strscan.c:  parenthesize macro arguments.
+
+Thu Mar 31 18:06:12 2011  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* vm_insnhelper.c (vm_get_ev_const): should ignore crefs with
+	  the NODE_FL_CREF_PUSHED_BY_EVAL flag.
+
+Thu Mar 31 16:49:56 2011  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* vm_insnhelper.c (vm_get_ev_const): search root cref properly.
+	  [ruby-dev:43365]
+
+Thu Mar 31 14:50:25 2011  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* eval.c (rb_mod_s_constants): should ignore crefs with
+	  the NODE_FL_CREF_PUSHED_BY_EVAL flag.
+
+Wed Mar 30 22:55:47 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* misc/ruby-mode.el (ruby-toggle-block): toggle do/end and {}.
+
+	* misc/ruby-mode.el (ruby-move-to-block): move to opening of
+	  block.
+
+Wed Mar 30 14:35:15 2011  Shugo Maeda  <shugo@ruby-lang.org>
+
+	* vm_insnhelper.h (COPY_CREF): should copy
+	  the NODE_FL_CREF_PUSHED_BY_EVAL flag to hide constants from
+	  methods defined by class_eval.  [ruby-dev:43365]
+
+Wed Mar 30 00:24:53 2011  Tanaka Akira  <akr@fsij.org>
+
+	* ext/stringio/stringio.c: parenthesize macro arguments.
+
+Tue Mar 29 21:51:31 2011  CHIKANAGA Tomoyuki  <nagachika00@gmail.com>
+
+	* object.c (rb_String): Kernel#String should call to_str before to_s.
+
+Tue Mar 29 10:28:08 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* test/webrick/test_filehandler.rb
+	  (WEBrick::TestFileHandler#test_short_filename): the cgi doesn't exist
+	  on current directory.
+
+Tue Mar 29 05:19:57 2011  Tanaka Akira  <akr@fsij.org>
+
+	* ext/socket/raddrinfo.c: parenthesize macro arguments.
+
+Tue Mar 29 00:03:51 2011 Tajima Akio <artonx@yahoo.co.jp>	
+
+	* test/webrick/test_filehandler.rb (test_short_filename):
+	 read real short filename by cmd because smb mounted files
+	 have different naming convention.
+
+Mon Mar 28 11:38:08 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/date/date_core.c (date_s_today): use int for year.
+
+	* ext/date/date_core.c (datetime_s_now): ditto.
+
+Mon Mar 28 11:07:41 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* ext/extmk.rb: set MFLAGS from MAKEFLAGS when using nmake.
+
+Mon Mar 28 11:07:00 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* common.mk (love): all you need is love.
+
+Sun Mar 27 23:16:31 2011  Tanaka Akira  <akr@fsij.org>
+
+	* ext/socket/ipsocket.c: parenthesize macro arguments.
+
+Sun Mar 27 16:55:34 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* misc/ruby-mode.el (ruby-mode-map): remove unnecessary
+	  binding. fixes
+	  http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=468952
+
+	* misc/ruby-mode.el: suppress warnings at byte compile.  fixes
+	  http://bugs.debian.org/cgi-bin/bugreport.cgi?bug=502926
+
+Sun Mar 27 11:18:35 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_core.c: removed unused variables.
+
+Sat Mar 26 15:16:09 2011  Tanaka Akira  <akr@fsij.org>
+
+	* ext/socket/getaddrinfo.c: parenthesize macro arguments.
+
+Sat Mar 26 05:27:34 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/date/lib/date/format.rb (DateTime#strftime): removed because
+	  date_core defines it.
+
+Fri Mar 25 21:59:45 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_core.c: should not force cast with macros.
+
+Fri Mar 25 21:56:10 2011  Tanaka Akira  <akr@fsij.org>
+
+	* ext/sdbm/init.c: parenthesize macro arguments.
+
 Fri Mar 25 19:39:40 2011  Ben Walton <bwalton@artsci.utoronto.ca>
 
 	* test/test_syslog.rb:
@@ -233,7 +1171,7 @@ Sun Mar 20 21:34:49 2011  Tadayoshi Funaba  <tadf@dotrb.org>
 	  strftime. It has some limitations that is same as Time's
 	  one.  [experimental]
 	* ext/date/date_strftime.c: new.
-	* ext/date/lib/date/format.c: removed ruby version of strftime.
+	* ext/date/lib/date/format.rb: removed ruby version of strftime.
 
 Sun Mar 20 12:43:12 2011  Tanaka Akira  <akr@fsij.org>
 

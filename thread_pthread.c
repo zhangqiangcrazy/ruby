@@ -29,11 +29,6 @@ static void native_cond_wait(pthread_cond_t *cond, pthread_mutex_t *mutex);
 static void native_cond_initialize(pthread_cond_t *cond);
 static void native_cond_destroy(pthread_cond_t *cond);
 
-#define native_mutex_reinitialize_atfork(lock) (\
-	native_mutex_unlock(lock), \
-	native_mutex_initialize(lock), \
-	native_mutex_lock(lock))
-
 #define GVL_SIMPLE_LOCK 0
 #define GVL_DEBUG 0
 
@@ -43,7 +38,7 @@ gvl_show_waiting_threads(rb_vm_t *vm)
     rb_thread_t *th = vm->gvl.waiting_threads;
     int i = 0;
     while (th) {
-	fprintf(stderr, "waiting (%d): %p\n", i++, th);
+	fprintf(stderr, "waiting (%d): %p\n", i++, (void *)th);
 	th = th->native_thread_data.gvl_next;
     }
 }
@@ -82,7 +77,7 @@ gvl_acquire(rb_vm_t *vm, rb_thread_t *th)
 #else
     native_mutex_lock(&vm->gvl.lock);
     if (vm->gvl.waiting > 0 || vm->gvl.acquired != 0) {
-	if (GVL_DEBUG) fprintf(stderr, "gvl acquire (%p): sleep\n", th);
+	if (GVL_DEBUG) fprintf(stderr, "gvl acquire (%p): sleep\n", (void *)th);
 	gvl_waiting_push(vm, th);
         if (GVL_DEBUG) gvl_show_waiting_threads(vm);
 
@@ -98,7 +93,7 @@ gvl_acquire(rb_vm_t *vm, rb_thread_t *th)
     native_mutex_unlock(&vm->gvl.lock);
 #endif
     if (GVL_DEBUG) gvl_show_waiting_threads(vm);
-    if (GVL_DEBUG) fprintf(stderr, "gvl acquire (%p): acquire\n", th);
+    if (GVL_DEBUG) fprintf(stderr, "gvl acquire (%p): acquire\n", (void *)th);
 }
 
 static void
@@ -110,11 +105,11 @@ gvl_release(rb_vm_t *vm)
     native_mutex_lock(&vm->gvl.lock);
     if (vm->gvl.waiting > 0) {
 	rb_thread_t *th = vm->gvl.waiting_threads;
-	if (GVL_DEBUG) fprintf(stderr, "gvl release (%p): wakeup: %p\n", GET_THREAD(), th);
+	if (GVL_DEBUG) fprintf(stderr, "gvl release (%p): wakeup: %p\n", (void *)GET_THREAD(), (void *)th);
 	native_cond_signal(&th->native_thread_data.gvl_cond);
     }
     else {
-	if (GVL_DEBUG) fprintf(stderr, "gvl release (%p): wakeup: %p\n", GET_THREAD(), NULL);
+	if (GVL_DEBUG) fprintf(stderr, "gvl release (%p): wakeup: %p\n", (void *)GET_THREAD(), NULL);
 	/* do nothing */
     }
     vm->gvl.acquired = 0;
@@ -128,7 +123,7 @@ gvl_init(rb_vm_t *vm)
     if (GVL_DEBUG) fprintf(stderr, "gvl init\n");
 
 #if GVL_SIMPLE_LOCK
-    native_mutex_reinitialize_atfork(&vm->gvl.lock);
+    native_mutex_initialize(&vm->gvl.lock);
 #else
     native_mutex_initialize(&vm->gvl.lock);
     vm->gvl.waiting_threads = 0;
@@ -163,7 +158,7 @@ mutex_debug(const char *msg, pthread_mutex_t *lock)
 	static pthread_mutex_t dbglock = PTHREAD_MUTEX_INITIALIZER;
 
 	if ((r = pthread_mutex_lock(&dbglock)) != 0) {exit(1);}
-	fprintf(stdout, "%s: %p\n", msg, lock);
+	fprintf(stdout, "%s: %p\n", msg, (void *)lock);
 	if ((r = pthread_mutex_unlock(&dbglock)) != 0) {exit(1);}
     }
 }
