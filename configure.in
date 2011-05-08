@@ -1162,6 +1162,13 @@ AC_CHECK_TYPES([struct timezone], [], [], [@%:@ifdef HAVE_TIME_H
 @%:@ include <sys/time.h>
 @%:@endif])
 
+AC_CHECK_TYPES([clockid_t], [], [], [@%:@ifdef HAVE_TIME_H
+@%:@ include <time.h>
+@%:@endif
+@%:@ifdef HAVE_SYS_TIME_H
+@%:@ include <sys/time.h>
+@%:@endif])
+
 AC_CACHE_VAL([rb_cv_large_fd_select],
     [AC_CHECK_TYPE(fd_mask, [rb_cv_large_fd_select=yes], [rb_cv_large_fd_select=no])])
 if test "$rb_cv_large_fd_select" = yes; then
@@ -1310,7 +1317,7 @@ AC_CHECK_FUNCS(fmod killpg wait4 waitpid fork spawnv syscall __syscall chroot ge
 	      dlopen sigprocmask sigaction sigsetjmp _setjmp _longjmp\
 	      setsid telldir seekdir fchmod cosh sinh tanh log2 round\
 	      setuid setgid daemon select_large_fdset setenv unsetenv\
-              mktime timegm gmtime_r clock_gettime gettimeofday poll\
+              mktime timegm gmtime_r clock_gettime gettimeofday poll ppoll\
               pread sendfile shutdown sigaltstack dl_iterate_phdr)
 
 AC_CACHE_CHECK(for unsetenv returns a value, rb_cv_unsetenv_return_value,
@@ -1731,16 +1738,11 @@ if test x"$enable_pthread" = xyes; then
     else
 	AC_MSG_WARN("Don't know how to find pthread library on your system -- thread support disabled")
     fi
-    AC_CHECK_FUNCS(nanosleep sched_yield pthread_attr_setinheritsched \
+    AC_CHECK_FUNCS(sched_yield pthread_attr_setinheritsched \
 	pthread_getattr_np pthread_attr_get_np pthread_attr_getstack\
 	pthread_get_stackaddr_np pthread_get_stacksize_np \
-	thr_stksegment pthread_stackseg_np pthread_getthrds_np)
-    if test x"$ac_cv_func_nanosleep" = xno; then
-       AC_CHECK_LIB(rt, nanosleep)
-       if test x"$ac_cv_lib_rt_nanosleep" = xyes; then
-           AC_DEFINE(HAVE_NANOSLEEP)
-       fi
-    fi
+	thr_stksegment pthread_stackseg_np pthread_getthrds_np \
+	pthread_condattr_setclock)
 fi
 if test x"$ac_cv_header_ucontext_h" = xyes; then
     if test x"$rb_with_pthread" = xyes; then

@@ -14,6 +14,8 @@
 #include <process.h>
 
 #define WIN32_WAIT_TIMEOUT 10	/* 10 ms */
+#define RB_CONDATTR_CLOCK_MONOTONIC 1 /* no effect */
+
 #undef Sleep
 
 #define native_thread_yield() Sleep(0)
@@ -391,6 +393,7 @@ native_mutex_destroy(rb_thread_lock_t *lock)
 
 struct cond_event_entry {
     struct cond_event_entry* next;
+    struct cond_event_entry* prev;
     HANDLE event;
 };
 
@@ -399,9 +402,16 @@ native_cond_signal(rb_thread_cond_t *cond)
 {
     /* cond is guarded by mutex */
     struct cond_event_entry *e = cond->next;
+    struct cond_event_entry *head = (struct cond_event_entry*)cond;
 
-    if (e) {
-	cond->next = e->next;
+    if (e != head) {
+	struct cond_event_entry *next = e->next;
+	struct cond_event_entry *prev = e->prev;
+
+	prev->next = next;
+	next->prev = prev;
+	e->next = e->prev = e;
+
 	SetEvent(e->event);
     }
     else {
@@ -414,11 +424,19 @@ native_cond_broadcast(rb_thread_cond_t *cond)
 {
     /* cond is guarded by mutex */
     struct cond_event_entry *e = cond->next;
-    cond->next = 0;
+    struct cond_event_entry *head = (struct cond_event_entry*)cond;
 
-    while (e) {
+    while (e != head) {
+	struct cond_event_entry *next = e->next;
+	struct cond_event_entry *prev = e->prev;
+
 	SetEvent(e->event);
-	e = e->next;
+
+	prev->next = next;
+	next->prev = prev;
+	e->next = e->prev = e;
+
+	e = next;
     }
 }
 
@@ -428,19 +446,15 @@ __cond_timedwait(rb_thread_cond_t *cond, rb_thread_lock_t *mutex, unsigned long 
 {
     DWORD r;
     struct cond_event_entry entry;
+    struct cond_event_entry *head = (struct cond_event_entry*)cond;
 
-    entry.next = 0;
     entry.event = CreateEvent(0, FALSE, FALSE, 0);
 
     /* cond is guarded by mutex */
-    if (cond->next) {
-	cond->last->next = &entry;
-	cond->last = &entry;
-    }
-    else {
-	cond->next = &entry;
-	cond->last = &entry;
-    }
+    entry.next = head;
+    entry.prev = head->prev;
+    head->prev->next = &entry;
+    head->prev = &entry;
 
     native_mutex_unlock(mutex);
     {
@@ -450,6 +464,9 @@ __cond_timedwait(rb_thread_cond_t *cond, rb_thread_lock_t *mutex, unsigned long 
 	}
     }
     native_mutex_lock(mutex);
+
+    entry.prev->next = entry.next;
+    entry.next->prev = entry.prev;
 
     w32_close_handle(entry.event);
     return (r == WAIT_OBJECT_0) ? 0 : ETIMEDOUT;
@@ -469,7 +486,7 @@ abs_timespec_to_timeout_ms(struct timespec *ts)
 
     gettimeofday(&now, NULL);
     tv.tv_sec = ts->tv_sec;
-    tv.tv_usec = ts->tv_nsec;
+    tv.tv_usec = ts->tv_nsec / 1000;
 
     if (!rb_w32_time_subtract(&tv, &now))
 	return 0;
@@ -489,11 +506,54 @@ native_cond_timedwait(rb_thread_cond_t *cond, rb_thread_lock_t *mutex, struct ti
     return __cond_timedwait(cond, mutex, timeout_ms);
 }
 
-static void
-native_cond_initialize(rb_thread_cond_t *cond)
+#if SIZEOF_TIME_T == SIZEOF_LONG
+typedef unsigned long unsigned_time_t;
+#elif SIZEOF_TIME_T == SIZEOF_INT
+typedef unsigned int unsigned_time_t;
+#elif SIZEOF_TIME_T == SIZEOF_LONG_LONG
+typedef unsigned LONG_LONG unsigned_time_t;
+#else
+# error cannot find integer type which size is same as time_t.
+#endif
+
+#define TIMET_MAX (~(time_t)0 <= 0 ? (time_t)((~(unsigned_time_t)0) >> 1) : (time_t)(~(unsigned_time_t)0))
+
+static struct timespec
+native_cond_timeout(rb_thread_cond_t *cond, struct timespec timeout_rel)
 {
-    cond->next = 0;
-    cond->last = 0;
+    int ret;
+    struct timeval tv;
+    struct timespec timeout;
+    struct timespec now;
+
+    ret = gettimeofday(&tv, 0);
+    if (ret != 0)
+	rb_sys_fail(0);
+    now.tv_sec = tv.tv_sec;
+    now.tv_nsec = tv.tv_usec * 1000;
+
+  out:
+    timeout.tv_sec = now.tv_sec;
+    timeout.tv_nsec = now.tv_nsec;
+    timeout.tv_sec += timeout_rel.tv_sec;
+    timeout.tv_nsec += timeout_rel.tv_nsec;
+
+    if (timeout.tv_nsec >= 1000*1000*1000) {
+	timeout.tv_sec++;
+	timeout.tv_nsec -= 1000*1000*1000;
+    }
+
+    if (timeout.tv_sec < now.tv_sec)
+	timeout.tv_sec = TIMET_MAX;
+
+    return timeout;
+}
+
+static void
+native_cond_initialize(rb_thread_cond_t *cond, int flags)
+{
+    cond->next = (struct cond_event_entry *)cond;
+    cond->prev = (struct cond_event_entry *)cond;
 }
 
 static void

@@ -1,5 +1,6 @@
 require 'test/unit'
 require 'timeout'
+require 'socket'
 begin
   require 'io/wait'
 rescue LoadError
@@ -8,7 +9,11 @@ end
 class TestIOWait < Test::Unit::TestCase
 
   def setup
-    @r, @w = IO.pipe
+    if /mswin/ =~ RUBY_PLATFORM
+      @r, @w = Socket.pair(Socket::AF_INET, Socket::SOCK_STREAM, 0)
+    else
+      @r, @w = IO.pipe
+    end
   end
 
   def teardown

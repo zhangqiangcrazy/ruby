@@ -2320,11 +2320,23 @@ rb_thread_priority_set(VALUE thread, VALUE prio)
  */
 
 void
-rb_fd_init(volatile rb_fdset_t *fds)
+rb_fd_init(rb_fdset_t *fds)
 {
     fds->maxfd = 0;
     fds->fdset = ALLOC(fd_set);
     FD_ZERO(fds->fdset);
+}
+
+void
+rb_fd_init_copy(rb_fdset_t *dst, rb_fdset_t *src)
+{
+    size_t size = howmany(rb_fd_max(src), NFDBITS) * sizeof(fd_mask);
+
+    if (size < sizeof(fd_set))
+	size = sizeof(fd_set);
+    dst->maxfd = src->maxfd;
+    dst->fdset = xmalloc(size);
+    memcpy(dst->fdset, src->fdset, size);
 }
 
 void
@@ -2338,10 +2350,8 @@ rb_fd_term(rb_fdset_t *fds)
 void
 rb_fd_zero(rb_fdset_t *fds)
 {
-    if (fds->fdset) {
+    if (fds->fdset)
 	MEMZERO(fds->fdset, fd_mask, howmany(fds->maxfd, NFDBITS));
-	FD_ZERO(fds->fdset);
-    }
 }
 
 static void
@@ -2425,11 +2435,18 @@ rb_fd_select(int n, rb_fdset_t *readfds, rb_fdset_t *writefds, rb_fdset_t *excep
 #elif defined(_WIN32)
 
 void
-rb_fd_init(volatile rb_fdset_t *set)
+rb_fd_init(rb_fdset_t *set)
 {
     set->capa = FD_SETSIZE;
     set->fdset = ALLOC(fd_set);
     FD_ZERO(set->fdset);
+}
+
+void
+rb_fd_init_copy(rb_fdset_t *dst, rb_fdset_t *src)
+{
+    rb_fd_init(dst);
+    rb_fd_copy(dst, src);
 }
 
 void
@@ -2523,18 +2540,12 @@ do_select(int n, rb_fdset_t *read, rb_fdset_t *write, rb_fdset_t *except,
 	timeout = &wait_rest;
     }
 
-    if (read) {
-	rb_fd_init(&orig_read);
-	rb_fd_copy(&orig_read, read);
-    }
-    if (write) {
-	rb_fd_init(&orig_write);
-	rb_fd_copy(&orig_write, write);
-    }
-    if (except) {
-	rb_fd_init(&orig_except);
-	rb_fd_copy(&orig_except, except);
-    }
+    if (read)
+	rb_fd_init_copy(&orig_read, read);
+    if (write)
+	rb_fd_init_copy(&orig_write, write);
+    if (except)
+	rb_fd_init_copy(&orig_except, except);
 
   retry:
     lerrno = 0;
@@ -2715,11 +2726,40 @@ rb_thread_fd_select(int max, rb_fdset_t * read, rb_fdset_t * write, rb_fdset_t *
 
 #ifdef USE_POLL
 
-
 /* The same with linux kernel. TODO: make platform independent definition. */
 #define POLLIN_SET (POLLRDNORM | POLLRDBAND | POLLIN | POLLHUP | POLLERR)
 #define POLLOUT_SET (POLLWRBAND | POLLWRNORM | POLLOUT | POLLERR)
 #define POLLEX_SET (POLLPRI)
+
+#define TIMET_MAX (~(time_t)0 <= 0 ? (time_t)((~(unsigned_time_t)0) >> 1) : (time_t)(~(unsigned_time_t)0))
+#define TIMET_MIN (~(time_t)0 <= 0 ? (time_t)(((unsigned_time_t)1) << (sizeof(time_t) * CHAR_BIT - 1)) : (time_t)0)
+
+#ifndef HAVE_PPOLL
+/* TODO: don't ignore sigmask */
+int ppoll(struct pollfd *fds, nfds_t nfds,
+	  const struct timespec *ts, const sigset_t *sigmask)
+{
+    int timeout_ms;
+
+    if (ts) {
+	int tmp, tmp2;
+
+	if (ts->tv_sec > TIMET_MAX/1000)
+	    timeout_ms = -1;
+	else {
+	    tmp = ts->tv_sec * 1000;
+	    tmp2 = tv->tv_nsec / (1000 * 1000);
+	    if (TIMET_MAX - tmp < tmp2)
+		timeout_ms = -1;
+	    else
+		timeout_ms = tmp + tmp2;
+	}
+    } else
+	timeout = -1;
+
+    return poll(fds, nfds, timeout_ms);
+}
+#endif
 
 /*
  * returns a mask of events
@@ -2729,17 +2769,25 @@ rb_wait_for_single_fd(int fd, int events, struct timeval *tv)
 {
     struct pollfd fds;
     int result, lerrno;
-    double start;
-    int timeout = tv ? tv->tv_sec * 1000 + (tv->tv_usec + 500) / 1000 : -1;
+    double limit = 0;
+    struct timespec ts;
+    struct timespec *timeout = NULL;
+
+    if (tv) {
+	ts.tv_sec = tv->tv_sec;
+	ts.tv_nsec = tv->tv_usec * 1000;
+	limit = timeofday();
+	limit += (double)tv->tv_sec + (double)tv->tv_usec * 1e-6;
+	timeout = &ts;
+    }
 
     fds.fd = fd;
     fds.events = (short)events;
 
 retry:
     lerrno = 0;
-    start = timeofday();
     BLOCKING_REGION({
-	result = poll(&fds, 1, timeout);
+	result = ppoll(&fds, 1, timeout, NULL);
 	if (result < 0) lerrno = errno;
     }, ubf_select, GET_THREAD());
 
@@ -2750,10 +2798,15 @@ retry:
 #ifdef ERESTART
 	  case ERESTART:
 #endif
-	    if (timeout > 0) {
-		timeout -= (timeofday() - start) * 1000;
-		if (timeout < 0)
-		    timeout = 0;
+	    if (timeout) {
+		double d = limit - timeofday();
+
+		ts.tv_sec = (long)d;
+		ts.tv_nsec = (long)((d - (double)ts.tv_sec) * 1e9);
+		if (ts.tv_sec < 0)
+		    ts.tv_sec = 0;
+		if (ts.tv_nsec < 0)
+		    ts.tv_nsec = 0;
 	    }
 	    goto retry;
 	}
@@ -3294,7 +3347,7 @@ mutex_alloc(VALUE klass)
 
     obj = TypedData_Make_Struct(klass, mutex_t, &mutex_data_type, mutex);
     native_mutex_initialize(&mutex->lock);
-    native_cond_initialize(&mutex->cond);
+    native_cond_initialize(&mutex->cond, RB_CONDATTR_CLOCK_MONOTONIC);
     return obj;
 }
 
@@ -3368,26 +3421,6 @@ rb_mutex_trylock(VALUE self)
     return locked;
 }
 
-static struct timespec init_lock_timeout(int timeout_ms)
-{
-    struct timespec ts;
-    struct timeval tv;
-    int ret;
-
-    ret = gettimeofday(&tv, NULL);
-    if (ret < 0)
-	rb_sys_fail(0);
-
-    ts.tv_sec = tv.tv_sec;
-    ts.tv_nsec = tv.tv_usec * 1000 + timeout_ms * 1000 * 1000;
-    if (ts.tv_nsec >= 1000000000) {
-	ts.tv_sec++;
-	ts.tv_nsec -= 1000000000;
-    }
-
-    return ts;
-}
-
 static int
 lock_func(rb_thread_t *th, mutex_t *mutex, int timeout_ms)
 {
@@ -3396,9 +3429,6 @@ lock_func(rb_thread_t *th, mutex_t *mutex, int timeout_ms)
     native_mutex_lock(&mutex->lock);
     th->transition_for_lock = 0;
     for (;;) {
-	struct timespec ts;
-	int ret;
-
 	if (!mutex->th) {
 	    mutex->th = th;
 	    break;
@@ -3406,10 +3436,17 @@ lock_func(rb_thread_t *th, mutex_t *mutex, int timeout_ms)
 
 	mutex->cond_waiting++;
 	if (timeout_ms) {
-	    ts = init_lock_timeout(timeout_ms);
-	    ret = native_cond_timedwait(&mutex->cond, &mutex->lock, &ts);
+	    int ret;
+	    struct timespec timeout_rel;
+	    struct timespec timeout;
+
+	    timeout_rel.tv_sec = 0;
+	    timeout_rel.tv_nsec = timeout_ms * 1000 * 1000;
+	    timeout = native_cond_timeout(&mutex->cond, timeout_rel);
+	    ret = native_cond_timedwait(&mutex->cond, &mutex->lock, &timeout);
 	    if (ret == ETIMEDOUT) {
 		interrupted = 2;
+		mutex->cond_waiting--;
 		break;
 	    }
 	}

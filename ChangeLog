@@ -1,3 +1,187 @@
+Sun May  8 21:02:31 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/ruby/test_{complex2,complexrational}.rb: NEVER SKIP.
+
+Sun May  8 21:01:21 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/date/test_date_base.rb: fixed.
+
+Sun May  8 20:54:11 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/date/*.rb: NEVER SKIP.
+
+Sun May  8 20:37:33 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/date/*.rb: reverted 31432.
+
+Sun May  8 20:32:43 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/date/*.rb: reverted 31483.
+
+Sun May  8 19:39:16 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread_pthread.c (native_cond_timedwait): add to care EINTR.
+	* thread_pthread.c (thread_timer): remove EINTR check.
+
+Sun May  8 19:04:15 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* lib/time.rb (xmlschema): avoid passing any negative numbers.
+
+Sun May  8 18:40:03 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_{parse,strptime}.c: introduced some macros.
+
+Sun May  8 17:17:13 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/date/*.rb: use skip /w messages.
+
+Sun May  8 17:04:55 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/lib/date/format.rb (_httpdate): omitted to call zone_to_diff.
+
+Sun May  8 16:56:19 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* ext/date/date_core.c (date_s_test_*): use macros.
+
+Sun May  8 10:24:16 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread_pthread.c: cleanup signal_thread_list related ifdef.
+	  1) we don't have to use #ifdef FOO-PLATFORM directly 2) About
+	  half #ifdef didn't care symbian properly.
+
+Sun May  8 05:19:37 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* test/io/wait/test_io_wait.rb: Linux socketpair(2) only support
+	  AF_UNIX, but windows socketpair doesn't support it. we can't
+	  avoid platform check. sigh!
+
+Sun May  8 00:13:05 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* test/io/wait/test_io_wait.rb: use Socket.pair instead of pipe.
+	  Windows can only treat a socket.
+
+Sat May  7 22:43:48 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_fd_zero): remove redundant zero fill.
+
+Sat May  7 22:38:04 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_fd_init): remove volatile qualifier.
+
+Sat May  7 22:34:29 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_fd_init_copy): new internal api. It provide efficient
+	  copy constructor semantics.
+	* thread.c (do_select): use rb_fd_init_copy().
+
+Sat May  7 15:18:06 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+	fix incorrect native_cond_signal call when deadlock was detected.
+
+	* thread.c (lock_func): decrement cond_waiting if timeout was happen.
+
+Sat May  7 18:28:37 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* thread_pthread.c (USE_MONOTONIC_COND): check the availability
+	  more strictly.
+
+	* thread_pthread.h (rb_thread_cond_t): ditto.
+
+Sat May  7 15:15:10 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	fix win32 native_cond_timedwait() makes SIGSEGV.
+
+	* thread_win32.h (rb_thread_cond_struct): add prev field instead of last.
+	  (ie cond_event_entry is now using double linked list instead of single)
+	* thread_win32.c (cond_event_entry): add prev field.
+
+	* thread_win32.c (__cond_timedwait): remove entry properly if timeout
+	  was happen.
+
+	* thread_win32.c (native_cond_signal): change for double linked list.
+	* thread_win32.c (native_cond_broadcast): ditto.
+	* thread_win32.c (native_cond_initialize): ditto.
+
+Sat May  7 12:41:04 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+	fix mutex deadlock test hang-up.
+
+	* thread_win32.c (abs_timespec_to_timeout_ms): fix 1000x calculation
+	  mistake. (ie fix hang-up native_cond_timedwait())
+
+Sat May  7 03:14:13 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	sleep_cond use monotonic time if possible.
+
+	* thread_pthread.c (native_thread_init): change sleep_cond
+	  attribute to monotonic.
+	* thread_pthread.c (native_sleep): use native_cond_timeout().
+
+	* thread_pthread.c (native_cond_timeout): add overflow care.
+	* thread_win32.c (native_cond_timeout): ditto.
+
+Sat May  7 02:49:12 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+	  fix win32 compile error.
+
+	* thread_win32.c (RB_CONDATTR_CLOCK_MONOTONIC): define
+	  RB_CONDATTR_CLOCK_MONOTONIC always.
+	* thread_pthread.c (RB_CONDATTR_CLOCK_MONOTONIC): ditto.
+
+Sat May  7 02:29:41 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	  mutex: deadlock check timeout use monotonic time.
+
+	* thread_pthread.c (native_cond_timeout): new internal api.
+	  it calculate a proper time for argument of native_cond_timedwait().
+	* thread_win32.c (native_cond_timeout): ditto.
+
+	* thread_pthread.c (thread_timer): use native_cond_timeout()
+	  instead of get_ts.
+	* thread.c (lock_func): ditto.
+
+	* thread_pthread.c (get_ts): removed. use native_cond_timeout().
+	* thread.c (init_lock_timeout): ditto.
+
+Sat May  7 01:54:21 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread_pthread.c (get_ts): add monotonic clock capability.
+	* thread_pthread.c (rb_thread_create_timer_thread): use monotonic
+	  clock if possible.
+
+Sat May  7 01:43:37 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread_pthread.h (rb_thread_cond_t): add clockid field. it's
+	  no longer an alias of pthread_cond_t.
+	* thread_pthread.c: adapt new rb_thread_cond_t type.
+	* thread.c (mutex_alloc): ditto.
+	* thread_win32.c (native_cond_initialize): ditto.
+	* configure.in: add check for pthread_cond_attr_setclock() and
+	  clockid_t type.
+
+Fri May  6 23:29:47 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* thread.c (rb_wait_for_single_fd): use ppoll() instead of poll()
+	  if possible. based on a patch from Eric Wong. [ruby-core:36003].
+
+Fri May  6 23:13:43 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* configure.in: remove nanosleep check. we no longer use it.
+	r20124 removed last usage.
+
+Fri May  6 22:35:56 2011  Nobuyoshi Nakada  <nobu@ruby-lang.org>
+
+	* ext/syck/rubyext.c (mktime_do): extra digits are not used.
+
+Fri May  6 17:43:07 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/syck/rubyext.c (mktime_do): remove unused variable offset.
+
+	* ext/syck/syck.h: use #ifdef instead of #if DEBUG.
+
+Fri May  6 16:27:33 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* ext/date/date_core.c (DAY_IN_NANOSECONDS): refix: 31438.
+	  check with LONG_MAX and cast as long; without this the calculation
+	  will be done as int and overflow.
+
 Fri May  6 15:01:11 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* ext/syck/rubyext.c (mktime_do): avoid buffer overrun, by
@@ -7,7 +191,7 @@ Fri May  6 15:01:11 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 	  is a wrong idea because when using alloca there is always risk
 	  of integer overflow.  A function that accepts outer-process
 	  resources like this should not blindly trust its inputs.  In
-	  this particular case we just want to generate miliseconds
+	  this particular case we just want to generate milliseconds
 	  resolution by strtod() so the string in question needs no more
 	  length than what we originally have.  Ignoring lesser
 	  significant digits should suffice I believe.

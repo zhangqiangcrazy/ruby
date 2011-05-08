@@ -272,16 +272,15 @@ mktime_do(VALUE varg)
     ptr += 2;
     if ( len > ptr - str && *ptr == '.' )
     {
-        char padded[] = "000000.000000";
-        const int padding = 6;
-        const int offset = padding + 1;
+        char padded[] = "000000";
+        const int padding = (int)(sizeof(padded) - 1);
         const char *end = ptr + 1;
         const char *begin = end;
-        int length;
+        ptrdiff_t length;
         while ( isdigit( *end ) ) end++;
-        length = (int)(end - begin) <= padding ? (int)(end - begin) : padding;
+        if ((length = (end - begin)) > padding) length = padding;
         MEMCPY(padded, begin, char, length);
-        usec = strtod(padded, NULL);
+        usec = strtol(padded, NULL, 10);
     }
     else
     {
