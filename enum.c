@@ -462,6 +462,41 @@ enum_flat_map(VALUE obj)
     return ary;
 }
 
+static VALUE
+rude_map_ii(VALUE i, VALUE y, int c, VALUE *v)
+{
+    return rb_funcall(y, rb_intern("<<"), 1, enum_yield(c, v));
+}
+
+static VALUE
+rude_map_i(VALUE y, VALUE i, int c, VALUE *v)
+{
+    return rb_block_call(i, id_each, 0, 0, rude_map_ii, y);
+}
+
+/*
+ *  call-seq:
+ *     enum.rude_map {| obj | block }  -> enumerator
+ *     enum.rude_map                   -> enumerator
+ *
+ *  Identical to Enumerable#map, except that it returns an enumerator
+ *  rather than an array.
+ *
+ *  Without a block it is just another Object#to_enum.
+ *
+ */
+
+static VALUE
+enum_rude_map(VALUE obj)
+{
+    VALUE ret;
+    RETURN_ENUMERATOR(obj, 0, 0);
+
+    ret = rb_obj_alloc(rb_cEnumerator);
+    rb_block_call(ret, rb_intern("initialize"), 0, 0, rude_map_i, obj);
+    return ret;
+}
+
 /*
  *  call-seq:
  *     enum.to_a      ->    array
@@ -2679,6 +2714,7 @@ Init_Enumerable(void)
     rb_define_method(rb_mEnumerable, "collect", enum_collect, 0);
     rb_define_method(rb_mEnumerable, "map", enum_collect, 0);
     rb_define_method(rb_mEnumerable, "flat_map", enum_flat_map, 0);
+    rb_define_method(rb_mEnumerable, "rude_map", enum_rude_map, 0);
     rb_define_method(rb_mEnumerable, "collect_concat", enum_flat_map, 0);
     rb_define_method(rb_mEnumerable, "inject", enum_inject, -1);
     rb_define_method(rb_mEnumerable, "reduce", enum_inject, -1);
