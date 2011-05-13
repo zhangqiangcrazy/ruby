@@ -224,6 +224,7 @@ class Logger
     @default_formatter.datetime_format = datetime_format
   end
 
+  # Returns the date format (string passed to +strftime+) being used (it's set using datetime_format=)
   def datetime_format
     @default_formatter.datetime_format
   end
@@ -607,7 +608,7 @@ private
       if FileTest.exist?(age_file)
         # try to avoid filename crash caused by Timestamp change.
         idx = 0
-        # .99 can be overriden; avoid too much file search with 'loop do'
+        # .99 can be overridden; avoid too much file search with 'loop do'
         while idx < 100
           idx += 1
           age_file = "#{@filename}.#{postfix}.#{idx}"

@@ -1518,7 +1518,7 @@ string_to_c_internal(VALUE self)
 	if (!NIL_P(sr)) {
 	    if (strchr(RSTRING_PTR(sr), '/'))
 		r = f_to_r(sr);
-	    else if (strchr(RSTRING_PTR(sr), '.'))
+	    else if (strpbrk(RSTRING_PTR(sr), ".eE"))
 		r = f_to_f(sr);
 	    else
 		r = f_to_i(sr);
@@ -1526,7 +1526,7 @@ string_to_c_internal(VALUE self)
 	if (!NIL_P(si)) {
 	    if (strchr(RSTRING_PTR(si), '/'))
 		i = f_to_r(si);
-	    else if (strchr(RSTRING_PTR(si), '.'))
+	    else if (strpbrk(RSTRING_PTR(si), ".eE"))
 		i = f_to_f(si);
 	    else
 		i = f_to_i(si);

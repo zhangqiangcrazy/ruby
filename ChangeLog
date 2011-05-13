@@ -1,3 +1,204 @@
+Fri May 13 18:42:22 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* README.EXT: fix typo.  Patch by William Blackerby.
+	  https://github.com/ruby/ruby/pull/19
+
+	* README.EXT.ja: ditto.
+
+Fri May 13 15:22:34 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* win32/win32.c (rb_w32_select): check invalid handle before doing
+	  select operations.  see [ruby-dev:43513], [ruby-dev:43535]
+
+Fri May 13 08:34:00 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/rdoc/rdoc.rb:  Output summary after documentation report.
+	* lib/rdoc/stats/normal.rb:  Don't output information for users when
+	  we're not on a TTY
+
+Fri May 13 07:49:02 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/fileutils.rb:  Hide internal methods from RDoc.  Patch by Darragh
+	  Curran.  [Ruby 1.9 - Bug #4684]
+
+Fri May 13 07:36:23 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/webrick/httpservlet/erbhandler.rb:  Add documentation.
+
+Fri May 13 07:04:33 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/mathn.rb:  Fix indentation.  Patch by Jason Dew.
+          [Ruby 1.9 - Feature #4682]
+
+Fri May 13 06:50:43 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/mathn.rb:  Add documentation.  Patch by Jason Dew.  [Ruby 1.9 -
+	  Feature #4667]
+
+Fri May 13 05:44:19 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/logger.rb (class Logger):  Document Logger#datetime_format.
+	  Patch by Sergio Gil Pérez de la Manga.  [Ruby 1.9 - Bug #4678]
+
+Fri May 13 05:39:11 2011  Eric Hodel <drbrain@segment7.net>
+
+	* re.c (Init_Regexp): Document option constants.  Patch by Vincent
+	  Batts.  [Ruby 1.9 - Bug #4677]
+	* lib/uri/common.rb (module URI):  Documentation for URI.  Patch by
+	  Vincent Batts.  [Ruby 1.9- Bug #4677]
+	* lib/uri/ftp.rb (module URI):  ditto
+	* lib/uri/generic.rb (module URI):  ditto
+	* lib/uri/http.rb (module URI):  ditto
+	* lib/uri/https.rb (module URI):  ditto
+	* lib/uri/ldap.rb (module URI):  ditto
+	* lib/uri/ldaps.rb (module URI):  ditto
+	* lib/uri/mailto.rb (module URI):  ditto
+	* process.c (Init_process):  Document Process constants.  Patch by
+	  Vincent Batts.  [Ruby 1.9- Bug #4677]
+
+Fri May 13 05:16:38 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/rss/atom.rb (module RSS):  Document URIs.  Patch by Mark Turner.
+	  [Ruby 1.9 - #4671]
+	* lib/rss/rss.rb (module RSS):  Document exception classes.  Patch by
+	  Mark Turner.  [Ruby 1.9 - #4671]
+
+Fri May 13 02:15:18 2011  KOSAKI Motohiro  <kosaki.motohiro@gmail.com>
+
+	* io.c (select_internal): remove unused variable (interrupt_flag).
+
+Thu May 12 18:24:34 2011  Kouhei Sutou  <kou@clear-code.com>
+
+	* configure.in: limit to "T" type for prefix of external symbols
+	  because x86_64-w64-mingw32-gcc on Debian GNU/Linux generates the
+	  following symbol:
+	    0000000068483390 D _GLOBAL__F__conftest_external
+
+	  Approved by nobu.
+
+Thu May 12 14:50:52 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* test/dl/test_base.rb (Fiddle::LIBC_SO): its always msvc*.dll on
+	  mswin/mingw.
+
+Thu May 12 14:47:53 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
+
+	* lib/mkmf.rb (Logging.postpone): copy only when tmporary logfile
+	  exists.
+
+Thu May 12 12:24:22 2011  Nobuhiro Iwamatsu  <iwamatsu@nigauri.org>
+
+        * ext/openssl/ossl_ssl.c: By trunk@31346, function check of SSLv2 is executed.
+        However, the problem is not revised in this.
+        This adds the control of using function of SSLv2 in made macro by function check.
+
+Thu May 12 08:10:46 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/set.rb (class Set):  Add nodoc to internal-use methods.  Patch
+	  by Pete Higgins.  [Ruby 1.9 - Bug #4665]
+
+Thu May 12 08:01:14 2011  Martin Bosslet  <Martin.Bosslet@googlemail.com>
+
+	* ext/openssl/ossl_pkey_ec.c: Allow encryption when PEM-encoding
+	  Elliptic Curve private keys.
+	  [ruby-core:35329] [Bug #4423]
+
+Thu May 12 07:54:59 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* object.c (rb_obj_equal):  Add documentation.  Patch by Vincent Batts.
+	  [Ruby 1.9 - Bug #4664]
+	* lib/rexml:  ditto
+	* lib/mkmf.rb:  ditto
+	* ext/socket/lib/socket.rb:  ditto
+
+Thu May 12 07:30:08 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* Various .document files: Update .document files to match files which
+	  have documentation.
+
+Thu May 12 07:18:45 2011  Martin Bosslet  <Martin.Bosslet@googlemail.com>
+
+	* ext/openssl/ossl_pkey_dsa.c: Use generic X.509 SubjectPublicKeyInfo
+	  format for PEM-encoding DSA public keys.
+	  [ruby-core:35328] [Bug #4422]
+
+Thu May 12 06:27:31 2011  Martin Bosslet  <Martin.Bosslet@googlemail.com>
+
+	* ext/openssl/ossl_pkey_rsa.c: Use generic X.509 SubjectPublicKeyInfo
+	  format for encoding RSA public keys.
+	  [ruby-core:35327] [Bug #4421]
+
+Wed May 11 19:45:27 2011  Keiju Ishitsuka  <keiju@ishitsuka.com>
+
+	* lib/forwardable.rb: support 'delegate :foo => :bar' for to meet
+	  by specification of RDOC.
+
+Wed May 11 08:36:38 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/webrick: Add documentation for WEBrick::HTTPAuth
+
+Wed May 11 03:06:35 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/rss.rb: Add documentation for RSS.  Patch by Steve Klabnik.
+	  [Ruby 1.9 - Bug #4663]
+
+Tue May 10 14:50:32 2011  Shota Fukumori  <sorah@tubusu.net>
+
+	* lib/test/unit.rb: Add option for hiding skip messages when test
+	ends. #4657
+
+	* test/testunit/test_hideskip.rb, test/testunit/test4test_hideskip.rb:
+	test for above.
+
+Tue May 10 10:53:04 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* common.mk (rdoc): Add rdoc-coverage rule
+
+Tue May 10 09:13:21 2011  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/webrick: Add Documentation
+
+Tue May 10 04:22:09  Eric Hodel  <drbrain@segment7.net>
+
+	* lib/webrick/log.rb: Hide copyright info from ri
+	* lib/webrick/httpstatus.rb: ditto
+	* lib/webrick/htmlutils.rb: ditto
+	* lib/webrick/httpversion.rb: ditto
+	* lib/webrick/version.rb: ditto
+	* lib/webrick/httpauth/userdb.rb: ditto
+	* lib/webrick/httpauth/authenticator.rb: ditto
+	* lib/webrick/accesslog.rb: ditto
+
+Mon May  9 20:57:13 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/ruby/test_{complex,rational}.rb: added tests.
+
+Mon May  9 20:29:44 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* complex.c (string_to_c_internal): a refactoring.
+
+Mon May  9 18:33:05 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* string.c: Improve documentation for String#start_with? and
+	  String#end_with?. fixes #4652
+	  patched by Andrew Grimm <andrew.j.grimm at gmail.com>
+
+Mon May  9 13:49:00 2011  Kenta Murata  <mrkn@mrkn.jp>
+
+	* complex.c (string_to_c_internal): support scientific notation.
+	  patched by Tinco Andringa. https://github.com/ruby/ruby/pull/16
+	  [ruby-core:36046][Bug #4655]
+
+Mon May  9 11:52:48 2011  NARUSE, Yui  <naruse@ruby-lang.org>
+
+	* numeric.c (int_ord): remove K&R style.
+	  patched by Daehyub Kim. https://github.com/ruby/ruby/pull/17
+
+Sun May  8 22:17:24 2011  Tadayoshi Funaba  <tadf@dotrb.org>
+
+	* test/ruby/test_{complex2,complexrational}.rb: use skip.
+	* test/date/*.rb: ditto.
+
 Sun May  8 21:02:31 2011  Tadayoshi Funaba  <tadf@dotrb.org>
 
 	* test/ruby/test_{complex2,complexrational}.rb: NEVER SKIP.
@@ -8263,7 +8464,7 @@ For the changes before 1.9.3, see doc/ChangeLog-1.9.3
 For the changes before 1.8.0, see doc/ChangeLog-1.8.0
 
 Local variables:
-coding: us-ascii
+coding: utf-8
 add-log-time-format: (lambda ()
   (let* ((time (current-time))
 	 (system-time-locale "C")
