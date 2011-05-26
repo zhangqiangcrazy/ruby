@@ -4458,6 +4458,7 @@ rb_io_extract_modeenc(VALUE *vmode_p, VALUE *vperm_p, VALUE opthash,
     /* Set to defaults */
     rb_io_ext_int_to_encs(NULL, NULL, &enc, &enc2);
 
+  vmode_handle:
     if (NIL_P(vmode)) {
         fmode = FMODE_READABLE | DEFAULT_TEXTMODE;
         oflags = O_RDONLY;
@@ -4470,7 +4471,6 @@ rb_io_extract_modeenc(VALUE *vmode_p, VALUE *vperm_p, VALUE opthash,
     else {
         const char *p;
 
-      vmode_handle:
         SafeStringValue(vmode);
         p = StringValueCStr(vmode);
         fmode = rb_io_modestr_fmode(p);
@@ -7795,7 +7795,7 @@ rb_io_fcntl(int argc, VALUE *argv, VALUE io)
  *  +String+ objects or +Integer+ objects. A +String+ object is passed
  *  as a pointer to the byte sequence. An +Integer+ object is passed
  *  as an integer whose bit size is same as a pointer.
- *  Up to nine parameters may be passed (14 on the Atari-ST). 
+ *  Up to nine parameters may be passed (14 on the Atari-ST).
  *
  *  The function identified by _num_ is system
  *  dependent. On some Unix systems, the numbers may be obtained from a
@@ -7854,7 +7854,7 @@ rb_f_syscall(int argc, VALUE *argv)
     int num, retval = -1;
 #endif
     int i;
- 
+
     if (RTEST(ruby_verbose)) {
 	rb_warning("We plan to remove a syscall function at future release. DL(Fiddle) provides safer alternative.");
     }
@@ -10572,10 +10572,6 @@ Init_IO(void)
 #ifdef O_DIRECT
     /*  Try to minimize cache effects of the I/O to and from this file. */
     rb_file_const("DIRECT", INT2FIX(O_DIRECT));
-#endif
-#ifdef O_CLOEXEC
-    /* enable close-on-exec flag */
-    rb_file_const("CLOEXEC", INT2FIX(O_CLOEXEC)); /* Linux, POSIX-2008. */
 #endif
 
     sym_mode = ID2SYM(rb_intern("mode"));

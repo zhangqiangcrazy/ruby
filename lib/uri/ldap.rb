@@ -1,4 +1,3 @@
-#
 # = uri/ldap.rb
 #
 # Author::
@@ -8,6 +7,8 @@
 #   URI::LDAP is copyrighted free software by Takaaki Tateishi and Akira Yamada.
 #   You can redistribute it and/or modify it under the same term as Ruby.
 # Revision:: $Id$
+#
+# See URI for general documentation
 #
 
 require 'uri/generic'
@@ -37,8 +38,9 @@ module URI
     # Scopes available for the starting point.
     #
     # * SCOPE_BASE - the Base DN
-    # * SCOPE_ONE  - one level under the Base DN, not including the base DN and not including any entries under this.
-    # * SCOPE_SUB  - subtress, all entries at all levels 
+    # * SCOPE_ONE  - one level under the Base DN, not including the base DN and
+    #                not including any entries under this.
+    # * SCOPE_SUB  - subtress, all entries at all levels
     #
     SCOPE = [
       SCOPE_ONE = 'one',

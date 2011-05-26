@@ -1,9 +1,10 @@
-#
 # = uri/ftp.rb
 #
 # Author:: Akira Yamada <akira@ruby-lang.org>
 # License:: You can redistribute it and/or modify it under the same term as Ruby.
 # Revision:: $Id$
+#
+# See URI for general documentation
 #
 
 require 'uri/generic'
@@ -47,8 +48,8 @@ module URI
     # alternate initialization
     # Creates a new URI::FTP object.
     #
-    # Unlike build(), this method does not escape the path component as required by
-    # RFC1738; instead it is treated as per RFC2396.
+    # Unlike build(), this method does not escape the path component as
+    # required by RFC1738; instead it is treated as per RFC2396.
     #
     # Arguments are user, password, host, port, path, typecode,
     # and arg_check, in that order.
@@ -150,7 +151,7 @@ module URI
       end
     end
 
-    # typecode accessor 
+    # typecode accessor
     #
     # see URI::FTP::COMPONENT
     attr_reader :typecode

@@ -259,7 +259,7 @@ EOC
           else
             rv << value
           end
-    	    rv << "</#{elem_name}>"
+            rv << "</#{elem_name}>"
           rv
         else
           ''
@@ -290,7 +290,7 @@ EOC
           else
             rv << value
           end
-    	    rv << "</#{elem_name}>"
+            rv << "</#{elem_name}>"
           rv
         else
           ''

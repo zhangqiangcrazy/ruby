@@ -377,7 +377,11 @@ module Benchmark
   # measurement.
   #
   class Tms
+
+    # Default caption, see also Benchmark::CAPTION
     CAPTION = "      user     system      total        real\n"
+
+    # Default format string, see also Benchmark::FORMAT
     FORMAT = "%10.6u %10.6y %10.6t %10.6r\n"
 
     # User CPU time
