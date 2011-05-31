@@ -827,7 +827,7 @@ class TestIO < Test::Unit::TestCase
   def test_ungetc2
     f = false
     pipe(proc do |w|
-      0 until f
+      Thread.pass until f
       w.write("1" * 10000)
       w.close
     end, proc do |r|
@@ -1854,10 +1854,14 @@ End
     feature4742 = "[ruby-core:36338]"
 
     mkcdtmpdir do
-      refute_nil(File.open('symbolic', 'w'))
-      refute_nil(File.open('numeric',  File::WRONLY|File::TRUNC|File::CREAT))
-      refute_nil(File.open('hash-symbolic', :mode => 'w'))
-      refute_nil(File.open('hash-numeric', :mode => File::WRONLY|File::TRUNC|File::CREAT), feature4742)
+      refute_nil(f = File.open('symbolic', 'w'))
+      f.close
+      refute_nil(f = File.open('numeric',  File::WRONLY|File::TRUNC|File::CREAT))
+      f.close
+      refute_nil(f = File.open('hash-symbolic', :mode => 'w'))
+      f.close
+      refute_nil(f = File.open('hash-numeric', :mode => File::WRONLY|File::TRUNC|File::CREAT), feature4742)
+      f.close
     end
   end
 
