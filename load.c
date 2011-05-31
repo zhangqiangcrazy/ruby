@@ -33,6 +33,8 @@ rb_get_load_path(void)
     return load_path;
 }
 
+static VALUE expander = Qundef;
+
 VALUE
 rb_get_expanded_load_path(void)
 {
@@ -42,8 +44,13 @@ rb_get_expanded_load_path(void)
 
     ary = rb_ary_new2(RARRAY_LEN(load_path));
     for (i = 0; i < RARRAY_LEN(load_path); ++i) {
-	VALUE path = rb_file_expand_path(RARRAY_PTR(load_path)[i], Qnil);
-	rb_str_freeze(path);
+        VALUE orig = RARRAY_PTR(load_path)[i];
+        VALUE path = rb_hash_lookup2(expander, orig, Qfalse);
+        if (!RTEST(path)) {
+            path = rb_file_expand_path(orig, Qnil);
+            rb_str_freeze(path);
+            rb_hash_aset(expander, orig, path);
+        }
 	rb_ary_push(ary, path);
     }
     rb_obj_freeze(ary);
@@ -769,4 +776,6 @@ Init_load()
 
     ruby_dln_librefs = rb_ary_new();
     rb_gc_register_mark_object(ruby_dln_librefs);
+    expander = rb_hash_new();
+    rb_gc_register_mark_object(expander);
 }

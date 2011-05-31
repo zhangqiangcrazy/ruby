@@ -1,3 +1,14 @@
+Tue May 31 13:11:19 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* load.c (rb_get_expanded_load_path): It is said that require is
+	  slow.  Yusuke Endoh's investigation pointed out that the
+	  expand_path operation in this function is called over and over
+	  and over again, which effectively emits tons of lstat-variant
+	  system calls. To prevent it, lets cache the expanded path.  TODO
+	  it lacks cache invalidation for now (I doubt if it really
+	  matters).
+	  #3924, #4446.
+
 Tue May 31 12:53:10 2011  NAKAMURA Usaku  <usa@ruby-lang.org>
 
 	* test/io/wait/test_io_wait.rb (TestIOWait#{test_nread,test_ready?,
