@@ -884,7 +884,7 @@ ruby_vm_destruct(vm)
     ruby_native_thread_lock(&vm_manager.lock);
 
     k = (st_data_t)vm;
-    st_delete(vm_manager.machines, &k, &v);
+    st_delete_safe(vm_manager.machines, &k, &v, 0);
     assert(v == 0);
     if (vm_manager.main == vm) {
         vm_manager.main = 0;
@@ -914,7 +914,10 @@ vm_foreach_i(key, val, data)
 {
     struct vm_foreach_data *tmp = (void *)data;
     rb_vm_t *vm = (void *)key;
-    if (tmp->func(vm, tmp->data) == 0) {
+    if (!key) {
+        return ST_CONTINUE;
+    }
+    else if (tmp->func(vm, tmp->data) == 0) {
         return ST_STOP;
     }
     else {
@@ -929,6 +932,7 @@ ruby_vm_foreach(int (*func)(rb_vm_t *, void *), void *arg)
     tmp.func = func;
     tmp.data = arg;
     st_foreach(vm_manager.machines, vm_foreach_i, (st_data_t)&tmp);
+    st_cleanup_safe(vm_manager.machines, 0);
 }
 
 void

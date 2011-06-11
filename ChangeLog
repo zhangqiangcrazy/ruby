@@ -1,3 +1,9 @@
+Sat Jun 11 17:52:00 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (ruby_vm_destruct): this function might be called
+	  inside of a st_foreach call so the st_delete shall be taken care
+	  of.
+
 Mon Feb 14 03:34:02 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (join_internal): New function.  RubyVM#join blocks so
