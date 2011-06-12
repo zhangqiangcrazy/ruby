@@ -24,6 +24,7 @@
 #include "method.h"
 #include "private_object.h"
 #include "vm_insnhelper.h"
+#include "intervm.h"
 
 #if   defined(_WIN32)
 #include "thread_win32.h"
@@ -315,6 +316,7 @@ typedef struct rb_vm_struct {
         /* RB_VM_BLOCKED, // <- needed? */
         RB_VM_TO_BE_KILLED
     } status;
+    rb_atomic_t references;
 
     VALUE self;
     VALUE parent;

@@ -1585,14 +1585,12 @@ vm_free(void *ptr)
 {
     rb_vm_t *vm = ptr;
     rb_vm_t *self = GET_VM();
-
-    /* only a VM who created this VM, not this one itself, can free it. */
-    if (!vm) return;
-    if (vm == self) return;
-    if (self->parent && (RTYPEDDATA_DATA(self->parent) == vm)) return;
-    RUBY_FREE_ENTER("vm");
-    ruby_vm_destruct(vm);
-    RUBY_FREE_LEAVE("vm");
+    
+    if (rb_atomic_dec(&vm->references) == 1 ) {
+        /* this is the last one */
+        ruby_vmptr_destruct(vm);
+        ruby_vm_destruct(vm);
+    }
 }
 
 static size_t
@@ -2215,6 +2213,7 @@ vm_create(void *arg)
     status = ruby_vm_init(vm);
     ruby_native_thread_lock(args->lock);
     vm->parent = TypedData_Wrap_Struct(rb_cRubyVM, &vm_data_type, args->parent);
+    rb_atomic_inc(&vm->references);
     /* let me know if there are some other appropriate place for
      * RubyVM::ARGV initialization should go. */
     rb_intervm_wormhole_send(vm->message_hole, args->argv);
@@ -2486,6 +2485,7 @@ InitVM_VM(void)
 
 	/* create vm object */
 	vm->self = TypedData_Wrap_Struct(rb_cRubyVM, &vm_data_type, vm);
+        rb_atomic_inc(&vm->references);
 
 	/* create main thread */
 	th_self = th->self = TypedData_Wrap_Struct(rb_cThread, &thread_data_type, th);

@@ -1,3 +1,13 @@
+Sun Jun 12 18:48:17 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm_core.h (rb_vm_struct): Now the VM struct is reference
+	  counted.  A VM gets destructed once after all other VMs are not
+	  pointing to it, or when the wholr process passes away.  Note
+	  that we do not offer a way to "transfar" a VM to another so
+	  there can be no circular references.
+
+	* vm.c: ditto.
+
 Sun Jun 12 17:03:21 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm_core.h (rb_vm_struct): Now the VM struct has its status.
