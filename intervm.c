@@ -93,6 +93,7 @@ static enum judge wormhole_sendaable_p(VALUE obj);
 static VALUE wormhole_convert_this_obj(VALUE, const struct wormhole *wh);
 static VALUE wormhole_interpret_this_obj(VALUE, const void *);
 static int vm_foreach_i(st_data_t, st_data_t, st_data_t);
+/* extern */ void ruby_vmmgr_add(rb_vm_t *vm);
 
 void
 Init_intervm(void)
@@ -102,6 +103,13 @@ Init_intervm(void)
     ruby_native_thread_lock_initialize(&vm_manager.lock);
     mother_of_the_universe();   /* not required, but makes things faster */
     ruby_at_exit(Final_intervm);
+
+    /*
+     * This is  delayed til  this point  because the main  VM had  already been
+     * created long before the VM manager boots up.
+     */
+    ruby_vmmgr_add(GET_VM());
+    vm_manager.main = GET_VM();
 }
 
 void
@@ -861,16 +869,9 @@ ruby_vm_new(argc, argv)
         return 0;
     }
     else {
-        ruby_native_thread_lock(&vm_manager.lock);
-
         vm->argc = argc;
         vm->argv = argv;
-        st_insert(vm_manager.machines, (st_data_t)vm, 0);
-        if (!vm_manager.main) {
-            vm_manager.main = vm;
-        }
-
-        ruby_native_thread_unlock(&vm_manager.lock);
+        ruby_vmmgr_add(vm);
         return vm;
     }
 }
@@ -941,6 +942,9 @@ ruby_vmmgr_add(vm)
 {
     ruby_native_thread_lock(&vm_manager.lock);
     st_insert(vm_manager.machines, (st_data_t)vm, 0);
+    if (!vm_manager.main) {
+        vm_manager.main = vm;
+    }
     ruby_native_thread_unlock(&vm_manager.lock);
 }
 

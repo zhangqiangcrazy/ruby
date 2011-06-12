@@ -1,3 +1,19 @@
+Sun Jun 12 17:03:21 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm_core.h (rb_vm_struct): Now the VM struct has its status.
+	  Much like the status of thread.  This is (or will be) used to
+	  manage VMs.
+
+	* intervm.c: ditto.
+
+	* eval.c: ditto.
+
+	* vm.c: ditto.
+
+	* vm_core.h: ditto.
+
+	* vm_method.c: ditto.
+
 Sat Jun 11 17:52:00 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (ruby_vm_destruct): this function might be called

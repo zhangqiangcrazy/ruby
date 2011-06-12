@@ -18,7 +18,7 @@ struct cache_entry {		/* method hash table. */
     rb_method_entry_t *me;
 };
 
-#define ruby_running (GET_VM()->running)
+#define ruby_running (GET_VM()->status >= RB_VM_STARTED)
 /* int ruby_running = 0; */
 
 void
@@ -29,7 +29,7 @@ rb_clear_cache(void)
 
     rb_vm_change_state();
 
-    if (!vm->running)
+    if (!ruby_running)
 	return;
     ent = vm->cache;
     end = ent + CACHE_SIZE;
@@ -48,7 +48,7 @@ rb_clear_cache_for_undef(VALUE klass, ID id)
 
     rb_vm_change_state();
 
-    if (!vm->running)
+    if (!ruby_running)
 	return;
     ent = vm->cache;
     end = ent + CACHE_SIZE;
@@ -69,7 +69,7 @@ rb_clear_cache_by_id(ID id)
 
     rb_vm_change_state();
 
-    if (!vm->running)
+    if (!ruby_running)
 	return;
     ent = vm->cache;
     end = ent + CACHE_SIZE;
@@ -90,7 +90,7 @@ rb_clear_cache_by_class(VALUE klass)
 
     rb_vm_change_state();
 
-    if (!vm->running)
+    if (!ruby_running)
 	return;
     ent = vm->cache;
     end = ent + CACHE_SIZE;

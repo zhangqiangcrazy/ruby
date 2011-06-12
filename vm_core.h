@@ -308,6 +308,14 @@ struct rb_vm_options {
 };
 
 typedef struct rb_vm_struct {
+    enum rb_vm_status {
+        RB_VM_BORN = 0,
+        RB_VM_KILLED,
+        RB_VM_STARTED,
+        /* RB_VM_BLOCKED, // <- needed? */
+        RB_VM_TO_BE_KILLED
+    } status;
+
     VALUE self;
     VALUE parent;
 
@@ -324,7 +332,6 @@ typedef struct rb_vm_struct {
     st_table *living_threads;
     VALUE thgroup_default;
 
-    int running;
     int thread_abort_on_exception;
     unsigned long trace_flag;
     volatile int sleeper;

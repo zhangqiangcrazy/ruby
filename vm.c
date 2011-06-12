@@ -2105,6 +2105,8 @@ vm_parse_opt(rb_vm_t *vm, VALUE opt)
     rb_notimplement();
 }
 
+void ruby_vmmgr_add(rb_vm_t *);
+
 static VALUE
 rb_vm_initialize(int argc, VALUE *argv, VALUE self)
 {
@@ -2115,6 +2117,7 @@ rb_vm_initialize(int argc, VALUE *argv, VALUE self)
     if (vm) rb_raise(rb_eArgError, "alread initialized VM");
     DATA_PTR(self) = vm = malloc(sizeof(*vm));
     vm_init2(vm);
+    ruby_vmmgr_add(vm);
     if (argc > 0 && NIL_P(opt = rb_check_string_type(argv[argc-1]))) {
 	--argc;
 	vm_parse_opt(vm, opt);
@@ -2169,10 +2172,19 @@ rb_vm_to_s(VALUE self)
 {
     rb_vm_t *vm;
     VALUE str = rb_call_super(0, 0);
+    char *s;
 
     rb_str_set_len(str, RSTRING_LEN(str)-1);
     GetVMPtr(self, vm);
-    rb_str_catf(str, ":(%p)>", vm);
+
+    switch(vm->status) {
+    case RB_VM_BORN:         s = "born";         break;
+    case RB_VM_STARTED:      s = "started";      break;
+    case RB_VM_TO_BE_KILLED: s = "to be killed"; break;
+    case RB_VM_KILLED:       s = "killed";       break;
+    }
+
+    rb_str_catf(str, ":(%s, %p)>", s, vm);
     return str;
 }
 
@@ -2187,8 +2199,6 @@ struct vm_create_args {
     VALUE argv;
     volatile int initialized;
 };
-
-void ruby_vmmgr_add(rb_vm_t *);
 
 static VALUE
 vm_create(void *arg)
@@ -2210,7 +2220,7 @@ vm_create(void *arg)
     rb_intervm_wormhole_send(vm->message_hole, args->argv);
     argv = rb_intervm_wormhole_recv(vm->message_hole);
     rb_define_const(rb_cRubyVM, "ARGV", argv);
-    if (!status) ruby_vmmgr_add(vm);
+    vm->status = RB_VM_STARTED;
     args->initialized = 1;
     ruby_native_cond_signal(&args->waiting);
     ruby_native_thread_unlock(args->lock);

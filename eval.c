@@ -76,7 +76,7 @@ ruby_vm_init(rb_vm_t *vm)
 {
     int state;
 
-    if (vm->running) return 0;
+    if (vm->status >= RB_VM_STARTED) return 0;
 
     PUSH_TAG();
     if ((state = EXEC_TAG()) == 0) {
@@ -89,7 +89,7 @@ ruby_vm_init(rb_vm_t *vm)
 	error_print();
 	return state;
     }
-    vm->running = 1;
+    vm->status = RB_VM_STARTED;
     return 0;
 }
 
@@ -225,6 +225,8 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     int i;
     VALUE ary = (VALUE)&vm->at_exit;
 
+    vm->status = RB_VM_TO_BE_KILLED;
+
     rb_threadptr_interrupt(th);
     rb_threadptr_check_signal(th);
     PUSH_TAG();
@@ -301,6 +303,7 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
 
     vm->exit_status.signal = state;
     vm->exit_status.code = ex;
+    vm->status = RB_VM_KILLED;
     return ex;
 }
 
@@ -387,6 +390,7 @@ ruby_vmptr_start(rb_vm_t *vm, int status)
     void *n;
 
     rb_thread_set_current_raw(vm->main_thread);
+    vm->status = RB_VM_STARTED;
     Init_stack((void *)&vm);
     if (status != 0) {
 	return ruby_vm_cleanup(vm, status);
