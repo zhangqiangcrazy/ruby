@@ -1,3 +1,8 @@
+Sun Jun 12 18:54:24 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (InitVM_top_self): This is wrong.  The mark_object_array
+	  has already been, and shall be, created in variable.c
+
 Sun Jun 12 18:48:17 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm_core.h (rb_vm_struct): Now the VM struct is reference
