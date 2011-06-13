@@ -110,6 +110,7 @@ Init_intervm(void)
      */
     ruby_vmmgr_add(GET_VM());
     vm_manager.main = GET_VM();
+    rb_atomic_inc(&GET_VM()->references); /* The main VM can never be freed! */
 }
 
 void

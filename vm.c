@@ -2394,6 +2394,7 @@ InitVM_VM(void)
     rb_cRubyVM = rb_define_class("RubyVM", rb_cObject);
     rb_define_alloc_func(rb_cRubyVM, rb_vm_s_alloc);
     rb_define_method(rb_cRubyVM, "initialize", rb_vm_initialize, -1);
+    rb_define_method(rb_cRubyVM, "initialize_copy", rb_notimplement, -1);
     rb_define_method(rb_cRubyVM, "to_s", rb_vm_to_s, 0);
     rb_define_method(rb_cRubyVM, "start", rb_vm_start, -1);
     rb_define_method(rb_cRubyVM, "send", rb_vm_send, 1);

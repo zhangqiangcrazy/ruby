@@ -1,3 +1,8 @@
+Sun Jun 12 19:06:23 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (Init_intervm): You cannot free the main VM even when
+	  no reference to it remains.
+
 Sun Jun 12 18:54:24 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (InitVM_top_self): This is wrong.  The mark_object_array
