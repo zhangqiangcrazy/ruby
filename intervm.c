@@ -964,13 +964,9 @@ ruby_vm_join(vm)
 {
     ruby_native_thread_lock(&vm_manager.lock);
     if (st_lookup(vm_manager.machines, (st_data_t)vm, 0)) {
-        do {
+        while (vm->status != RB_VM_KILLED) {
             rb_thread_call_without_gvl(join_internal, vm, RUBY_UBF_IO, 0);
         }
-        while (vm->living_threads &&
-               vm->living_threads->num_entries > 1 &&
-               vm->main_thread &&
-               vm->main_thread->status != THREAD_KILLED);
     }
     ruby_native_thread_unlock(&vm_manager.lock);
     return 1;

@@ -1,3 +1,10 @@
+Sat Jun 18 23:12:20 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (ruby_vm_join): Now RubyVM#join checks its state
+	  rather than its main VM.
+
+	* eval.c (ruby_vm_cleanup): global_vm_waiting shall be signaled.
+
 Sun Jun 12 19:06:23 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (Init_intervm): You cannot free the main VM even when

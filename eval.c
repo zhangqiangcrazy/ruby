@@ -278,6 +278,8 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
 	if (TYPE(err) == T_NODE) continue;
 
 	if (rb_obj_is_kind_of(err, rb_eSystemExit)) {
+	    vm->status = RB_VM_KILLED;
+	    ruby_native_cond_signal(&vm->global_vm_waiting);
 	    return sysexit_status(err);
 	}
 	else if (rb_obj_is_kind_of(err, rb_eSignal)) {
@@ -304,6 +306,7 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     vm->exit_status.signal = state;
     vm->exit_status.code = ex;
     vm->status = RB_VM_KILLED;
+    ruby_native_cond_signal(&vm->global_vm_waiting);
     return ex;
 }
 
