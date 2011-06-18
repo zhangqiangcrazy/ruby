@@ -1,3 +1,20 @@
+Sun Jun 19 02:29:46 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* eval.c (ruby_vm_cleanup): Threads shall be terminated in this
+	  function, rather than in thread.c
+
+	* thread.c (thread_start_func_2): ditto.
+
+	* thread.c (thread_terminated_1): You cannot assume a VM existance
+	  here.  If there are some VMs that are joining this VM, and the
+	  thread is the main thread, then this thread had signaled the CV
+	  that other threads are waiting.  And other VMs might already
+	  freed the VM struct when this thread reaches at this function.
+
+	* thread.c (ruby_threadptr_cleanup): ditto.
+
+	* vm.c (ruby_reset_vm_context): ditto.
+
 Sun Jun 19 01:36:49 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (vm_free): oops, double free.

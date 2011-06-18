@@ -885,13 +885,18 @@ ruby_vm_destruct(vm)
     ruby_vmptr_destruct(vm);
     ruby_native_thread_lock(&vm_manager.lock);
 
-    k = (st_data_t)vm;
-    st_delete_safe(vm_manager.machines, &k, &v, 0);
-    assert(v == 0);
-    if (vm_manager.main == vm) {
-        vm_manager.main = 0;
+    if (ruby_vm_main_p(vm)) {
+        /* main VM shall not be freed */
     }
-    free(vm);
+    else {
+        k = (st_data_t)vm;
+        st_delete_safe(vm_manager.machines, &k, &v, 0);
+        assert(v == 0);
+        if (vm_manager.main == vm) {
+            vm_manager.main = 0;
+        }
+        free(vm);
+    }
 
     ruby_native_thread_unlock(&vm_manager.lock);
     return 0;

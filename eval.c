@@ -227,6 +227,7 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     void rb_threadptr_interrupt(rb_thread_t *th);
     void rb_threadptr_check_signal(rb_thread_t *mth);
     int i;
+    int signo = 0;
     VALUE ary = (VALUE)&vm->at_exit;
 
     vm->status = RB_VM_TO_BE_KILLED;
@@ -261,6 +262,10 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     ex = error_handle(ex);
     ruby_finalize_1(vm);
     POP_TAG();
+
+    rb_vm_thread_terminate_all(vm);
+    if (ruby_vm_main_p(vm)) signo = ruby_vm_exit_signal(vm);
+    if (signo) ruby_default_signal(signo);
 
     /* at_exit functions called here; any other place more apropriate
      * for this purpose? let me know if any. */
@@ -301,7 +306,10 @@ out:
     vm->exit_status.signal = state;
     vm->exit_status.code = ex;
     vm->status = RB_VM_KILLED;
-    ruby_native_cond_signal(&vm->global_vm_waiting);
+    /* After this point the main thread cannot reach to its VM, and
+     * it doesn't have to. */
+    th->vm = 0;
+    ruby_native_cond_broadcast(&vm->global_vm_waiting);
 
 #if EXIT_SUCCESS != 0 || EXIT_FAILURE != 1
     switch (ex) {

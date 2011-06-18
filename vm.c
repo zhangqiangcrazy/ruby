@@ -2321,6 +2321,8 @@ ruby_reset_vm_context(ruby_vm_t *prev_vm, void *local)
 {
     rb_thread_t *th = GET_THREAD();
 
+    if (!th->vm) return;        /* no need */
+
     if (local == 0) {
 	ruby_threadptr_cleanup(th);
     }

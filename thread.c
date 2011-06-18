@@ -524,17 +524,11 @@ thread_start_func_2(rb_thread_t *th, VALUE *stack_start, VALUE *register_stack_s
 	thread_terminated_2(th, state);
 
         thread_cleanup_func(th);
-	if (vm->main_thread == th) {
-	    int signo = 0;
-            rb_vm_thread_terminate_all(vm);
-	    if (ruby_vm_main_p(vm)) signo = ruby_vm_exit_signal(vm);
-	    if (signo) ruby_default_signal(signo);
-	    native_cond_signal(&vm->global_vm_waiting);
-	}
-	else {
-	}
     }
-    native_mutex_unlock(&vm->global_vm_lock);
+    /* the thread might already have freed itself */
+    if (vm == th->vm) {
+        native_mutex_unlock(&vm->global_vm_lock);
+    }
     return 0;
 }
 
@@ -571,6 +565,9 @@ thread_terminated_1(rb_thread_t *th, int state)
     th->status = THREAD_KILLED;
     thread_debug("thread end: %p\n", (void *)th);
 
+    if (!th->vm) {
+        return; /* this is a zombie. */
+    }
     main_th = th->vm->main_thread;
     if (th != main_th) {
 	if (TYPE(errinfo) == T_OBJECT) {
@@ -584,7 +581,7 @@ static void
 thread_terminated_2(rb_thread_t *th, int state)
 {
     rb_thread_t *join_th;
-    rb_thread_t *main_th = th->vm->main_thread;
+    rb_thread_t *main_th = 0;
 
     /* locking_mutex must be Qfalse */
     if (th->locking_mutex != Qfalse) {
@@ -593,8 +590,11 @@ thread_terminated_2(rb_thread_t *th, int state)
     }
 
     /* delete self other than main thread from living_threads */
-    if (th != main_th) {
-	st_delete_wrap(th->vm->living_threads, th->self);
+    if (th->vm) {
+        main_th = th->vm->main_thread;
+        if (th != main_th) {
+            st_delete_wrap(th->vm->living_threads, th->self);
+        }
     }
 
     /* wake up joining threads */
@@ -614,7 +614,7 @@ thread_terminated_2(rb_thread_t *th, int state)
 	th->stack = 0;
     }
     thread_unlock_all_locking_mutexes(th);
-    if (th != main_th) rb_check_deadlock(th->vm);
+    if (th->vm && th != main_th) rb_check_deadlock(th->vm);
 }
 
 void
@@ -623,7 +623,9 @@ ruby_threadptr_cleanup(rb_thread_t *th)
     thread_terminated_1(th, 0);
     thread_terminated_2(th, 0);
     thread_cleanup_func(th);
-    st_delete_wrap(th->vm->living_threads, th->self);
+    if (th->vm) {
+        st_delete_wrap(th->vm->living_threads, th->self);
+    }
 }
 
 static void *
@@ -2817,15 +2819,6 @@ vm_set_timer_interrupt(rb_vm_t *vm, void *dummy)
     return TRUE;
 }
 
-void
-rb_threadptr_check_signal(rb_thread_t *mth)
-{
-    VALUE sig;
-    while ((sig = rb_intervm_wormhole_peek(mth->vm->signal_hole, Qundef)) != Qundef) {
-        ruby_vm_send_signal(mth->vm, FIX2INT(sig));
-    }
-}
-
 int
 ruby_vm_send_signal(rb_vm_t *vm, int sig)
 {
@@ -2844,6 +2837,15 @@ ruby_vm_send_signal(rb_vm_t *vm, int sig)
     rb_threadptr_interrupt(mth);
     mth->status = prev_status;
     return sig;
+}
+
+void
+rb_threadptr_check_signal(rb_thread_t *mth)
+{
+    VALUE sig;
+    while ((sig = rb_intervm_wormhole_peek(mth->vm->signal_hole, Qundef)) != Qundef) {
+        ruby_vm_send_signal(mth->vm, FIX2INT(sig));
+    }
 }
 
 static int
