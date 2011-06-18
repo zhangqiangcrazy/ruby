@@ -1594,7 +1594,14 @@ vm_free(void *ptr)
     }
     else if (rb_atomic_dec(&vm->references) == 1 ) {
         /* this is the last one */
-        ruby_vm_destruct(vm);
+        if (self == vm) {
+            /* We are about to exit, but the VM is now running those
+             * finalizers so we cannot destruct this VM right now;
+             * defeering to a bit after. */
+        }
+        else {
+            ruby_vm_destruct(vm);
+        }
     }
 }
 

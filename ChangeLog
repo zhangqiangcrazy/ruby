@@ -1,3 +1,14 @@
+Sun Jun 19 04:38:31 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (vm_free): There are cases when the main VM dies while
+	  others are running.  On those situations child VMs might killl
+	  themselves while they are calling finalizers.  That is of
+	  cousrse a bad idea so we defer.
+
+	* thread.c (rb_thread_alone): might be called while a VM is passing away.
+
+	* eval.c (vm_finalize_i): more detailed branch.
+
 Sun Jun 19 02:29:46 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* eval.c (ruby_vm_cleanup): Threads shall be terminated in this

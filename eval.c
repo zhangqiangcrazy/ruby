@@ -164,9 +164,13 @@ vm_finalize_i(rb_vm_t *vm, void *unused)
 {
     /* There might not always be VM initializations happend.  A VM
      * which was not started has no main thread for instance. */
-    if (vm->status != RB_VM_BORN) {
-        ruby_finalize_0(vm);
-        ruby_finalize_1(vm);
+    switch(vm->status) {
+    case RB_VM_BORN:
+    case RB_VM_KILLED:
+        break;
+    case RB_VM_STARTED:
+    case RB_VM_TO_BE_KILLED:
+        rb_vm_terminate_all_really_everything(vm);
     }
     return TRUE;
 }
