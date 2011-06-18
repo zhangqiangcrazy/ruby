@@ -2811,7 +2811,9 @@ int rb_get_next_signal(void);
 static int
 vm_set_timer_interrupt(rb_vm_t *vm, void *dummy)
 {
-    RUBY_VM_SET_TIMER_INTERRUPT(vm->running_thread);
+    if (vm->status >= RB_VM_STARTED) {
+        RUBY_VM_SET_TIMER_INTERRUPT(vm->running_thread);
+    }
     return TRUE;
 }
 

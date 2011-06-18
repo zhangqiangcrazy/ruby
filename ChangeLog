@@ -1,3 +1,7 @@
+Sun Jun 19 00:27:26 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* thread.c (vm_set_timer_interrupt): should also check VM state.
+
 Sat Jun 18 23:12:20 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (ruby_vm_join): Now RubyVM#join checks its state
