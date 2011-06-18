@@ -1554,8 +1554,11 @@ ruby_vmptr_destruct(rb_vm_t *vm)
         return FALSE;
     }
     else {
-        rb_vm_terminate_all_really_everything(vm);
-        st_free_table(vm->living_threads);
+        if (vm->status >= RB_VM_STARTED) {
+            /* This VM is running (yet).  Finalization forced. */
+            rb_vm_terminate_all_really_everything(vm);
+            st_free_table(vm->living_threads);
+        }
         if (vm->loading_table) {
             /* @shyouhei is not sure if a loading lock should be per
              * VM...  shouldn't it be process global? */
@@ -1563,10 +1566,7 @@ ruby_vmptr_destruct(rb_vm_t *vm)
             st_free_table(vm->loading_table);
         }
         ruby_native_thread_unlock(&vm->global_vm_lock);
-        /* ruby_native_cond_signal(&vm->global_vm_waiting); */
-        /* ruby_native_cond_destroy(&vm->global_vm_waiting); */
         rb_sweep_method_entry(vm);
-        FinalVM_generic_iv_tbl(vm);
 #ifdef CALC_EXACT_MALLOC_SIZE
         vm->specific_storage.ptr = ((size_t *)vm->specific_storage.ptr) - 1;
         vm->cache = ((size_t *)vm->cache) - 1;
@@ -1594,7 +1594,6 @@ vm_free(void *ptr)
     }
     else if (rb_atomic_dec(&vm->references) == 1 ) {
         /* this is the last one */
-        ruby_vmptr_destruct(vm);
         ruby_vm_destruct(vm);
     }
 }

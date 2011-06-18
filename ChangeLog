@@ -1,3 +1,11 @@
+Sun Jun 19 01:36:49 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (vm_free): oops, double free.
+
+	* vm.c (ruby_vmptr_destruct): This point might be reached without
+	  a main thread (i.e. graceful shoutdown), so we cannot assume
+	  main thread's existance.
+
 Sun Jun 19 00:48:54 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): When a VM is about to be destructed,
