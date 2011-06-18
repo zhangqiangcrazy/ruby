@@ -1,3 +1,7 @@
+Sun Jun 19 04:53:18 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): garbage line.
+
 Sun Jun 19 04:38:31 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (vm_free): There are cases when the main VM dies while

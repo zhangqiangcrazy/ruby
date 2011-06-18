@@ -1566,7 +1566,6 @@ ruby_vmptr_destruct(rb_vm_t *vm)
             st_free_table(vm->loading_table);
         }
         ruby_native_thread_unlock(&vm->global_vm_lock);
-        rb_sweep_method_entry(vm);
 #ifdef CALC_EXACT_MALLOC_SIZE
         vm->specific_storage.ptr = ((size_t *)vm->specific_storage.ptr) - 1;
         vm->cache = ((size_t *)vm->cache) - 1;
