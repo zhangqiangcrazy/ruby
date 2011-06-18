@@ -2590,7 +2590,7 @@ rb_fork(int *status, int (*chfunc)(void*), void *charg, VALUE fds)
 
 #endif
 
-#if defined(HAVE_FORK) && !defined(CANNOT_FORK_WITH_PTHREAD)
+#if defined(HAVE_FORK) && !defined(CANNOT_FORK_WITH_PTHREAD) && 0
 /*
  *  call-seq:
  *     Kernel.fork  [{ block }]   -> fixnum or nil

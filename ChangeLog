@@ -1,3 +1,11 @@
+Sun Jun 19 05:30:14 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* process.c: You can no longer fork.  Forking needs proper
+	  shutdown of all VMs (to prevent resource leaking), but that is
+	  not possible, because when forked a process has only one thread
+	  running, which effectively leaks all the other VMs than the one
+	  that forked.
+
 Sun Jun 19 04:53:18 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* vm.c (ruby_vmptr_destruct): garbage line.
