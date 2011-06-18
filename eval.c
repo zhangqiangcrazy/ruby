@@ -162,8 +162,12 @@ static struct at_exit {
 static int
 vm_finalize_i(rb_vm_t *vm, void *unused)
 {
-    ruby_finalize_0(vm);
-    ruby_finalize_1(vm);
+    /* There might not always be VM initializations happend.  A VM
+     * which was not started has no main thread for instance. */
+    if (vm->status != RB_VM_BORN) {
+        ruby_finalize_0(vm);
+        ruby_finalize_1(vm);
+    }
     return TRUE;
 }
 
@@ -257,9 +261,6 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
     ex = error_handle(ex);
     ruby_finalize_1(vm);
     POP_TAG();
-    if (ruby_vm_main_p(vm)) {
-	rb_thread_stop_timer_thread();
-    }
 
     /* at_exit functions called here; any other place more apropriate
      * for this purpose? let me know if any. */
@@ -278,9 +279,8 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
 	if (TYPE(err) == T_NODE) continue;
 
 	if (rb_obj_is_kind_of(err, rb_eSystemExit)) {
-	    vm->status = RB_VM_KILLED;
-	    ruby_native_cond_signal(&vm->global_vm_waiting);
-	    return sysexit_status(err);
+            ex = sysexit_status(err);
+            goto out;
 	}
 	else if (rb_obj_is_kind_of(err, rb_eSignal)) {
 	    VALUE sig = rb_iv_get(err, "signo");
@@ -292,6 +292,17 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
 	}
     }
 
+out:
+    vm->mark_object_ary = Qundef;
+    rb_objspace_free(vm->objspace);
+    if (ruby_vm_main_p(vm)) {
+	rb_thread_stop_timer_thread();
+    }
+    vm->exit_status.signal = state;
+    vm->exit_status.code = ex;
+    vm->status = RB_VM_KILLED;
+    ruby_native_cond_signal(&vm->global_vm_waiting);
+
 #if EXIT_SUCCESS != 0 || EXIT_FAILURE != 1
     switch (ex) {
 #if EXIT_SUCCESS != 0
@@ -302,11 +313,6 @@ ruby_vm_cleanup(rb_vm_t *vm, volatile int ex)
 #endif
     }
 #endif
-
-    vm->exit_status.signal = state;
-    vm->exit_status.code = ex;
-    vm->status = RB_VM_KILLED;
-    ruby_native_cond_signal(&vm->global_vm_waiting);
     return ex;
 }
 

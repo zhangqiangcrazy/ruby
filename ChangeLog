@@ -1,3 +1,20 @@
+Sun Jun 19 00:48:54 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* vm.c (ruby_vmptr_destruct): When a VM is about to be destructed,
+	  there are already no execution context for that VM.  So
+	  rb_objspace_free, which might invoke finalizers, shall not be
+	  called here.
+
+	* eval.c (ruby_vm_cleanup): proper cleanup by goto & return idiom.
+
+	* eval.c (vm_finalize_i): There might not always be VM
+	  initializations happend.  A VM which was not started has no main
+	  thread for instance.
+
+	* vm.c (vm_free): The main VM would call this function to free
+	  itself, via rb_objspace_free.  But that should not destruct the
+	  main VM, because the VM is just doing that job at that moment.
+
 Sun Jun 19 00:27:26 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* thread.c (vm_set_timer_interrupt): should also check VM state.

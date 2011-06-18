@@ -1563,11 +1563,9 @@ ruby_vmptr_destruct(rb_vm_t *vm)
             st_free_table(vm->loading_table);
         }
         ruby_native_thread_unlock(&vm->global_vm_lock);
-        ruby_native_cond_signal(&vm->global_vm_waiting);
-	ruby_native_cond_destroy(&vm->global_vm_waiting);
+        /* ruby_native_cond_signal(&vm->global_vm_waiting); */
+        /* ruby_native_cond_destroy(&vm->global_vm_waiting); */
         rb_sweep_method_entry(vm);
-        vm->mark_object_ary = Qundef;
-        rb_objspace_free(vm->objspace);
         FinalVM_generic_iv_tbl(vm);
 #ifdef CALC_EXACT_MALLOC_SIZE
         vm->specific_storage.ptr = ((size_t *)vm->specific_storage.ptr) - 1;
@@ -1586,7 +1584,15 @@ vm_free(void *ptr)
     rb_vm_t *vm = ptr;
     rb_vm_t *self = GET_VM();
     
-    if (rb_atomic_dec(&vm->references) == 1 ) {
+    if (ruby_vm_main_p(vm)) {
+        /* if you reach here, the main VM is about to be freed, which
+         * means it is that main VM who is calling this function.
+         * Thus, if you free the VM here, it should recur this
+         * function over and over again.  You have to avoid that
+         * situation. */
+        return;
+    }
+    else if (rb_atomic_dec(&vm->references) == 1 ) {
         /* this is the last one */
         ruby_vmptr_destruct(vm);
         ruby_vm_destruct(vm);
