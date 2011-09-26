@@ -1,3 +1,15 @@
+Mon Sep 26 18:56:30 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (rb_intervm_wormhole_get_bytes): Add statistics for
+	  each Channels.  This is for benchmarking.
+
+	  Note that channels live outside of a VM so they cannot utilize
+	  bignums.  All computations are done in size_t and hence are
+	  subject to round-trip if integer overflow happens.
+
+	* intervm.c (rb_intervm_wormhole_reset_bytes): ditto, to reset the
+	  statistics.
+
 Sun Jun 19 05:30:14 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* process.c: You can no longer fork.  Forking needs proper

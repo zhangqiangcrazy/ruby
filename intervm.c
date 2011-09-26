@@ -36,6 +36,7 @@ struct multiveerse {              /**< set of universes */
             } as;
             VALUE reserved;       /**< reseved */
             rb_atomic_t refs;     /**< reference counts */
+            size_t bytes;         /**< size of this planet */
             struct planet *next;  /**< next one */
         } *planets;               /**< the planets in this universe */
         struct universe *next;    /**< next one */
@@ -46,6 +47,8 @@ struct multiveerse {              /**< set of universes */
 #if defined(_MSC_VER) || defined(__BORLANDC__) || defined(__CYGWIN__) || defined(__GNUC__)
 #pragma pack(pop)
 #endif
+
+#define PLANET(x) ((struct planet*)(x))
 
 static int vmkey_channel = 0;
 
@@ -59,6 +62,7 @@ struct wormhole {
     struct rb_objspace *objspace; /**< where was this struct was allocated */
     struct planet *head;          /**< queue head */
     struct planet *tail;          /**< queue tail */
+    size_t bytes[2];              /**< tx, rx */
 };
 
 static struct vm_manager {
@@ -92,6 +96,8 @@ enum judge { unacceptable, duplicatable, valid };
 static enum judge wormhole_sendaable_p(VALUE obj);
 static VALUE wormhole_convert_this_obj(VALUE, const struct wormhole *wh);
 static VALUE wormhole_interpret_this_obj(VALUE, const void *);
+static VALUE rb_intervm_wormhole_get_bytes(VALUE);
+static VALUE rb_intervm_wormhole_reset_bytes(VALUE);
 static int vm_foreach_i(st_data_t, st_data_t, st_data_t);
 /* extern */ void ruby_vmmgr_add(rb_vm_t *vm);
 
@@ -242,6 +248,7 @@ consume(void)
         if (cas_p(the_world.the_free, now, now->next)) {
             assert(now->refs == 0);
             now->next = 0;
+            now->bytes = 0;
             return now;
         }
     }
@@ -286,6 +293,7 @@ rb_intervm_str(str)
         struct planet *ours = consume();
         VALUE ret = (VALUE)&ours->as.string;
         memcpy((void*)ret, (void*)str2, sizeof(struct RString));
+        ours->bytes = sizeof(struct RString);
         if (FL_TEST(str2, RSTRING_NOEMBED)) {
             RSTRING(str2)->as.heap.aux.shared = ret;
             FL_SET(str2, ELTS_SHARED);
@@ -359,6 +367,8 @@ InitVM_Wormhole(void)
     rb_define_method(klass, "initialize_copy", wormhole_init_copy, 0);
     rb_define_method(klass, "send", rb_intervm_wormhole_send, 1);
     rb_define_method(klass, "recv", rb_intervm_wormhole_recv, 0);
+    rb_define_method(klass, "bytes", rb_intervm_wormhole_get_bytes, 0);
+    rb_define_method(klass, "clear_bytes", rb_intervm_wormhole_reset_bytes, 0);
     *(VALUE *)ruby_vm_specific_ptr(vmkey_channel) = klass;
     #define rb_cChannel (*(VALUE *)ruby_vm_specific_ptr(vmkey_channel))
 }
@@ -434,6 +444,8 @@ wormhole_initialize(self)
         wormhole->objspace = GET_VM()->objspace;
         wormhole->head = 0;
         wormhole->tail = 0;
+        wormhole->bytes[0] = 0;
+        wormhole->bytes[1] = 0;
 
         wormhole_ascend(wormhole, GET_VM());
         RTYPEDDATA_DATA(self) = RTYPEDDATA_DATA(&pla->as.data) = wormhole;
@@ -584,8 +596,22 @@ wormhole_push(hole, obj)
     };
     struct planet *p = consume();
     struct darkmatter *d = &p->as.darkmatter;
+    size_t bytes =
+        IMMEDIATE_P(obj) ? 0 :
+        obj == Qtrue     ? 0 :
+        obj == Qfalse    ? 0 :
+        obj == Qnil      ? 0 :
+        obj == Qundef    ? 0 :
+        PLANET(obj)->bytes;
+    PLANET(d)->bytes = bytes;   /* to ease shift() */
+
     memmove(d, &template, sizeof template);
     ruby_native_thread_lock(&hole->lock);
+
+    /* if (hole->bytes[0] + bytes < hole->bytes[0]) { */
+    /*     rb_raise(rb_eArgError, "integer overflow"); */
+    /* } */
+    hole->bytes[0] += bytes;
 
     d->value = obj;
     d->prev = hole->head;
@@ -603,6 +629,8 @@ wormhole_shift(hole)
 {
     VALUE ret;
     struct planet *dm;
+    size_t bytes;
+
     ruby_native_thread_lock(&hole->lock);
     while (!hole->tail) {
         ruby_native_cond_wait(&hole->cond, &hole->lock);
@@ -611,6 +639,12 @@ wormhole_shift(hole)
     dm = hole->tail;
     hole->tail = dm->as.darkmatter.next;
     if (!hole->tail) hole->head = 0;
+
+    bytes = dm->bytes;
+    /* if (hole->bytes[1] + bytes < hole->bytes[1]) { */
+    /*     rb_raise(rb_eArgError, "integer overflow"); */
+    /* } */
+    hole->bytes[1] += bytes;
 
     ruby_native_thread_unlock(&hole->lock);
 
@@ -668,6 +702,7 @@ wormhole_convert_this_obj(obj, wh)
         int i, j;
         VALUE ret;
         struct wormhole *wh2;
+        size_t bytes;
     case T_STRING:
         ret = rb_intervm_str(obj);
         rb_intervm_str_ascend(ret); /* prevent deallocation */
@@ -681,19 +716,25 @@ wormhole_convert_this_obj(obj, wh)
         j = RARRAY_LEN(obj);
         ret = (VALUE)&consume()->as.array;
         memcpy((void *)ret, (void *)obj, sizeof(struct RArray));
+        bytes = sizeof(struct RArray);
         RBASIC(ret)->klass = 0;
         if (!FL_TEST(ret, RARRAY_EMBED_FLAG)) {
             FL_UNSET(ret, ELTS_SHARED); /* not used though */
             RARRAY(ret)->as.heap.ptr = malloc(sizeof(VALUE) * j);
+            bytes += sizeof(VALUE) * j;
         }
         for (i=0; i<j; i++) {
-            RARRAY_PTR(ret)[i] = wormhole_convert_this_obj(RARRAY_PTR(obj)[i], wh);
+            VALUE v = wormhole_convert_this_obj(RARRAY_PTR(obj)[i], wh);
+            RARRAY_PTR(ret)[i] = v;
+            bytes += PLANET(v)->bytes;
         }
+        PLANET(ret)->bytes = bytes;
         return ret;
     case T_FLOAT:
         ret = (VALUE)&consume()->as.real;
         memcpy((void *)ret, (void *)obj, sizeof(struct RFloat));
-        RBASIC(ret)->klass = 0;        
+        PLANET(ret)->bytes = sizeof(struct RFloat);
+        RBASIC(ret)->klass = 0;
         return ret;
     default:
         return obj;
@@ -710,7 +751,6 @@ VALUE
 rb_intervm_wormhole_send(self, obj)
     VALUE self, obj;
 {
-    /* Current limitation is that we can only usr strings or wormholes. */
     VALUE str = rb_check_string_type(obj);
     struct wormhole *ptr = RTYPEDDATA_DATA(self);
     if (!NIL_P(str)) {
@@ -727,6 +767,7 @@ rb_intervm_wormhole_send(self, obj)
             tmp = rb_intervm_str(rb_marshal_dump(obj, Qnil));
             rb_intervm_str_ascend(tmp); /* prevent deallocation */
             FL_SET(tmp, FL_MARK); /* hack */
+            PLANET(tmp)->bytes += RSTRING_LEN(tmp);
             wormhole_push(ptr, tmp);
             break;
         }
@@ -849,6 +890,41 @@ rb_intervm_wormhole_is_empty(self)
      * the purpose.*/
     struct wormhole *ptr = RTYPEDDATA_DATA(self);
     return !ptr->head;
+}
+
+/*
+ * call-seq:
+ *    ch.bytes -> [tx, rx]
+ *
+ * Number of transmitted and received octets since the last ch.clear_bytes.
+ */
+VALUE
+rb_intervm_wormhole_get_bytes(self)
+    VALUE self;
+{
+    VALUE ret = Qundef;
+    struct wormhole *ptr = RTYPEDDATA_DATA(self);
+    ruby_native_thread_lock(&ptr->lock);
+    ret = rb_ary_new3(2, SIZET2NUM(ptr->bytes[0]), SIZET2NUM(ptr->bytes[1]));
+    ruby_native_thread_unlock(&ptr->lock);
+    return ret;
+}
+
+/*
+ * call-seq:
+ *    ch.clear_bytes -> self
+ *
+ * reset the stat.
+ */
+VALUE
+rb_intervm_wormhole_reset_bytes(self)
+    VALUE self;
+{
+    struct wormhole *ptr = RTYPEDDATA_DATA(self);
+    ruby_native_thread_lock(&ptr->lock);
+    ptr->bytes[0] = ptr->bytes[1] = 0;
+    ruby_native_thread_unlock(&ptr->lock);
+    return self;
 }
 
 /* 
