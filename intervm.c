@@ -586,6 +586,15 @@ wormhole_memsize(ptr)
     }
 }
 
+#define PLANET_BYTES(pla) \
+    IMMEDIATE_P(pla) ? 0 : \
+    pla == Qtrue     ? 0 : \
+    pla == Qfalse    ? 0 : \
+    pla == Qnil      ? 0 : \
+    pla == Qundef    ? 0 : \
+    PLANET(pla)->bytes;
+
+
 void
 wormhole_push(hole, obj)
     struct wormhole *hole;
@@ -596,13 +605,7 @@ wormhole_push(hole, obj)
     };
     struct planet *p = consume();
     struct darkmatter *d = &p->as.darkmatter;
-    size_t bytes =
-        IMMEDIATE_P(obj) ? 0 :
-        obj == Qtrue     ? 0 :
-        obj == Qfalse    ? 0 :
-        obj == Qnil      ? 0 :
-        obj == Qundef    ? 0 :
-        PLANET(obj)->bytes;
+    size_t bytes = PLANET_BYTES(obj);
     PLANET(d)->bytes = bytes;   /* to ease shift() */
 
     memmove(d, &template, sizeof template);
@@ -726,7 +729,7 @@ wormhole_convert_this_obj(obj, wh)
         for (i=0; i<j; i++) {
             VALUE v = wormhole_convert_this_obj(RARRAY_PTR(obj)[i], wh);
             RARRAY_PTR(ret)[i] = v;
-            bytes += PLANET(v)->bytes;
+            bytes += PLANET_BYTES(v);
         }
         PLANET(ret)->bytes = bytes;
         return ret;
@@ -804,33 +807,40 @@ wormhole_interpret_this_obj(obj, vm)
     case T_SYMBOL:
         return obj;
     case T_STRING:
-        rb_intervm_str_descend(obj);
         if(FL_TEST(obj, FL_MARK)) {
-            return rb_marshal_load(obj);
+            ret = rb_marshal_load(obj);
         }
         else {
             ret = rb_str_new_shared(obj);
             RSTRING(ret)->basic.klass = rb_cString;
-            return ret;
         }
+        rb_intervm_str_descend(obj);
+        return ret;
     case T_DATA:
-        wormhole_descend(RTYPEDDATA_DATA(obj), vm);
         ret = wormhole_alloc(rb_cChannel);
-        return wormhole_init_copy(ret, obj);
+        wormhole_init_copy(ret, obj);
+        wormhole_descend(RTYPEDDATA_DATA(obj), vm);
+        return ret;
     case T_ARRAY:
         j = RARRAY_LEN(obj);
         ret = rb_ary_new2(j);
         for (i=0; i<j; i++) {
             rb_ary_push(ret, wormhole_interpret_this_obj(RARRAY_PTR(obj)[i], vm));
         }
+        if (!FL_TEST(obj, RARRAY_EMBED_FLAG)) {
+            free(RARRAY_PTR(obj));
+        }
+        recycle(PLANET(obj));
         return ret;
     case T_FLOAT:
-        return rb_float_new(RFLOAT_VALUE(obj));
+        ret = rb_float_new(RFLOAT_VALUE(obj));
+        recycle(PLANET(obj));
+        return ret;
     default:
         rb_bug("wormhole_interpret_this_obj(): unknown data type 0x%x(%p)",
                BUILTIN_TYPE(obj), (void *)obj);
         /* NOTREACHED */
-    }    
+    }
 }
 
 extern void *rb_thread_call_without_gvl(
