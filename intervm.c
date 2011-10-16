@@ -182,7 +182,7 @@ Final_intervm(void)
 }
 
 #define cas_p(x, y, z)                          \
-    (rb_atomic_cas((rb_atomic_t *)&(x),          \
+    (rb_atomic_cas((rb_atomic_t *)&(x),         \
                    (rb_atomic_t)(y),            \
                    (rb_atomic_t)(z))            \
      == (rb_atomic_t)(y))
@@ -190,11 +190,15 @@ Final_intervm(void)
 void
 mother_of_the_universe(void)
 {
+    static rb_atomic_t flag = 0;
     long i;
     const unsigned long number_of_planets = sizeof_an_universe / sizeof(struct planet);
     struct planet *planets;
     struct universe *newuniv;
     struct planet *last;
+    if (!cas_p(flag, 0, 1)) {
+        return;
+    }
     planets = malloc(sizeof_an_universe);
     if (!planets) rb_memerror();
     newuniv = malloc(sizeof(struct universe));
@@ -217,6 +221,8 @@ mother_of_the_universe(void)
         struct planet *now = the_world.the_free;
         planets[0].next = now;
         if (cas_p(the_world.the_free, now, last)) {
+            while (!cas_p(flag, 1, 0))
+                ;
             return;
         }
     }
@@ -262,6 +268,9 @@ recycle(planet)
     struct planet *planet;
 {
     assert(planet->refs == 0);
+    if (planet->as.darkmatter.value != Qnil) {
+        fprintf(stderr, "%d ", planet->as.darkmatter.value);
+    }
     memset(planet, '\0', sizeof *planet);
     for (;;) {
         struct planet *now = the_world.the_free;
@@ -496,7 +505,7 @@ wormhole_dealloc(self)
     /* this funcsion assumens a lock on entrance */
     struct rb_objspace *objspace = self->objspace;
     struct planet *p, *q;
-    for (p = q = self->head; p; p = q) {
+    for (p = q = self->tail; p; p = q) {
         VALUE tmp = p->as.darkmatter.value;
         q = p->next;
         switch (TYPE(tmp)) {
@@ -602,6 +611,7 @@ wormhole_push(hole, obj)
 {
     static const struct darkmatter template = {
         { T_ARRAY | RARRAY_EMBED_FLAG | (3 << RARRAY_EMBED_LEN_SHIFT), 0, },
+        Qundef, 0, 0
     };
     struct planet *p = consume();
     struct darkmatter *d = &p->as.darkmatter;

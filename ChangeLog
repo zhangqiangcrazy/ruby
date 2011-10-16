@@ -1,3 +1,9 @@
+Mon Oct 17 02:26:39 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
+
+	* intervm.c (mother_of_the_universe): avoid multiple threads to
+	  enter this function at one time, to reduce memory consumption a
+	  bit.
+
 Tue Sep 27 12:31:08 2011  URABE Shyouhei  <shyouhei@ruby-lang.org>
 
 	* intervm.c (wormhole_interpret_this_obj): This function had some
