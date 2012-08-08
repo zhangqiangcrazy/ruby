@@ -1122,8 +1122,10 @@ rand_range(struct MT* mt, VALUE range)
       case T_FLOAT: {
 	VALUE f = rb_check_to_float(beg);
 	if (!NIL_P(f)) {
-	    RFLOAT_VALUE(v) += RFLOAT_VALUE(f);
-	    return v;
+            double x, y;
+            x = RFLOAT_VALUE(v);
+            y = RFLOAT_VALUE(f);
+            return DBL2NUM(x + y);
 	}
       }
       default:

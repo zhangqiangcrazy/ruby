@@ -350,19 +350,22 @@ rb_long2int_inline(long n)
 #define ID2SYM(x) (((VALUE)(x)<<RUBY_SPECIAL_SHIFT)|SYMBOL_FLAG)
 #define SYM2ID(x) RSHIFT((unsigned long)(x),RUBY_SPECIAL_SHIFT)
 
+#define FLOAT_P(x) (FLONUM_P(x) || BUILTIN_TYPE(x) == T_FLOAT)
+
 /* Module#methods, #singleton_methods and so on return Symbols */
 #define USE_SYMBOL_AS_METHOD_NAME 1
 
 /* special constants - i.e. non-zero and non-fixnum constants */
 enum ruby_special_consts {
     RUBY_Qfalse = 0,
-    RUBY_Qtrue  = 2,
-    RUBY_Qnil   = 4,
-    RUBY_Qundef = 6,
+    RUBY_Qtrue  = 18442368509026836482ull, /* "\xFF\xF0true \x2" */
+    RUBY_Qnil   = 18442361873146847234ull, /* "\xFF\xF0nil  \x2" */
+    RUBY_Qundef = 18442369591073400322ull, /* "\xFF\xF0undef\x2" */
 
     RUBY_IMMEDIATE_MASK = 0x03,
     RUBY_FIXNUM_FLAG    = 0x01,
-    RUBY_SYMBOL_FLAG    = 0x0e,
+    RUBY_FLONUM_FLAG    = 0x02,
+    RUBY_SYMBOL_FLAG    = 0x06,
     RUBY_SPECIAL_SHIFT  = 8
 };
 
@@ -374,7 +377,9 @@ enum ruby_special_consts {
 #define FIXNUM_FLAG RUBY_FIXNUM_FLAG
 #define SYMBOL_FLAG RUBY_SYMBOL_FLAG
 
-#define RTEST(v) (((VALUE)(v) & ~Qnil) != 0)
+static inline int FLONUM_P(VALUE x) { return IMMEDIATE_P(x) == RUBY_FLONUM_FLAG; }
+
+#define RTEST(v) ({ VALUE w = (VALUE)(v); !((w == Qnil) || (w == Qfalse)); })
 #define NIL_P(v) ((VALUE)(v) == Qnil)
 
 #define CLASS_OF(v) rb_class_of((VALUE)(v))
@@ -669,8 +674,8 @@ struct RFloat {
     struct RBasic basic;
     double float_value;
 };
-#define RFLOAT_VALUE(v) (RFLOAT(v)->float_value)
-#define DBL2NUM(dbl)  rb_float_new(dbl)
+static inline double RFLOAT_VALUE(VALUE v);
+static inline VALUE DBL2NUM(double dbl);
 
 #define ELTS_SHARED FL_USER2
 
@@ -1333,10 +1338,11 @@ rb_class_of(VALUE obj)
     if (IMMEDIATE_P(obj)) {
 	if (FIXNUM_P(obj)) return rb_cFixnum;
 	if (obj == Qtrue)  return rb_cTrueClass;
+	if (obj == Qnil)   return rb_cNilClass;
 	if (SYMBOL_P(obj)) return rb_cSymbol;
+	if (FLONUM_P(obj)) return rb_cFloat;
     }
     else if (!RTEST(obj)) {
-	if (obj == Qnil)   return rb_cNilClass;
 	if (obj == Qfalse) return rb_cFalseClass;
     }
     return RBASIC(obj)->klass;
@@ -1348,11 +1354,12 @@ rb_type(VALUE obj)
     if (IMMEDIATE_P(obj)) {
 	if (FIXNUM_P(obj)) return T_FIXNUM;
 	if (obj == Qtrue) return T_TRUE;
+	if (obj == Qnil)   return T_NIL;
 	if (SYMBOL_P(obj)) return T_SYMBOL;
 	if (obj == Qundef) return T_UNDEF;
+	if (FLONUM_P(obj)) return T_FLOAT;
     }
     else if (!RTEST(obj)) {
-	if (obj == Qnil) return T_NIL;
 	if (obj == Qfalse) return T_FALSE;
     }
     return BUILTIN_TYPE(obj);
@@ -1365,6 +1372,7 @@ rb_type(VALUE obj)
 	((type) == T_NIL) ? ((obj) == Qnil) : \
 	((type) == T_UNDEF) ? ((obj) == Qundef) : \
 	((type) == T_SYMBOL) ? SYMBOL_P(obj) : \
+	((type) == T_FLOAT) ? FLOAT_P(obj) : \
 	(!SPECIAL_CONST_P(obj) && BUILTIN_TYPE(obj) == (type)))
 
 #ifdef __GNUC__
@@ -1543,6 +1551,46 @@ void ruby_incpush(const char*);
 void ruby_sig_finalize(void);
 
 /*! @} */
+
+double
+RFLOAT_VALUE(VALUE v)
+{
+    if ((v & IMMEDIATE_MASK) == RUBY_FLONUM_FLAG) {
+        union {
+            double flo;
+            VALUE num;
+        } tmp;
+
+        switch(v) {
+        case Qundef:
+        case Qtrue:
+        case Qnil:
+            rb_raise(rb_eTypeError, "not a float.");
+        default:
+            tmp.num = v & ~IMMEDIATE_MASK;
+            return tmp.flo;
+        }
+    }
+    else {
+        Check_Type(v, T_FLOAT);
+        return RFLOAT(v)->float_value;
+    }
+}
+VALUE
+DBL2NUM(double dbl) {
+    union {
+        double flo;
+        VALUE num;
+    } tmp;
+
+    tmp.flo = dbl;
+    if (finite(tmp.flo) && ((tmp.num & IMMEDIATE_MASK) == 0)) {
+        return tmp.num | RUBY_FLONUM_FLAG;
+    }
+    else {
+        return rb_float_new(dbl);
+    }
+}
 
 #if defined __GNUC__ && __GNUC__ >= 4
 #pragma GCC visibility pop
