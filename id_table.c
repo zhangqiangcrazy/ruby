@@ -1590,3 +1590,18 @@ show_impl(void)
     fprintf(stderr, "impl: %d\n", ID_TABLE_IMPL);
 }
 #endif
+
+static enum rb_id_table_iterator_result
+rb_id_table_to_h_i(ID id, VALUE val, void *data) {
+    rb_hash_aset((VALUE)data, RB_ID2SYM(id), val);
+    return ID_TABLE_CONTINUE;
+}
+
+VALUE
+rb_id_table_to_h(struct rb_id_table *t) {
+    VALUE ret = rb_hash_new();
+    if(t) {
+        rb_id_table_foreach(t, rb_id_table_to_h_i, (void *)ret);
+    }
+    return ret;
+}
