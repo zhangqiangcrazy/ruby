@@ -27,6 +27,7 @@ typedef enum rb_id_table_iterator_result rb_id_table_foreach_func_t(ID id, VALUE
 typedef enum rb_id_table_iterator_result rb_id_table_foreach_values_func_t(VALUE val, void *data);
 void rb_id_table_foreach(struct rb_id_table *tbl, rb_id_table_foreach_func_t *func, void *data);
 void rb_id_table_foreach_values(struct rb_id_table *tbl, rb_id_table_foreach_values_func_t *func, void *data);
+VALUE rb_id_table_to_h(struct rb_id_table *tbl);
 
 /* in gc.c */
 void rb_id_table_mark(struct rb_id_table *tbl);
