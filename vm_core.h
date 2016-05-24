@@ -287,6 +287,7 @@ struct rb_iseq_constant_body {
 
     unsigned int iseq_size;
     const VALUE *iseq_encoded; /* encoded iseq (insn addr and operands) */
+    const struct iseq_to_deoptimize *deoptimize;
 
     /**
      * parameter information
@@ -572,6 +573,7 @@ typedef struct rb_vm_struct {
 
     VALUE *defined_strings;
     st_table *frozen_strings;
+    st_table *optimized_iseqs;
 
     /* params */
     struct { /* size in byte */

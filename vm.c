@@ -2142,6 +2142,10 @@ ruby_vm_destruct(rb_vm_t *vm)
 	    st_free_table(vm->frozen_strings);
 	    vm->frozen_strings = 0;
 	}
+	if (vm->optimized_iseqs) {
+	    st_free_table(vm->optimized_iseqs);
+	    vm->optimized_iseqs = 0;
+	}
 	rb_vm_gvl_destroy(vm);
 	if (objspace) {
 	    rb_objspace_free(objspace);
@@ -3081,6 +3085,7 @@ Init_vm_objects(void)
     vm->mark_object_ary = rb_ary_tmp_new(128);
     vm->loading_table = st_init_strtable();
     vm->frozen_strings = st_init_table_with_size(&rb_fstring_hash_type, 1000);
+    vm->optimized_iseqs = st_init_numtable();
 }
 
 /* top self */
