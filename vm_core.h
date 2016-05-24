@@ -284,6 +284,7 @@ struct rb_iseq_constant_body {
 
     unsigned int iseq_size;
     const VALUE *iseq_encoded; /* encoded iseq (insn addr and operands) */
+    const VALUE *iseq_deoptimized;
 
     /**
      * parameter information
@@ -493,6 +494,7 @@ typedef struct rb_vm_struct {
     struct rb_thread_struct *main_thread;
     struct rb_thread_struct *running_thread;
 
+    struct list_head optimized_iseqs;
     struct list_head living_threads;
     size_t living_thread_num;
     VALUE thgroup_default;
