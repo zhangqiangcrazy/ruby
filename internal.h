@@ -1832,7 +1832,7 @@ void rb_vm_check_redefinition_by_prepend(VALUE klass);
 VALUE rb_yield_refine_block(VALUE refinement, VALUE refinements);
 VALUE ruby_vm_special_exception_copy(VALUE);
 PUREFUNC(st_table *rb_vm_fstring_table(void));
-
+extern rb_serial_t ruby_vm_global_timestamp;
 
 /* vm_dump.c */
 void rb_print_backtrace(void);
