@@ -2484,6 +2484,21 @@ iseqw_attributes(VALUE self)
 }
 
 /*
+ *  call-seq:
+ *     iseq.analyze -> self
+ *
+ *  Debug force re-annotate self
+ */
+static VALUE
+iseqw_analyze(VALUE self)
+{
+    extern void iseq_analyze(rb_iseq_t *iseq);
+    const rb_iseq_t *i = iseqw_check(self);
+    iseq_analyze((void *)i);
+    return self;
+}
+
+/*
  *  Document-class: RubyVM::InstructionSequence
  *
  *  The InstructionSequence class represents a compiled sequence of
@@ -2515,6 +2530,7 @@ Init_ISeq(void)
     rb_define_method(rb_cISeq, "to_a", iseqw_to_a, 0);
     rb_define_method(rb_cISeq, "eval", iseqw_eval, 0);
     rb_define_method(rb_cISeq, "attributes", iseqw_attributes, 0);
+    rb_define_method(rb_cISeq, "analyze", iseqw_analyze, 0);
 
     rb_define_method(rb_cISeq, "to_binary", iseqw_to_binary, -1);
     rb_define_singleton_method(rb_cISeq, "load_from_binary", iseqw_s_load_from_binary, 1);
