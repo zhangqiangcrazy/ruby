@@ -603,7 +603,7 @@ intern_str(VALUE str, int mutable)
 ID
 rb_intern2(const char *name, long len)
 {
-    return rb_intern3(name, len, rb_usascii_encoding());
+    return rb_intern3(name, len, NULL);
 }
 
 #undef rb_intern
