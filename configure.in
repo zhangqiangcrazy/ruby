@@ -1841,6 +1841,9 @@ RUBY_FUNC_ATTRIBUTE(__fastcall__, FUNC_FASTCALL, rb_cv_func_fastcall, ${if_i386}
 RUBY_FUNC_ATTRIBUTE(__optimize__("O0"), FUNC_UNOPTIMIZED, rb_cv_func_unoptimized)
 RUBY_FUNC_ATTRIBUTE(__optimize__("-Os","-fomit-frame-pointer"), FUNC_MINIMIZED, rb_cv_func_minimized)
 
+RUBY_TYPE_ATTRIBUTE(__aligned__, ALIGNED_AUTO)
+RUBY_TYPE_ATTRIBUTE([__aligned__((__BIGGEST_ALIGNMENT__))], ALIGNED_BIGGEST, rb_cv_type_aligned)
+
 if test "$GCC" = yes; then
     AC_CACHE_CHECK([for function alias], [rb_cv_gcc_function_alias],
 	[rb_cv_gcc_function_alias=no
@@ -2480,6 +2483,7 @@ if test x$rb_cv_builtin___builtin_choose_expr = xyes; then
     ])
 fi
 RUBY_CHECK_BUILTIN_FUNC(__builtin_types_compatible_p, [__builtin_types_compatible_p(int, int)])
+RUBY_CHECK_BUILTIN_FUNC(__builtin_add_overflow, [__builtin_add_overflow(0, 0, (int*)0)])
 
 if test "$ac_cv_func_qsort_r" != no; then
   AC_CACHE_CHECK(whether qsort_r is GNU version, rb_cv_gnu_qsort_r,

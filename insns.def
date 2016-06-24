@@ -1380,7 +1380,16 @@ opt_plus
     if (FIXNUM_2_P(recv, obj) &&
 	BASIC_OP_UNREDEFINED_P(BOP_PLUS,INTEGER_REDEFINED_OP_FLAG)) {
 	/* fixnum + fixnum */
-#ifndef LONG_LONG_VALUE
+#ifdef HAVE_BUILTIN___BUILTIN_ADD_OVERFLOW
+	signed long ret;
+	if (UNLIKELY(__builtin_saddl_overflow(recv, (obj & (~1)), &ret))) {
+	     val = rb_big_plus(rb_int2big(FIX2LONG(recv)),
+			       rb_int2big(FIX2LONG(obj)));
+	}
+	else {
+	    val = (VALUE)ret;
+	}
+#elif !defined(LONG_LONG_VALUE)
 	val = (recv + (obj & (~1)));
 	if ((~(recv ^ obj) & (recv ^ val)) &
 	    ((VALUE)0x01 << ((sizeof(VALUE) * CHAR_BIT) - 1))) {

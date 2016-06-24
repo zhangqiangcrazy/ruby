@@ -99,8 +99,21 @@ extern "C" {
       ((b) > 0 ? (max) / (a) < (b) : (min) / (a) > (b)) : \
       ((b) > 0 ? (min) / (a) < (b) : (max) / (a) > (b)))
 #define MUL_OVERFLOW_FIXNUM_P(a, b) MUL_OVERFLOW_SIGNED_INTEGER_P(a, b, FIXNUM_MIN, FIXNUM_MAX)
+#if defined HAVE_BUILTIN___BUILTIN_ADD_OVERFLOW
+#if defined ALIGNED_BIGGEST /* gcc */
+__attribute__((__aligned__(__BIGGEST_ALIGNMENT__)))
+#elif defined ALIGNED0      /* clang */
+__attribute__((__aligned__))
+#endif
+intmax_t rb_overflow_bufer;
+#define MUL_OVERFLOW_P(a, b) \
+    __builtin_mul_overflow((a), (b), (__typeof__(a) *)&rb_overflow_bufer)
+#define MUL_OVERFLOW_LONG_P(a, b) MUL_OVERFLOW_P(a, b)
+#define MUL_OVERFLOW_INT_P(a, b)  MUL_OVERFLOW_P(a, b)
+#else
 #define MUL_OVERFLOW_LONG_P(a, b) MUL_OVERFLOW_SIGNED_INTEGER_P(a, b, LONG_MIN, LONG_MAX)
 #define MUL_OVERFLOW_INT_P(a, b) MUL_OVERFLOW_SIGNED_INTEGER_P(a, b, INT_MIN, INT_MAX)
+#endif
 
 #ifndef swap16
 # ifdef HAVE_BUILTIN___BUILTIN_BSWAP16
@@ -344,7 +357,10 @@ rb_fix_mul_fix(VALUE x, VALUE y)
 #ifdef DLONG
     return DL2NUM((DLONG)lx * (DLONG)ly);
 #else
-    if (MUL_OVERFLOW_FIXNUM_P(lx, ly)) {
+    if (MUL_OVERFLOW_LONG_P(lx, ly)) {
+	return rb_big_mul(rb_int2big(lx), rb_int2big(ly));
+    }
+    else if (MUL_OVERFLOW_FIXNUM_P(lx, ly)) {
 	return rb_big_mul(rb_int2big(lx), rb_int2big(ly));
     }
     else {
