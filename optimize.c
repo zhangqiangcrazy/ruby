@@ -576,6 +576,18 @@ iseq_analyze_i(
         len                        = insn_len(insn);
         purity                     = purity_merge(purity, p);
 
+        if (VMDEBUG && (p != insn_is_pure)) {
+            VALUE a = RB_ISEQ_ANNOTATED_P(iseq, debug::why_not);
+            if (TYPE(a) != T_HASH) {
+                a = rb_hash_new();
+            }
+            rb_hash_aset(
+                a, INT2FIX(i), rb_sprintf(
+                    "%03d: %s is %s",
+                    i, insn_name(insn),
+                    p == insn_is_not_pure ? "not pure" : "unpredictable"));
+            RB_ISEQ_ANNOTATE((rb_iseq_t *)iseq, debug::why_not, a);
+        }
         for (int j = 0; j < len - 1; j++) {
             VALUE op = now[j + 1];
             int degree;
