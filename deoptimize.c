@@ -25,6 +25,12 @@
 typedef struct iseq_to_deoptimize target_t;
 typedef struct rb_iseq_constant_body body_t;
 
+const VALUE *
+iseq_deoptimized_seq(const rb_iseq_t *i)
+{
+    return i->body->deoptimize->ptr;
+}
+
 void
 iseq_prepare_to_deoptimize(
     const rb_iseq_t *restrict i,

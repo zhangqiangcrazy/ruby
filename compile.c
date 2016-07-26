@@ -722,6 +722,22 @@ rb_iseq_original_iseq(const rb_iseq_t *iseq) /* cold path */
     return original_code;
 }
 
+VALUE
+rb_iseq_deoptimized_iseq_str(const rb_iseq_t *iseq)
+{
+    extern const VALUE * iseq_deoptimized_seq(const rb_iseq_t *iseq);
+    int i, n = iseq->body->iseq_size;
+    VALUE ret = rb_str_tmp_new(n * sizeof(VALUE));
+    VALUE *dst = (void *)RSTRING_PTR(ret);
+    const VALUE *src = iseq_deoptimized_seq(iseq);
+    MEMCPY(dst, src, VALUE, n);
+    for (i = 0; i < n; /* */ ) {
+        int insn = dst[i] = rb_vm_insn_addr2insn((const void *)dst[i]);
+        i += insn_len(insn);
+    }
+    return ret;
+}
+
 /*********************************************/
 /* definition of data structure for compiler */
 /*********************************************/

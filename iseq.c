@@ -1477,10 +1477,10 @@ iseq_inspect(const rb_iseq_t *iseq)
     }
 }
 
-VALUE
-rb_iseq_disasm(const rb_iseq_t *iseq)
+static VALUE
+rb_iseq_disasm2(const rb_iseq_t *iseq, bool opt_p)
 {
-    VALUE *code;
+    extern VALUE rb_iseq_deoptimized_iseq_str(const rb_iseq_t *iseq);
     VALUE str = rb_str_new(0, 0);
     VALUE child = rb_ary_tmp_new(3);
     unsigned int size;
@@ -1489,6 +1489,8 @@ rb_iseq_disasm(const rb_iseq_t *iseq)
     const ID *tbl;
     size_t n;
     enum {header_minlen = 72};
+    VALUE tmp = rb_iseq_deoptimized_iseq_str(iseq);
+    const VALUE *code = opt_p ? rb_iseq_original_iseq(iseq) : (VALUE *)RSTRING_PTR(tmp);
 
     rb_secure(1);
 
@@ -1515,7 +1517,7 @@ rb_iseq_disasm(const rb_iseq_t *iseq)
 			catch_type((int)entry->type), (int)entry->start,
 			(int)entry->end, (int)entry->sp, (int)entry->cont);
 	    if (entry->iseq) {
-		rb_str_concat(str, rb_iseq_disasm(rb_iseq_check(entry->iseq)));
+		rb_str_concat(str, rb_iseq_disasm2(rb_iseq_check(entry->iseq), opt_p));
 	    }
 	}
     }
@@ -1577,17 +1579,22 @@ rb_iseq_disasm(const rb_iseq_t *iseq)
     }
 
     /* show each line */
-    code = rb_iseq_original_iseq(iseq);
     for (n = 0; n < size;) {
 	n += rb_iseq_disasm_insn(str, code, n, iseq, child);
     }
 
     for (l = 0; l < RARRAY_LEN(child); l++) {
 	VALUE isv = rb_ary_entry(child, l);
-	rb_str_concat(str, rb_iseq_disasm(rb_iseq_check((rb_iseq_t *)isv)));
+	rb_str_concat(str, rb_iseq_disasm2(rb_iseq_check((rb_iseq_t *)isv), opt_p));
     }
 
     return str;
+}
+
+VALUE
+rb_iseq_disasm(const rb_iseq_t *iseq)
+{
+    return rb_iseq_disasm2(iseq, true);
 }
 
 /*
@@ -1612,6 +1619,19 @@ static VALUE
 iseqw_disasm(VALUE self)
 {
     return rb_iseq_disasm(iseqw_check(self));
+}
+
+static VALUE
+iseqw_disasm2(VALUE self)
+{
+    const rb_iseq_t *iseq = iseqw_check(self);
+    VALUE e1 = iseqw_disasm(self);
+    if (! iseq->body->deoptimize) {
+        return rb_ary_new_from_values(1, &e1);
+    }
+    else {
+        return rb_assoc_new(e1, rb_iseq_disasm2(iseq, false));
+    }
 }
 
 /*
@@ -2489,6 +2509,7 @@ Init_ISeq(void)
     /* declare ::RubyVM::InstructionSequence */
     rb_cISeq = rb_define_class_under(rb_cRubyVM, "InstructionSequence", rb_cObject);
     rb_define_method(rb_cISeq, "inspect", iseqw_inspect, 0);
+    rb_define_method(rb_cISeq, "disasm2", iseqw_disasm2, 0);
     rb_define_method(rb_cISeq, "disasm", iseqw_disasm, 0);
     rb_define_method(rb_cISeq, "disassemble", iseqw_disasm, 0);
     rb_define_method(rb_cISeq, "to_a", iseqw_to_a, 0);
