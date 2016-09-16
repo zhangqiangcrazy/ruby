@@ -7255,8 +7255,8 @@ For the changes before 1.8.0, see doc/ChangeLog-1.8.0
 
 Local variables:
 coding: us-ascii
-add-log-time-format: (lambda ()
-  (let* ((time (current-time))
+add-log-time-format: (lambda (&optional x y)
+  (let* ((time (or x (current-time)))
 	 (system-time-locale "C")
 	 (diff (+ (cadr time) 32400))
 	 (lo (% diff 65536))
