@@ -90,6 +90,32 @@ extern "C" {
 #define MUL_OVERFLOW_LONG_P(a, b) MUL_OVERFLOW_SIGNED_INTEGER_P(a, b, LONG_MIN, LONG_MAX)
 #define MUL_OVERFLOW_INT_P(a, b) MUL_OVERFLOW_SIGNED_INTEGER_P(a, b, INT_MIN, INT_MAX)
 
+#if defined HAVE_BUILTIN___BUILTIN_ADD_OVERFLOW
+#define SATURATION_INC(x) ({__typeof__(x) y;__builtin_add_overflow((x), 1, &y) ? (x) : ++ (x)})
+#else
+#define SATURATION_INC2(x, y) (((x) < (y)) ? ++ (x) : (x))
+#if defined HAVE_TYPEOF
+#define SATURATION_INC(x) SATURATION_INC2(x, SIGNED_INTEGER_MAX(__typeof__(x)))
+#elif __STDC_VERSION__ >= 201112L
+#define SATURATION_INC(x) \
+    _Generic(\
+        (x), \
+        int8_t:  SATURATION_INC2((x), INT8_MAX), \
+        int16_t: SATURATION_INC2((x), INT16_MAX), \
+        int32_t: SATURATION_INC2((x), INT32_MAX), \
+        int64_t: SATURATION_INC2((x), INT64_MAX), \
+        default: SATURATION_INC2((x), INTMAX_MAX))
+#else
+/* FIXME: totally untested */
+#define SATURATION_INC(x) (\
+    (sizeof(x) == sizeof(int8_t))  ? SATURATION_INC2((x), INT8_MAX) : \
+    (sizeof(x) == sizeof(int16_t)) ? SATURATION_INC2((x), INT16_MAX) : \
+    (sizeof(x) == sizeof(int32_t)) ? SATURATION_INC2((x), INT32_MAX) : \
+    (sizeof(x) == sizeof(int64_t)) ? SATURATION_INC2((x), INT64_MAX) : \
+    /* default */                    SATURATION_INC2((x), INTMAX_MAX))
+#endif
+#endif
+
 #ifndef swap16
 # ifdef HAVE_BUILTIN___BUILTIN_BSWAP16
 #  define swap16(x) __builtin_bswap16(x)
