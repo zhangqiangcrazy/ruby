@@ -6506,16 +6506,16 @@ dump_disasm_list(struct iseq_link_element *link)
 const char *
 rb_insns_name(int i)
 {
-    return insn_name_info[i];
+    return insn_name(i);
 }
 
 VALUE
 rb_insns_name_array(void)
 {
-    VALUE ary = rb_ary_new();
+    VALUE ary = rb_ary_new_capa(VM_INSTRUCTION_SIZE);
     int i;
-    for (i = 0; i < numberof(insn_name_info); i++) {
-	rb_ary_push(ary, rb_fstring(rb_str_new2(insn_name_info[i])));
+    for (i = 0; i < VM_INSTRUCTION_SIZE; i++) {
+	rb_ary_push(ary, rb_fstring(rb_str_new2(insn_name(i))));
     }
     return rb_obj_freeze(ary);
 }

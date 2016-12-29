@@ -1,0 +1,28 @@
+%# -*- mode:c; style:ruby; coding: utf-8; indent-tabs-mode: nil -*-
+%# Copyright (c) 2016 Urabe, Shyouhei.  All rights reserved.
+%#
+%# This file is a part of  the programming language Ruby.  Permission is hereby
+%# granted, to either  redistribute and/or modify this file,  provided that the
+%# conditions mentioned  in the  file COPYING  are met.   Consult the  file for
+%#
+% attrs = RubyVM::Instructions.map(&:attributes).flatten
+%
+% attrs.sort_by(&:name).map(&:signature).each do |(t, f, a)|
+%   w = a.map {|(k, v)| "#{k} #{v}" }.join(', ')
+PUREFUNC(static inline <%= t %> <%= f %>(<%= w %>));
+% end
+%
+% attrs.each do |i|
+%   t, f, a = i.signature
+%   if a.empty?
+%     w = ''
+%   else
+%     w = a.map{|(k, v)| "MAYBE_UNUSED(#{k} #{v})" }.join(",\n    ")
+%     w = "\n    #{w}\n" if a.size > 1
+%   end
+
+/* <%= i.pretty_name %> */
+<%= t %>
+<%= f %>(<%= w %>)
+<%= render_c_expr i.expr -%>
+% end
