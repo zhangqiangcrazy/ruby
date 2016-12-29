@@ -1,0 +1,29 @@
+%# -*- mode:c; style:ruby; coding: utf-8; indent-tabs-mode: nil -*-
+%# Copyright (c) 2016 Urabe, Shyouhei.  All rights reserved.
+%#
+%# This file is a part of  the programming language Ruby.  Permission is hereby
+%# granted, to either  redistribute and/or modify this file,  provided that the
+%# conditions mentioned  in the  file COPYING  are met.   Consult the  file for
+%# details.
+%#
+#ifdef USE_INSN_STACK_INCREASE
+PUREFUNC(static rb_num_t insn_stack_increase_dispatch(int insn, VALUE* opes));
+
+rb_num_t
+insn_stack_increase_dispatch(int insn, VALUE* opes)
+{
+    switch(insn){
+    default:
+        UNREACHABLE;
+% RubyVM::Instructions.each do |i|
+%   _, f, a = i.sp_inc.signature
+    case <%= i.bin %>:
+        return <%= f %>(<%=
+          a.map.with_index do |(_, v), j|
+            i.cast_from_VALUE v, "opes[#{j}]"
+          end.join(", ")
+        %>);
+% end
+    }
+};
+#endif

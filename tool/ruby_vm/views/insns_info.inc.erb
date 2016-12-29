@@ -1,0 +1,32 @@
+/* -*- mode:c; style:ruby; coding: utf-8; indent-tabs-mode: nil -*- */
+
+%# Copyright (c) 2016 Urabe, Shyouhei.  All rights reserved.
+%#
+%# This file is a part of  the programming language Ruby.  Permission is hereby
+%# granted, to either  redistribute and/or modify this file,  provided that the
+%# conditions mentioned  in the  file COPYING  are met.   Consult the  file for
+%# details.
+<%= render 'copyright' -%>
+
+typedef long OFFSET;
+typedef unsigned long lindex_t;
+typedef VALUE GENTRY;
+typedef rb_iseq_t *ISEQ;
+
+<%= render 'insn_type_chars' %>
+<%= render 'insn_name_info' %>
+<%= render 'insn_len_info' %>
+<%= render 'insn_operand_info' %>
+<%= render 'insn_stack_push_num_info' %>
+<%= render 'attributes' %>
+<%= render 'insn_stack_increase' %>
+
+#ifdef USE_INSN_STACK_INCREASE
+MAYBE_UNUSED(static int insn_stack_increase(int depth, int insn, VALUE* opes));
+
+int
+insn_stack_increase(int depth, int insn, VALUE* opes)
+{
+    return depth + (int)insn_stack_increase_dispatch(insn, opes);
+};
+#endif
