@@ -36,6 +36,7 @@ class RubyVM::BareInstructions
     @attrs = attributes.transform_values {|i|
       RubyVM::Attribute.new(insn: self, **i)
     }
+    @has_attribute = attributes.transform_values {|i| true }
   end
 
   def pretty_name
@@ -54,6 +55,10 @@ class RubyVM::BareInstructions
     return @attrs.fetch "sp_inc" do |k|
       return generate_attribute k, 'rb_num_t', rets.size - pops.size
     end
+  end
+
+  def has_attribute? k
+    @has_attribute.has_key? k
   end
 
   def attributes
@@ -97,6 +102,13 @@ class RubyVM::BareInstructions
       c, _ = RubyVM::Typemap.fetch k
       next c
     }.join
+  end
+
+  def pushs_frame?
+    opes.any? do |o|
+      k = typeof o
+      'CALL_INFO' == k
+    end
   end
 
   private

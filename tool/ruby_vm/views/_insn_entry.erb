@@ -11,11 +11,17 @@
 
 /* insn <%= insn.pretty_name %> */
 #define INSN_LABEL(lab) LABEL_<%= name %>_##lab
+%
 % insn.macros.each_pair do |macro, (params, body)|
 #define <%= macro %><%= params %> <%= body %>
 % end
+%
 INSN_ENTRY(<%= name %>) {
 <%= render_c_expr insn.decls -%>
+%
+% if insn.pushs_frame?
+    VALUE *const vm_saved_sp = GET_SP();
+% end
 %
 % insn.opes.each_with_index do |ope, i|
     <%= ope %> = (<%= insn.typeof ope %>)GET_OPERAND(<%= i + 1 %>);
@@ -26,17 +32,12 @@ INSN_ENTRY(<%= name %>) {
 % end
 %
 % insn.pops.reverse_each.with_index do |pop, i|
-    <%= pop %> = (<%= insn.typeof pop %>)TOPN(<%= i %>);
+    <%= pop %> = <%= insn.cast_from_VALUE pop, "TOPN(#{i})"%>;
 % end
 %
     DEBUG_ENTER_INSN(<%=cstr name %>);
     ADD_PC(<%= insn.width %>);
     PREFETCH(GET_PC());
-%
-% unless insn.pops.empty?
-    POPN(<%= insn.pops.size %>);
-% end
-%
     COLLECT_USAGE_INSN(<%= insn.bin %>);
 %
 % insn.opes.each_with_index do |ope, i|
@@ -45,17 +46,26 @@ INSN_ENTRY(<%= name %>) {
 %
 <%= render_c_expr insn.impl -%>
 %
-% unless insn.rets.empty?
-    CHECK_VM_STACK_OVERFLOW_FOR_INSN(VM_REG_CFP, <%= insn.rets.size %>);
-%   insn.rets.each do |ret|
-    PUSH(<%= ret %>);
-%   end
+% if insn.pushs_frame?
+    SET_SP(vm_saved_sp);
+% end
 %
+% _, sp_inc, v = insn.sp_inc.signature
+% argv = v.map {|(x, y)| y }.join(', ')
+    INC_SP(<%= sp_inc %>(<%= argv %>));
+%
+% unless insn.rets.empty?
+%   insn.rets.reverse.each_with_index do |ret, i|
+    TOPN(<%= i %>) = <%= insn.cast_to_VALUE ret %>;
+%   end
+    CHECK_VM_STACK_OVERFLOW_FOR_INSN(VM_REG_CFP, <%= insn.rets.size %>);
 % end
 %
     END_INSN(<%= name %>);
 }
-% insn.macros.each_pair do |k, v|
+%
+% insn.macros.each_pair do |k, _|
 #undef <%= k %>
 % end
+%
 #undef INSN_LABEL

@@ -5,11 +5,16 @@
 %# granted, to either  redistribute and/or modify this file,  provided that the
 %# conditions mentioned  in the  file COPYING  are met.   Consult the  file for
 %#
+typedef long OFFSET;
+typedef unsigned long lindex_t;
+typedef VALUE GENTRY;
+typedef rb_iseq_t *ISEQ;
+
 % attrs = RubyVM::Instructions.map(&:attributes).flatten
 %
 % attrs.sort_by(&:name).map(&:signature).each do |(t, f, a)|
 %   w = a.map {|(k, v)| "#{k} #{v}" }.join(', ')
-PUREFUNC(static inline <%= t %> <%= f %>(<%= w %>));
+PUREFUNC(MAYBE_UNUSED(static <%= t %> <%= f %>(<%= w %>)));
 % end
 %
 % attrs.each do |i|
