@@ -1156,15 +1156,13 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, rb_num_t num, int flag)
 {
     int is_splat = flag & 0x01;
     rb_num_t space_size = num + is_splat;
-    VALUE *base = cfp->sp;
+    VALUE *base = cfp->sp - 1;
     const VALUE *ptr;
     rb_num_t len;
 
     if (!RB_TYPE_P(ary, T_ARRAY)) {
 	ary = rb_ary_to_ary(ary);
     }
-
-    cfp->sp += space_size;
 
     ptr = RARRAY_CONST_PTR(ary);
     len = (rb_num_t)RARRAY_LEN(ary);

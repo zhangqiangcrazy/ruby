@@ -319,10 +319,7 @@ concatstrings(num)(...)(val)
 {
     attr rb_num_t sp_inc = { return 1 - num; };
 
-    impl {
-        val = rb_str_concat_literals(num, &TOPN(num-1));
-        POPN(num);
-    }
+    impl { val = rb_str_concat_literals(num, &TOPN(num-1)); }
 }
 
 /* push the result of to_str. */
@@ -357,12 +354,8 @@ toregexp(opt, cnt)(...)(val)
 
     impl {
         VALUE rb_reg_new_ary(VALUE ary, int options);
-        rb_num_t i;
-        const VALUE ary = rb_ary_tmp_new(cnt);
-        for (i = 0; i < cnt; i++) {
-            rb_ary_store(ary, cnt-i-1, TOPN(i));
-        }
-        POPN(cnt);
+        const VALUE ary = \
+            rb_ary_tmp_new_from_values(0, cnt, STACK_ADDR_FROM_TOP(cnt));
         val = rb_reg_new_ary(ary, (int)opt);
         rb_ary_clear(ary);
     }
@@ -376,10 +369,7 @@ newarray(num)(...)(val)
 {
     attr rb_num_t sp_inc = { return 1 - num; };
 
-    impl {
-        val = rb_ary_new4((long)num, STACK_ADDR_FROM_TOP(num));
-        POPN(num);
-    }
+    impl { val = rb_ary_new4((long)num, STACK_ADDR_FROM_TOP(num)); }
 }
 
 /* dup array */
@@ -470,7 +460,6 @@ newhash(num)(...)(val)
             const VALUE k = TOPN(i - 1);
             rb_hash_aset(val, k, v);
         }
-        POPN(num);
     }
 }
 
@@ -519,7 +508,6 @@ dupn(n)(...)(...)
         for (i = 0; i < n; i++) {
             GET_SP()[i] = sp[i];
         }
-        INC_SP(n);
     }
 }
 
@@ -580,7 +568,7 @@ setn(n)(..., val)(val)
 {
     attr rb_num_t sp_inc = { return 0; };
 
-    impl { TOPN(n-1) = val; }
+    impl { TOPN(n) = val; }
 }
 
 /* empty current stack */
@@ -590,7 +578,7 @@ adjuststack(n)(...)(...)
 {
     attr rb_num_t sp_inc = { return - n; };
 
-    impl { DEC_SP(n); }
+    impl { /* none */ }
 }
 
 /**********************************************************/
@@ -792,6 +780,7 @@ defineclass(id, class_iseq, flags)(cbase, super)(val)
         rb_iseq_check(class_iseq);
 
         /* enter scope */
+        POPN(2); /* wipe out cbase, super */
         vm_push_frame(th, class_iseq, VM_FRAME_MAGIC_CLASS | VM_ENV_FLAG_LOCAL, klass,
                       GET_BLOCK_HANDLER(),
                       (VALUE)vm_cref_push(th, klass, NULL, FALSE),
@@ -869,12 +858,10 @@ opt_newarray_max(num)(...)(val)
                 }
                 val = result == Qundef ? Qnil : result;
             }
-            POPN(num);
         }
         else {
             VALUE ary = rb_ary_new4((long)num, STACK_ADDR_FROM_TOP(num));
             val = rb_funcall(ary, idMax, 0);
-            POPN(num);
         }
 #undef id_cmp
     }
@@ -906,12 +893,10 @@ opt_newarray_min(num)(...)(val)
                 }
                 val = result == Qundef ? Qnil : result;
             }
-            POPN(num);
         }
         else {
             VALUE ary = rb_ary_new4((long)num, STACK_ADDR_FROM_TOP(num));
             val = rb_funcall(ary, idMin, 0);
-            POPN(num);
         }
 #undef id_cmp
     }
@@ -982,15 +967,20 @@ invokeblock(ci)(...)(val)
 
 /* return from this scope. */
 insn
-leave()(val)(val)
+leave()(..., val)(val)
     VALUE val;
 {
+    attr rb_num_t sp_inc = {
+        /* This instruction pops stack frame. */
+        return 1;
+    };
+
     impl {
         if (OPT_CHECKED_RUN) {
             const VALUE *const bp = vm_base_ptr(reg_cfp);
-            if (reg_cfp->sp != bp) {
+            if (reg_cfp->sp - 1 != bp) {
                 rb_bug("Stack consistency error (sp: %"PRIdPTRDIFF", bp: %"PRIdPTRDIFF")",
-                       VM_SP_CNT(th, reg_cfp->sp), VM_SP_CNT(th, bp));
+                       VM_SP_CNT(th, reg_cfp->sp) - 1, VM_SP_CNT(th, bp));
             }
         }
 
@@ -1247,8 +1237,6 @@ opt_plus(ci, cc)(recv, obj)(val)
         }
         else {
             INSN_LABEL(normal_dispatch):
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1287,8 +1275,6 @@ opt_minus(ci, cc)(recv, obj)(val)
         else {
             /* other */
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1321,8 +1307,6 @@ opt_mult(ci, cc)(recv, obj)(val)
         }
         else {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1356,8 +1340,6 @@ opt_div(ci, cc)(recv, obj)(val)
         }
         else {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1391,8 +1373,6 @@ opt_mod(ci, cc)(recv, obj)(val)
         }
         else {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1410,8 +1390,6 @@ opt_eq(ci, cc)(recv, obj)(val)
 
         if (val == Qundef) {
             /* other */
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1440,8 +1418,6 @@ opt_neq(ci, cc, ci_eq, cc_eq)(recv, obj)(val)
 
         if (val == Qundef) {
             /* other */
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1476,8 +1452,6 @@ opt_lt(ci, cc)(recv, obj)(val)
             val = double_cmp_lt(RFLOAT_VALUE(recv), RFLOAT_VALUE(obj));
         }
         else {
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1513,8 +1487,6 @@ opt_le(ci, cc)(recv, obj)(val)
         }
         else {
             /* other */
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1549,8 +1521,6 @@ opt_gt(ci, cc)(recv, obj)(val)
             val = double_cmp_gt(RFLOAT_VALUE(recv), RFLOAT_VALUE(obj));
         }
         else {
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1585,8 +1555,6 @@ opt_ge(ci, cc)(recv, obj)(val)
             val = double_cmp_ge(RFLOAT_VALUE(recv), RFLOAT_VALUE(obj));
         }
         else {
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1615,8 +1583,6 @@ opt_ltlt(ci, cc)(recv, obj)(val)
         }
         else {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1643,8 +1609,6 @@ opt_aref(ci, cc)(recv, obj)(val)
         }
         else {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
-            PUSH(obj);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1673,9 +1637,6 @@ opt_aset(ci, cc)(recv, obj, set)(val)
         }
         else {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
-            PUSH(obj);
-            PUSH(set);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1695,8 +1656,7 @@ opt_aset_with(ci, cc, key)(recv, val)(val)
             rb_hash_aset(recv, key, val);
         }
         else {
-            PUSH(recv);
-            PUSH(rb_str_resurrect(key));
+            TOPN(0) = rb_str_resurrect(key);
             PUSH(val);
             CALL_SIMPLE_METHOD(recv);
         }
@@ -1717,7 +1677,6 @@ opt_aref_with(ci, cc, key)(recv)(val)
             val = rb_hash_aref(recv, key);
         }
         else {
-            PUSH(recv);
             PUSH(rb_str_resurrect(key));
             CALL_SIMPLE_METHOD(recv);
         }
@@ -1751,7 +1710,6 @@ opt_length(ci, cc)(recv)(val)
         }
         else {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1784,7 +1742,6 @@ opt_size(ci, cc)(recv)(val)
         }
         else {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1820,7 +1777,6 @@ opt_empty_p(ci, cc)(recv)(val)
         }
         else {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1860,7 +1816,6 @@ opt_succ(ci, cc)(recv)(val)
         }
         if (0) {
           INSN_LABEL(normal_dispatch):
-            PUSH(recv);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1880,7 +1835,6 @@ opt_not(ci, cc)(recv)(val)
             val = RTEST(recv) ? Qfalse : Qtrue;
         }
         else {
-            PUSH(recv);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1914,8 +1868,6 @@ opt_regexpmatch2(ci, cc)(obj2, obj1)(val)
             val = rb_reg_match(obj1, obj2);
         }
         else {
-            PUSH(obj2);
-            PUSH(obj1);
             CALL_SIMPLE_METHOD(obj2);
         }
     }

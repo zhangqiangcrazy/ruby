@@ -10,6 +10,8 @@
 **********************************************************************/
 
 #include <math.h>
+#define USE_INSN_STACK_INCREASE 1
+#include "insns_info.inc"
 
 #if VM_COLLECT_USAGE_DETAILS
 static void vm_analysis_insn(int insn);

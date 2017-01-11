@@ -914,6 +914,7 @@ size_t rb_ary_memsize(VALUE);
 	rb_ary_new_from_values(numberof(args_to_new_ary), args_to_new_ary); \
     })
 #endif
+VALUE rb_ary_tmp_new_from_values(VALUE, long, const VALUE *);
 
 /* bignum.c */
 extern const char ruby_digitmap[];
