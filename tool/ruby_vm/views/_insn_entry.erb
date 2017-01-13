@@ -10,7 +10,6 @@
 % name  = insn.name;
 
 /* insn <%= insn.pretty_name %> */
-#define INSN_LABEL(lab) LABEL_<%= name %>_##lab
 %
 % insn.macros.each_pair do |macro, (params, body)|
 #define <%= macro %><%= params %> <%= body %>
@@ -67,5 +66,3 @@ INSN_ENTRY(<%= name %>) {
 % insn.macros.each_pair do |k, _|
 #undef <%= k %>
 % end
-%
-#undef INSN_LABEL

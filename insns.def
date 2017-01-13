@@ -92,17 +92,7 @@ getlocal(idx, level)()(val)
     rb_num_t level;
     VALUE val;
 {
-    impl {
-        int i, lev = (int)level;
-        const VALUE *ep = GET_EP();
-
-        /* optimized insns generated for level == (0|1) in
-         * defs/opt_operand.def */
-        for (i = 0; i < lev; i++) {
-            ep = GET_PREV_EP(ep);
-        }
-        val = *(ep - idx);
-    }
+    impl { val = *(vm_get_ep(GET_EP(), level) - idx); }
 }
 
 /* Set a local variable (pointed to by 'idx') as val.
@@ -113,17 +103,7 @@ setlocal(idx, level)(val)()
     rb_num_t level;
     VALUE val;
 {
-    impl {
-        int i, lev = (int)level;
-        const VALUE *ep = GET_EP();
-
-        /* optimized insns generated for level == (0|1) in
-         * defs/opt_operand.def */
-        for (i = 0; i < lev; i++) {
-            ep = GET_PREV_EP(ep);
-        }
-        vm_env_write(ep, -(int)idx, val);
-    }
+    impl { vm_env_write(vm_get_ep(GET_EP(), level), -(int)idx, val); }
 }
 
 /* Get value of special local variable ($~, $_, ..). */
@@ -199,9 +179,7 @@ getconstant(id)(klass)(val)
     ID id;
     VALUE klass, val;
 {
-    impl {
-        val = vm_get_ev_const(th, klass, id, 0);
-    }
+    impl { val = vm_get_ev_const(th, klass, id, 0); }
 }
 
 /*
@@ -276,21 +254,9 @@ putspecialobject(value_type)()(val)
     VALUE val;
 {
     impl {
-        enum vm_special_object_type type = (enum vm_special_object_type)value_type;
-
-        switch (type) {
-          case VM_SPECIAL_OBJECT_VMCORE:
-            val = rb_mRubyVMFrozenCore;
-            break;
-          case VM_SPECIAL_OBJECT_CBASE:
-            val = vm_get_cbase(GET_EP());
-            break;
-          case VM_SPECIAL_OBJECT_CONST_BASE:
-            val = vm_get_const_base(GET_EP());
-            break;
-          default:
-            rb_bug("putspecialobject insn: unknown value_type %d", type);
-        }
+        enum vm_special_object_type type;
+        type = (enum vm_special_object_type)value_type;
+        val = vm_get_special_object(GET_EP(), type);
     }
 }
 
@@ -319,7 +285,7 @@ concatstrings(num)(...)(val)
 {
     attr rb_num_t sp_inc = { return 1 - num; };
 
-    impl { val = rb_str_concat_literals(num, &TOPN(num-1)); }
+    impl { val = rb_str_concat_literals(num, STACK_ADDR_FROM_TOP(num)); }
 }
 
 /* push the result of to_str. */
@@ -369,7 +335,7 @@ newarray(num)(...)(val)
 {
     attr rb_num_t sp_inc = { return 1 - num; };
 
-    impl { val = rb_ary_new4((long)num, STACK_ADDR_FROM_TOP(num)); }
+    impl { val = rb_ary_new4(num, STACK_ADDR_FROM_TOP(num)); }
 }
 
 /* dup array */
@@ -400,27 +366,10 @@ expandarray(num, flag)(..., ary)(...)
 
 /* concat two arrays */
 insn
-concatarray()(ary1, ary2st)(ary)
-    VALUE ary1, ary2st, ary;
+concatarray()(ary1, ary2)(ary)
+    VALUE ary1, ary2, ary;
 {
-    impl {
-        const VALUE ary2 = ary2st;
-        VALUE tmp1 = rb_check_convert_type(ary1, T_ARRAY, "Array", "to_a");
-        VALUE tmp2 = rb_check_convert_type(ary2, T_ARRAY, "Array", "to_a");
-
-        if (NIL_P(tmp1)) {
-            tmp1 = rb_ary_new3(1, ary1);
-        }
-
-        if (NIL_P(tmp2)) {
-            tmp2 = rb_ary_new3(1, ary2);
-        }
-
-        if (tmp1 == ary1) {
-            tmp1 = rb_ary_dup(ary1);
-        }
-        ary = rb_ary_concat(tmp1, tmp2);
-    }
+    impl { ary = vm_concat_array(ary1, ary2); }
 }
 
 /* call to_a on array ary to splat */
@@ -428,16 +377,7 @@ insn
 splatarray(flag)(ary)(obj)
     VALUE flag, ary, obj;
 {
-    impl {
-        VALUE tmp = rb_check_convert_type(ary, T_ARRAY, "Array", "to_a");
-        if (NIL_P(tmp)) {
-            tmp = rb_ary_new3(1, ary);
-        }
-        else if (RTEST(flag)) {
-            tmp = rb_ary_dup(tmp);
-        }
-        obj = tmp;
-    }
+    impl { obj = vm_splat_array(flag, ary); }
 }
 
 /* put new Hash from n elements. n must be an even number. */
@@ -502,13 +442,12 @@ dupn(n)(...)(...)
 {
     attr rb_num_t sp_inc = { return n; };
 
-    impl {
-        rb_num_t i;
-        VALUE *sp = STACK_ADDR_FROM_TOP(n);
-        for (i = 0; i < n; i++) {
-            GET_SP()[i] = sp[i];
-        }
-    }
+    /* :FIXME: This code overruns the stack pointer before extending
+     * it. We need alloca()-like mechanism to fix this. */
+    impl { MEMCPY(GET_SP(), STACK_ADDR_FROM_TOP(n), VALUE, n); }
+    /* For record: It has been like this since the beginning of
+     * YARV. The overrun is (was) by design of @ko1. */
+    /* https://svn.ruby-lang.org/cgi-bin/viewvc.cgi/trunk/insns.def?revision=11439&view=markup */
 }
 
 /* swap top 2 vals */
@@ -607,26 +546,7 @@ checkmatch(flag)(target, pattern)(result)
     rb_num_t flag;
     VALUE target, pattern, result;
 {
-    impl {
-        enum vm_check_match_type checkmatch_type =
-          (enum vm_check_match_type)(flag & VM_CHECKMATCH_TYPE_MASK);
-        result = Qfalse;
-
-        if (flag & VM_CHECKMATCH_ARRAY) {
-            long i;
-            for (i = 0; i < RARRAY_LEN(pattern); i++) {
-                if (RTEST(check_match(RARRAY_AREF(pattern, i), target, checkmatch_type))) {
-                    result = Qtrue;
-                    break;
-                }
-            }
-        }
-        else {
-            if (RTEST(check_match(pattern, target, checkmatch_type))) {
-                result = Qtrue;
-            }
-        }
-    }
+    impl { result = vm_check_match(target, pattern, flag); }
 }
 
 /* check keywords are specified or not. */
@@ -636,19 +556,7 @@ checkkeyword(kw_bits_index, keyword_index)()(ret)
     rb_num_t keyword_index;
     VALUE ret;
 {
-    impl {
-        const VALUE *ep = GET_EP();
-        const VALUE kw_bits = *(ep - kw_bits_index);
-
-        if (FIXNUM_P(kw_bits)) {
-            int bits = FIX2INT(kw_bits);
-            ret = (bits & (0x01 << keyword_index)) ? Qfalse : Qtrue;
-        }
-        else {
-            VM_ASSERT(RB_TYPE_P(kw_bits, T_HASH));
-            ret = rb_hash_has_key(kw_bits, INT2FIX(keyword_index)) ? Qfalse : Qtrue;
-        }
-    }
+    impl { ret = vm_check_keyword(kw_bits_index, keyword_index, GET_EP()); }
 }
 
 /* trace */
@@ -700,82 +608,9 @@ defineclass(id, class_iseq, flags)(cbase, super)(val)
     VALUE cbase, super, val;
 {
     impl {
-        VALUE klass;
-        rb_vm_defineclass_type_t type = VM_DEFINECLASS_TYPE(flags);
-
-        switch (type) {
-          case VM_DEFINECLASS_TYPE_CLASS:
-            /* val is dummy.  classdef returns class scope value */
-
-            if (VM_DEFINECLASS_HAS_SUPERCLASS_P(flags) &&
-                !RB_TYPE_P(super, T_CLASS)) {
-                rb_raise(rb_eTypeError, "superclass must be a Class (%"PRIsVALUE" given)",
-                         rb_obj_class(super));
-            }
-
-            vm_check_if_namespace(cbase);
-
-            /* find klass */
-            rb_autoload_load(cbase, id);
-            if ((klass = vm_search_const_defined_class(cbase, id)) != 0) {
-                /* already exist */
-                klass = VM_DEFINECLASS_SCOPED_P(flags) ?
-                    rb_public_const_get_at(klass, id) : rb_const_get_at(klass, id);
-                if (!RB_TYPE_P(klass, T_CLASS)) {
-                    rb_raise(rb_eTypeError, "%"PRIsVALUE" is not a class", rb_id2str(id));
-                }
-
-                if (VM_DEFINECLASS_HAS_SUPERCLASS_P(flags)) {
-                    VALUE tmp;
-                    tmp = rb_class_real(RCLASS_SUPER(klass));
-
-                    if (tmp != super) {
-                        rb_raise(rb_eTypeError, "superclass mismatch for class %"PRIsVALUE"",
-                                 rb_id2str(id));
-                    }
-                }
-            }
-            else {
-                if (!VM_DEFINECLASS_HAS_SUPERCLASS_P(flags)) {
-                    super = rb_cObject;
-                }
-                /* new class declaration */
-                klass = rb_define_class_id(id, super);
-                rb_set_class_path_string(klass, cbase, rb_id2str(id));
-                rb_const_set(cbase, id, klass);
-                rb_class_inherited(super, klass);
-            }
-            break;
-          case VM_DEFINECLASS_TYPE_SINGLETON_CLASS:
-            /* val is dummy.  classdef returns class scope value */
-            /* super is dummy */
-            klass = rb_singleton_class(cbase);
-            break;
-          case VM_DEFINECLASS_TYPE_MODULE:
-            /* val is dummy.  classdef returns class scope value */
-            /* super is dummy */
-
-            vm_check_if_namespace(cbase);
-
-            /* find klass */
-            if ((klass = vm_search_const_defined_class(cbase, id)) != 0) {
-                klass = VM_DEFINECLASS_SCOPED_P(flags) ?
-                    rb_public_const_get_at(klass, id) : rb_const_get_at(klass, id);
-                /* already exist */
-                if (!RB_TYPE_P(klass, T_MODULE)) {
-                    rb_raise(rb_eTypeError, "%"PRIsVALUE" is not a module", rb_id2str(id));
-                }
-            }
-            else {
-                /* new module declaration */
-                klass = rb_define_module_id(id);
-                rb_set_class_path_string(klass, cbase, rb_id2str(id));
-                rb_const_set(cbase, id, klass);
-            }
-            break;
-          default:
-            rb_bug("unknown defineclass type: %d", (int)type);
-        }
+        /* val is dummy */
+        VALUE klass = vm_find_or_create_class(id, class_iseq, flags,
+                                              cbase, super);
 
         rb_iseq_check(class_iseq);
 
@@ -839,32 +674,7 @@ opt_newarray_max(num)(...)(val)
 {
     attr rb_num_t sp_inc = { return 1 - num; };
 
-    impl {
-#define id_cmp  idCmp
-        if (BASIC_OP_UNREDEFINED_P(BOP_MAX, ARRAY_REDEFINED_OP_FLAG)) {
-            if (num == 0) {
-                val = Qnil;
-            }
-            else {
-                struct cmp_opt_data cmp_opt = { 0, 0 };
-                VALUE result = Qundef;
-                rb_num_t i = num - 1;
-                result = TOPN(i);
-                while (i-- > 0) {
-                    const VALUE v = TOPN(i);
-                    if (result == Qundef || OPTIMIZED_CMP(v, result, cmp_opt) > 0) {
-                        result = v;
-                    }
-                }
-                val = result == Qundef ? Qnil : result;
-            }
-        }
-        else {
-            VALUE ary = rb_ary_new4((long)num, STACK_ADDR_FROM_TOP(num));
-            val = rb_funcall(ary, idMax, 0);
-        }
-#undef id_cmp
-    }
+    impl { val = vm_opt_newarray_max(num, STACK_ADDR_FROM_TOP(num)); }
 }
 
 insn
@@ -874,32 +684,7 @@ opt_newarray_min(num)(...)(val)
 {
     attr rb_num_t sp_inc = { return 1 - num; };
 
-    impl {
-#define id_cmp  idCmp
-        if (BASIC_OP_UNREDEFINED_P(BOP_MIN, ARRAY_REDEFINED_OP_FLAG)) {
-            if (num == 0) {
-                val = Qnil;
-            }
-            else {
-                struct cmp_opt_data cmp_opt = { 0, 0 };
-                VALUE result = Qundef;
-                rb_num_t i = num - 1;
-                result = TOPN(i);
-                while (i-- > 0) {
-                    const VALUE v = TOPN(i);
-                    if (result == Qundef || OPTIMIZED_CMP(v, result, cmp_opt) < 0) {
-                        result = v;
-                    }
-                }
-                val = result == Qundef ? Qnil : result;
-            }
-        }
-        else {
-            VALUE ary = rb_ary_new4((long)num, STACK_ADDR_FROM_TOP(num));
-            val = rb_funcall(ary, idMin, 0);
-        }
-#undef id_cmp
-    }
+    impl { val = vm_opt_newarray_min(num, STACK_ADDR_FROM_TOP(num)); }
 }
 
 /* Invoke method without block */
@@ -1087,14 +872,10 @@ getinlinecache(dst, ic)()(val)
     VALUE val;
 {
     impl {
-        if (ic->ic_serial == GET_GLOBAL_CONSTANT_STATE() &&
-            (ic->ic_cref == NULL || ic->ic_cref == rb_vm_get_cref(GET_EP()))) {
-            val = ic->ic_value.value;
+        val = vm_ic_hit_p(ic, GET_EP());
+
+        if (val != Qnil) {
             JUMP(dst);
-        }
-        else {
-            /* none */
-            val = Qnil;
         }
     }
 }
@@ -1105,13 +886,7 @@ setinlinecache(ic)(val)(val)
     IC ic;
     VALUE val;
 {
-    impl {
-        VM_ASSERT(ic->ic_value.value != Qundef);
-        ic->ic_value.value = val;
-        ic->ic_serial = GET_GLOBAL_CONSTANT_STATE() - ruby_vm_const_missing_count;
-        ic->ic_cref = vm_get_const_key_cref(GET_EP());
-        ruby_vm_const_missing_count = 0;
-    }
+    impl { vm_ic_update(ic, val, GET_EP()); }
 }
 
 /* run iseq only once */
@@ -1159,34 +934,10 @@ opt_case_dispatch(hash, else_offset)(..., key)()
     attr rb_num_t sp_inc = { return -1; };
 
     impl {
-        switch (OBJ_BUILTIN_TYPE(key)) {
-          case -1:
-          case T_FLOAT:
-          case T_SYMBOL:
-          case T_BIGNUM:
-          case T_STRING:
-            if (BASIC_OP_UNREDEFINED_P(BOP_EQQ,
-                                       SYMBOL_REDEFINED_OP_FLAG |
-                                       INTEGER_REDEFINED_OP_FLAG |
-                                       FLOAT_REDEFINED_OP_FLAG |
-                                       NIL_REDEFINED_OP_FLAG    |
-                                       TRUE_REDEFINED_OP_FLAG   |
-                                       FALSE_REDEFINED_OP_FLAG  |
-                                       STRING_REDEFINED_OP_FLAG)) {
-                st_data_t val;
-                if (RB_FLOAT_TYPE_P(key)) {
-                    double kval = RFLOAT_VALUE(key);
-                    if (!isinf(kval) && modf(kval, &kval) == 0.0) {
-                        key = rb_dbl2ival(kval);
-                    }
-                }
-                if (st_lookup(RHASH_TBL_RAW(hash), key, &val)) {
-                    JUMP(FIX2INT((VALUE)val));
-                }
-                else {
-                    JUMP(else_offset);
-                }
-            }
+        OFFSET dst = vm_case_dispatch(hash, else_offset, key);
+
+        if (dst) {
+            JUMP(dst);
         }
     }
 }
@@ -1201,34 +952,9 @@ opt_plus(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (FIXNUM_2_P(recv, obj) &&
-            BASIC_OP_UNREDEFINED_P(BOP_PLUS,INTEGER_REDEFINED_OP_FLAG)) {
-            /* fixnum + fixnum */
-            val = rb_fix_plus_fix(recv, obj);
-        }
-        else if (FLONUM_2_P(recv, obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_PLUS, FLOAT_REDEFINED_OP_FLAG)) {
-            val = DBL2NUM(RFLOAT_VALUE(recv) + RFLOAT_VALUE(obj));
-        }
-        else if (!SPECIAL_CONST_P(recv) && !SPECIAL_CONST_P(obj)) {
-            if (RBASIC_CLASS(recv) == rb_cFloat && RBASIC_CLASS(obj) == rb_cFloat &&
-                BASIC_OP_UNREDEFINED_P(BOP_PLUS, FLOAT_REDEFINED_OP_FLAG)) {
-                val = DBL2NUM(RFLOAT_VALUE(recv) + RFLOAT_VALUE(obj));
-            }
-            else if (RBASIC_CLASS(recv) == rb_cString && RBASIC_CLASS(obj) == rb_cString &&
-                     BASIC_OP_UNREDEFINED_P(BOP_PLUS, STRING_REDEFINED_OP_FLAG)) {
-                val = rb_str_plus(recv, obj);
-            }
-            else if (RBASIC_CLASS(recv) == rb_cArray &&
-                     BASIC_OP_UNREDEFINED_P(BOP_PLUS, ARRAY_REDEFINED_OP_FLAG)) {
-                val = rb_ary_plus(recv, obj);
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-            INSN_LABEL(normal_dispatch):
+        val = vm_opt_plus(recv, obj);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1242,26 +968,9 @@ opt_minus(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (FIXNUM_2_P(recv, obj) &&
-            BASIC_OP_UNREDEFINED_P(BOP_MINUS, INTEGER_REDEFINED_OP_FLAG)) {
-            val = rb_fix_minus_fix(recv, obj);
-        }
-        else if (FLONUM_2_P(recv, obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_MINUS, FLOAT_REDEFINED_OP_FLAG)) {
-            val = DBL2NUM(RFLOAT_VALUE(recv) - RFLOAT_VALUE(obj));
-        }
-        else if (!SPECIAL_CONST_P(recv) && !SPECIAL_CONST_P(obj)) {
-            if (RBASIC_CLASS(recv) == rb_cFloat && RBASIC_CLASS(obj) == rb_cFloat  &&
-                BASIC_OP_UNREDEFINED_P(BOP_MINUS, FLOAT_REDEFINED_OP_FLAG)) {
-                val = DBL2NUM(RFLOAT_VALUE(recv) - RFLOAT_VALUE(obj));
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-            /* other */
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_minus(recv, obj);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1275,25 +984,9 @@ opt_mult(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (FIXNUM_2_P(recv, obj) &&
-            BASIC_OP_UNREDEFINED_P(BOP_MULT, INTEGER_REDEFINED_OP_FLAG)) {
-            val = rb_fix_mul_fix(recv, obj);
-        }
-        else if (FLONUM_2_P(recv, obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_MULT, FLOAT_REDEFINED_OP_FLAG)) {
-            val = DBL2NUM(RFLOAT_VALUE(recv) * RFLOAT_VALUE(obj));
-        }
-        else if (!SPECIAL_CONST_P(recv) && !SPECIAL_CONST_P(obj)) {
-            if (RBASIC_CLASS(recv) == rb_cFloat && RBASIC_CLASS(obj) == rb_cFloat  &&
-                BASIC_OP_UNREDEFINED_P(BOP_MULT, FLOAT_REDEFINED_OP_FLAG)) {
-                val = DBL2NUM(RFLOAT_VALUE(recv) * RFLOAT_VALUE(obj));
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_mult(recv, obj);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1307,26 +1000,9 @@ opt_div(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (FIXNUM_2_P(recv, obj) &&
-            BASIC_OP_UNREDEFINED_P(BOP_DIV, INTEGER_REDEFINED_OP_FLAG)) {
-            if (FIX2LONG(obj) == 0) goto INSN_LABEL(normal_dispatch);
-            val = rb_fix_div_fix(recv, obj);
-        }
-        else if (FLONUM_2_P(recv, obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_DIV, FLOAT_REDEFINED_OP_FLAG)) {
-            val = DBL2NUM(RFLOAT_VALUE(recv) / RFLOAT_VALUE(obj));
-        }
-        else if (!SPECIAL_CONST_P(recv) && !SPECIAL_CONST_P(obj)) {
-            if (RBASIC_CLASS(recv) == rb_cFloat && RBASIC_CLASS(obj) == rb_cFloat  &&
-                BASIC_OP_UNREDEFINED_P(BOP_DIV, FLOAT_REDEFINED_OP_FLAG)) {
-                val = DBL2NUM(RFLOAT_VALUE(recv) / RFLOAT_VALUE(obj));
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_div(recv, obj);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1340,26 +1016,9 @@ opt_mod(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (FIXNUM_2_P(recv, obj) &&
-            BASIC_OP_UNREDEFINED_P(BOP_MOD, INTEGER_REDEFINED_OP_FLAG )) {
-            if (FIX2LONG(obj) == 0) goto INSN_LABEL(normal_dispatch);
-            val = rb_fix_mod_fix(recv, obj);
-        }
-        else if (FLONUM_2_P(recv, obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_MOD, FLOAT_REDEFINED_OP_FLAG)) {
-            val = DBL2NUM(ruby_float_mod(RFLOAT_VALUE(recv), RFLOAT_VALUE(obj)));
-        }
-        else if (!SPECIAL_CONST_P(recv) && !SPECIAL_CONST_P(obj)) {
-            if (RBASIC_CLASS(recv) == rb_cFloat && RBASIC_CLASS(obj) == rb_cFloat &&
-                BASIC_OP_UNREDEFINED_P(BOP_MOD, FLOAT_REDEFINED_OP_FLAG)) {
-                val = DBL2NUM(ruby_float_mod(RFLOAT_VALUE(recv), RFLOAT_VALUE(obj)));
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_mod(recv, obj);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1390,18 +1049,7 @@ opt_neq(ci, cc, ci_eq, cc_eq)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        extern VALUE rb_obj_not_equal(VALUE obj1, VALUE obj2);
-        vm_search_method(ci, cc, recv);
-
-        val = Qundef;
-
-        if (check_cfunc(cc->me, rb_obj_not_equal)) {
-            val = opt_eq_func(recv, obj, ci_eq, cc_eq);
-
-            if (val != Qundef) {
-                val = RTEST(val) ? Qfalse : Qtrue;
-            }
-        }
+        val = vm_opt_neq(ci, cc, ci_eq, cc_eq, recv, obj);
 
         if (val == Qundef) {
             /* other */
@@ -1418,27 +1066,9 @@ opt_lt(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (FIXNUM_2_P(recv, obj) &&
-            BASIC_OP_UNREDEFINED_P(BOP_LT, INTEGER_REDEFINED_OP_FLAG)) {
-            SIGNED_VALUE a = recv, b = obj;
+        val = vm_opt_lt(recv, obj);
 
-            if (a < b) {
-                val = Qtrue;
-            }
-            else {
-                val = Qfalse;
-            }
-        }
-        else if (FLONUM_2_P(recv, obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_LT, FLOAT_REDEFINED_OP_FLAG)) {
-            /* flonum is not NaN */
-            val = RFLOAT_VALUE(recv) < RFLOAT_VALUE(obj) ? Qtrue : Qfalse;
-        }
-        else if (FLOAT_INSTANCE_P(recv) && FLOAT_INSTANCE_P(obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_LT, FLOAT_REDEFINED_OP_FLAG)) {
-            val = double_cmp_lt(RFLOAT_VALUE(recv), RFLOAT_VALUE(obj));
-        }
-        else {
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1452,28 +1082,9 @@ opt_le(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (FIXNUM_2_P(recv, obj) &&
-            BASIC_OP_UNREDEFINED_P(BOP_LE, INTEGER_REDEFINED_OP_FLAG)) {
-            SIGNED_VALUE a = recv, b = obj;
+        val = vm_opt_le(recv, obj);
 
-            if (a <= b) {
-                val = Qtrue;
-            }
-            else {
-                val = Qfalse;
-            }
-        }
-        else if (FLONUM_2_P(recv, obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_LE, FLOAT_REDEFINED_OP_FLAG)) {
-            /* flonum is not NaN */
-            val = RFLOAT_VALUE(recv) <= RFLOAT_VALUE(obj) ? Qtrue : Qfalse;
-        }
-        else if (FLOAT_INSTANCE_P(recv) && FLOAT_INSTANCE_P(obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_LT, FLOAT_REDEFINED_OP_FLAG)) {
-            val = double_cmp_le(RFLOAT_VALUE(recv), RFLOAT_VALUE(obj));
-        }
-        else {
-            /* other */
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1487,27 +1098,9 @@ opt_gt(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (FIXNUM_2_P(recv, obj) &&
-            BASIC_OP_UNREDEFINED_P(BOP_GT, INTEGER_REDEFINED_OP_FLAG)) {
-            SIGNED_VALUE a = recv, b = obj;
+        val = vm_opt_gt(recv, obj);
 
-            if (a > b) {
-                val = Qtrue;
-            }
-            else {
-                val = Qfalse;
-            }
-        }
-        else if (FLONUM_2_P(recv, obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_GT, FLOAT_REDEFINED_OP_FLAG)) {
-            /* flonum is not NaN */
-            val = RFLOAT_VALUE(recv) > RFLOAT_VALUE(obj) ? Qtrue : Qfalse;
-        }
-        else if (FLOAT_INSTANCE_P(recv) && FLOAT_INSTANCE_P(obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_LT, FLOAT_REDEFINED_OP_FLAG)) {
-            val = double_cmp_gt(RFLOAT_VALUE(recv), RFLOAT_VALUE(obj));
-        }
-        else {
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1521,27 +1114,9 @@ opt_ge(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (FIXNUM_2_P(recv, obj) &&
-            BASIC_OP_UNREDEFINED_P(BOP_GE, INTEGER_REDEFINED_OP_FLAG)) {
-            SIGNED_VALUE a = recv, b = obj;
+        val = vm_opt_ge(recv, obj);
 
-            if (a >= b) {
-                val = Qtrue;
-            }
-            else {
-                val = Qfalse;
-            }
-        }
-        else if (FLONUM_2_P(recv, obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_GE, FLOAT_REDEFINED_OP_FLAG)) {
-            /* flonum is not NaN */
-            val = RFLOAT_VALUE(recv) >= RFLOAT_VALUE(obj) ? Qtrue : Qfalse;
-        }
-        else if (FLOAT_INSTANCE_P(recv) && FLOAT_INSTANCE_P(obj) &&
-                 BASIC_OP_UNREDEFINED_P(BOP_LT, FLOAT_REDEFINED_OP_FLAG)) {
-            val = double_cmp_ge(RFLOAT_VALUE(recv), RFLOAT_VALUE(obj));
-        }
-        else {
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1555,21 +1130,9 @@ opt_ltlt(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (!SPECIAL_CONST_P(recv)) {
-            if (RBASIC_CLASS(recv) == rb_cString &&
-                BASIC_OP_UNREDEFINED_P(BOP_LTLT, STRING_REDEFINED_OP_FLAG)) {
-                val = rb_str_concat(recv, obj);
-            }
-            else if (RBASIC_CLASS(recv) == rb_cArray &&
-                     BASIC_OP_UNREDEFINED_P(BOP_LTLT, ARRAY_REDEFINED_OP_FLAG)) {
-                val = rb_ary_push(recv, obj);
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_ltlt(recv, obj);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1583,19 +1146,9 @@ opt_aref(ci, cc)(recv, obj)(val)
     VALUE recv, obj, val;
 {
     impl {
-        if (!SPECIAL_CONST_P(recv)) {
-            if (RBASIC_CLASS(recv) == rb_cArray && BASIC_OP_UNREDEFINED_P(BOP_AREF, ARRAY_REDEFINED_OP_FLAG) && FIXNUM_P(obj)) {
-                val = rb_ary_entry(recv, FIX2LONG(obj));
-            }
-            else if (RBASIC_CLASS(recv) == rb_cHash && BASIC_OP_UNREDEFINED_P(BOP_AREF, HASH_REDEFINED_OP_FLAG)) {
-                val = rb_hash_aref(recv, obj);
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_aref(recv, obj);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1609,21 +1162,9 @@ opt_aset(ci, cc)(recv, obj, set)(val)
     VALUE recv, obj, set, val;
 {
     impl {
-        if (!SPECIAL_CONST_P(recv)) {
-            if (RBASIC_CLASS(recv) == rb_cArray && BASIC_OP_UNREDEFINED_P(BOP_ASET, ARRAY_REDEFINED_OP_FLAG) && FIXNUM_P(obj)) {
-                rb_ary_store(recv, FIX2LONG(obj), set);
-                val = set;
-            }
-            else if (RBASIC_CLASS(recv) == rb_cHash && BASIC_OP_UNREDEFINED_P(BOP_ASET, HASH_REDEFINED_OP_FLAG)) {
-                rb_hash_aset(recv, obj, set);
-                val = set;
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_aset(recv, obj, set);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1637,14 +1178,12 @@ opt_aset_with(ci, cc, key)(recv, val)(val)
     VALUE key, recv, val;
 {
     impl {
-        if (!SPECIAL_CONST_P(recv) && RBASIC_CLASS(recv) == rb_cHash &&
-            BASIC_OP_UNREDEFINED_P(BOP_ASET, HASH_REDEFINED_OP_FLAG) &&
-            rb_hash_compare_by_id_p(recv) == Qfalse) {
-            rb_hash_aset(recv, key, val);
-        }
-        else {
-            TOPN(0) = rb_str_resurrect(key);
-            PUSH(val);
+        val = vm_opt_aset_with(recv, key, val);
+
+        if (val == Qundef) {
+            INC_SP(1);
+            TOPN(0) = TOPN(1);
+            TOPN(1) = rb_str_resurrect(key);
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1658,12 +1197,9 @@ opt_aref_with(ci, cc, key)(recv)(val)
     VALUE key, recv, val;
 {
     impl {
-        if (!SPECIAL_CONST_P(recv) && RBASIC_CLASS(recv) == rb_cHash &&
-            BASIC_OP_UNREDEFINED_P(BOP_AREF, HASH_REDEFINED_OP_FLAG) &&
-            rb_hash_compare_by_id_p(recv) == Qfalse) {
-            val = rb_hash_aref(recv, key);
-        }
-        else {
+        val = vm_opt_aref_with(recv, key);
+
+        if (val == Qundef) {
             PUSH(rb_str_resurrect(key));
             CALL_SIMPLE_METHOD(recv);
         }
@@ -1678,25 +1214,9 @@ opt_length(ci, cc)(recv)(val)
     VALUE recv, val;
 {
     impl {
-        if (!SPECIAL_CONST_P(recv)) {
-            if (RBASIC_CLASS(recv) == rb_cString &&
-                BASIC_OP_UNREDEFINED_P(BOP_LENGTH, STRING_REDEFINED_OP_FLAG)) {
-                val = rb_str_length(recv);
-            }
-            else if (RBASIC_CLASS(recv) == rb_cArray &&
-                     BASIC_OP_UNREDEFINED_P(BOP_LENGTH, ARRAY_REDEFINED_OP_FLAG)) {
-                val = LONG2NUM(RARRAY_LEN(recv));
-            }
-            else if (RBASIC_CLASS(recv) == rb_cHash &&
-                     BASIC_OP_UNREDEFINED_P(BOP_LENGTH, HASH_REDEFINED_OP_FLAG)) {
-                val = INT2FIX(RHASH_SIZE(recv));
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_length(recv, BOP_LENGTH);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1710,25 +1230,9 @@ opt_size(ci, cc)(recv)(val)
     VALUE recv, val;
 {
     impl {
-        if (!SPECIAL_CONST_P(recv)) {
-            if (RBASIC_CLASS(recv) == rb_cString &&
-                BASIC_OP_UNREDEFINED_P(BOP_SIZE, STRING_REDEFINED_OP_FLAG)) {
-                val = rb_str_length(recv);
-            }
-            else if (RBASIC_CLASS(recv) == rb_cArray &&
-                     BASIC_OP_UNREDEFINED_P(BOP_SIZE, ARRAY_REDEFINED_OP_FLAG)) {
-                val = LONG2NUM(RARRAY_LEN(recv));
-            }
-            else if (RBASIC_CLASS(recv) == rb_cHash &&
-                     BASIC_OP_UNREDEFINED_P(BOP_SIZE, HASH_REDEFINED_OP_FLAG)) {
-                val = INT2FIX(RHASH_SIZE(recv));
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_length(recv, BOP_SIZE);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1742,29 +1246,16 @@ opt_empty_p(ci, cc)(recv)(val)
     VALUE recv, val;
 {
     impl {
-        if (!SPECIAL_CONST_P(recv)) {
-            if (RBASIC_CLASS(recv) == rb_cString &&
-                BASIC_OP_UNREDEFINED_P(BOP_EMPTY_P, STRING_REDEFINED_OP_FLAG)) {
-                if (RSTRING_LEN(recv) == 0) val = Qtrue;
-                else val = Qfalse;
-            }
-            else if (RBASIC_CLASS(recv) == rb_cArray &&
-                     BASIC_OP_UNREDEFINED_P(BOP_EMPTY_P, ARRAY_REDEFINED_OP_FLAG)) {
-                if (RARRAY_LEN(recv) == 0) val = Qtrue;
-                else val = Qfalse;
-            }
-            else if (RBASIC_CLASS(recv) == rb_cHash &&
-                     BASIC_OP_UNREDEFINED_P(BOP_EMPTY_P, HASH_REDEFINED_OP_FLAG)) {
-                if (RHASH_EMPTY_P(recv)) val = Qtrue;
-                else val = Qfalse;
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
+        VALUE length = vm_opt_length(recv, BOP_EMPTY_P);
+
+        if (length == Qundef) {
+            CALL_SIMPLE_METHOD(recv);
+        }
+        else if (length == INT2FIX(0)) {
+            val = Qtrue;
         }
         else {
-          INSN_LABEL(normal_dispatch):
-            CALL_SIMPLE_METHOD(recv);
+            val = Qfalse;
         }
     }
 }
@@ -1777,32 +1268,9 @@ opt_succ(ci, cc)(recv)(val)
     VALUE recv, val;
 {
     impl {
-        if (SPECIAL_CONST_P(recv)) {
-            if (FIXNUM_P(recv) &&
-                BASIC_OP_UNREDEFINED_P(BOP_SUCC, INTEGER_REDEFINED_OP_FLAG)) {
-                /* fixnum + INT2FIX(1) */
-                if (recv != LONG2FIX(FIXNUM_MAX)) {
-                    val = recv - 1 + INT2FIX(1);
-                }
-                else {
-                    val = LONG2NUM(FIXNUM_MAX + 1);
-                }
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        else {
-            if (RBASIC_CLASS(recv) == rb_cString &&
-                BASIC_OP_UNREDEFINED_P(BOP_SUCC, STRING_REDEFINED_OP_FLAG)) {
-                val = rb_str_succ(recv);
-            }
-            else {
-                goto INSN_LABEL(normal_dispatch);
-            }
-        }
-        if (0) {
-          INSN_LABEL(normal_dispatch):
+        val = vm_opt_succ(recv);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1816,12 +1284,9 @@ opt_not(ci, cc)(recv)(val)
     VALUE recv, val;
 {
     impl {
-        vm_search_method(ci, cc, recv);
+        val = vm_opt_not(ci, cc, recv);
 
-        if (check_cfunc(cc->me, rb_obj_not)) {
-            val = RTEST(recv) ? Qfalse : Qtrue;
-        }
-        else {
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(recv);
         }
     }
@@ -1832,14 +1297,7 @@ insn
 opt_regexpmatch1(r)(obj)(val)
     VALUE r, obj, val;
 {
-    impl {
-        if (BASIC_OP_UNREDEFINED_P(BOP_MATCH, REGEXP_REDEFINED_OP_FLAG)) {
-            val = rb_reg_match(r, obj);
-        }
-        else {
-            val = rb_funcall(r, idEqTilde, 1, obj);
-        }
-    }
+    impl { val = vm_opt_regexpmatch1(r, obj); }
 }
 
 /* optimized regexp match 2 */
@@ -1850,11 +1308,9 @@ opt_regexpmatch2(ci, cc)(obj2, obj1)(val)
     VALUE obj2, obj1, val;
 {
     impl {
-        if (CLASS_OF(obj2) == rb_cString &&
-            BASIC_OP_UNREDEFINED_P(BOP_MATCH, STRING_REDEFINED_OP_FLAG)) {
-            val = rb_reg_match(obj1, obj2);
-        }
-        else {
+        val = vm_opt_regexpmatch2(obj2, obj1);
+
+        if (val == Qundef) {
             CALL_SIMPLE_METHOD(obj2);
         }
     }
