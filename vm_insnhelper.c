@@ -3148,19 +3148,7 @@ vm_opt_plus(VALUE recv, VALUE obj)
 {
     if (FIXNUM_2_P(recv, obj) &&
 	BASIC_OP_UNREDEFINED_P(BOP_PLUS,INTEGER_REDEFINED_OP_FLAG)) {
-	/* fixnum + fixnum */
-#ifndef LONG_LONG_VALUE
-	VALUE msb = (VALUE)1 << ((sizeof(VALUE) * CHAR_BIT) - 1);
-	VALUE val = recv - 1 + obj;
-	if ((~(recv ^ obj) & (recv ^ val)) & msb) {
-	    return rb_int2big((SIGNED_VALUE)((val>>1) | (recv & msb)));
-	}
-	else {
-	    return val;
-	}
-#else
-	return LONG2NUM(FIX2LONG(recv) + FIX2LONG(obj));
-#endif
+	return rb_fix_plus_fix(recv, obj);
     }
     else if (FLONUM_2_P(recv, obj) &&
 	     BASIC_OP_UNREDEFINED_P(BOP_PLUS, FLOAT_REDEFINED_OP_FLAG)) {
@@ -3531,29 +3519,25 @@ vm_opt_length(VALUE recv, int bop)
 static VALUE
 vm_opt_succ(VALUE recv)
 {
-    if (SPECIAL_CONST_P(recv)) {
-	if (FIXNUM_P(recv) &&
-	    BASIC_OP_UNREDEFINED_P(BOP_SUCC, INTEGER_REDEFINED_OP_FLAG)) {
-	    /* fixnum + INT2FIX(1) */
-	    if (recv == LONG2FIX(FIXNUM_MAX)) {
-		return LONG2NUM(FIXNUM_MAX + 1);
-	    }
-	    else {
-		return recv - 1 + INT2FIX(1);
-	    }
+    if (FIXNUM_P(recv) &&
+	BASIC_OP_UNREDEFINED_P(BOP_SUCC, INTEGER_REDEFINED_OP_FLAG)) {
+	/* fixnum + INT2FIX(1) */
+	if (recv == LONG2FIX(FIXNUM_MAX)) {
+	    return LONG2NUM(FIXNUM_MAX + 1);
 	}
 	else {
-	    return Qundef;
+	    return recv - 1 + INT2FIX(1);
 	}
     }
+    else if (SPECIAL_CONST_P(recv)) {
+	return Qundef;
+    }
+    else if (RBASIC_CLASS(recv) == rb_cString &&
+	     BASIC_OP_UNREDEFINED_P(BOP_SUCC, STRING_REDEFINED_OP_FLAG)) {
+	return rb_str_succ(recv);
+    }
     else {
-	if (RBASIC_CLASS(recv) == rb_cString &&
-	    BASIC_OP_UNREDEFINED_P(BOP_SUCC, STRING_REDEFINED_OP_FLAG)) {
-	    return rb_str_succ(recv);
-	}
-	else {
-	    return Qundef;
-	}
+	return Qundef;
     }
 }
 
