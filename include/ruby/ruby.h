@@ -1507,6 +1507,29 @@ rb_integer_type_p(VALUE obj)
 }
 #endif
 
+static inline int
+rb_long2fix_overflow(long l, VALUE *ptr)
+{
+#ifdef HAVE_BUILTIN___BUILTIN_ADD_OVERFLOW
+    SIGNED_VALUE v;
+    if (__builtin_add_overflow(l, l, &v)) {
+        return 1;
+    }
+    else {
+        *ptr = ((VALUE)v) | RUBY_FIXNUM_FLAG;
+        return 0;
+    }
+#else
+    if (RB_FIXABLE(l)) {
+        *ptr = RB_LONG2FIX(l);
+        return 0;
+    }
+    else {
+        return 1;
+    }
+#endif
+}
+
 #if SIZEOF_INT < SIZEOF_LONG
 # define RB_INT2NUM(v) RB_INT2FIX((int)(v))
 # define RB_UINT2NUM(v) RB_LONG2FIX((unsigned int)(v))
@@ -1514,10 +1537,13 @@ rb_integer_type_p(VALUE obj)
 static inline VALUE
 rb_int2num_inline(int v)
 {
-    if (RB_FIXABLE(v))
-	return RB_INT2FIX(v);
-    else
+    VALUE ret;
+    if (rb_long2fix_overflow(v, &ret)) {
 	return rb_int2big(v);
+    }
+    else {
+        return ret;
+    }
 }
 #define RB_INT2NUM(x) rb_int2num_inline(x)
 
@@ -1537,10 +1563,13 @@ rb_uint2num_inline(unsigned int v)
 static inline VALUE
 rb_long2num_inline(long v)
 {
-    if (RB_FIXABLE(v))
-	return RB_LONG2FIX(v);
-    else
+    VALUE ret;
+    if (rb_long2fix_overflow(v, &ret)) {
 	return rb_int2big(v);
+    }
+    else {
+        return ret;
+    }
 }
 #define RB_LONG2NUM(x) rb_long2num_inline(x)
 

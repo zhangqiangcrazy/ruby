@@ -3521,9 +3521,9 @@ vm_opt_succ(VALUE recv)
 {
     if (FIXNUM_P(recv) &&
 	BASIC_OP_UNREDEFINED_P(BOP_SUCC, INTEGER_REDEFINED_OP_FLAG)) {
-	/* fixnum + INT2FIX(1) */
+	/* return rb_fix_plus_fix(recv, INT2FIX(1)); */
 	if (recv == LONG2FIX(FIXNUM_MAX)) {
-	    return LONG2NUM(FIXNUM_MAX + 1);
+	    return rb_uint2big(FIXNUM_MAX + 1);
 	}
 	else {
 	    return recv - 1 + INT2FIX(1);
