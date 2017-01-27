@@ -4071,6 +4071,20 @@ rb_mark_hash(st_table *tbl)
     mark_hash(&rb_objspace, tbl);
 }
 
+static enum rb_id_table_iterator_result
+rb_id_table_mark_generic_i(VALUE v, void *sp)
+{
+    gc_mark(sp, v);
+    return ID_TABLE_CONTINUE;
+}
+
+void
+rb_id_table_mark(struct rb_id_table *tbl)
+{
+    if (!tbl) return;
+    rb_id_table_foreach_values(tbl, rb_id_table_mark_generic_i, &rb_objspace);
+}
+
 static void
 mark_method_entry(rb_objspace_t *objspace, const rb_method_entry_t *me)
 {
