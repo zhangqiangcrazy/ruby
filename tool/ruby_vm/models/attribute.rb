@@ -20,7 +20,7 @@ class RubyVM::Attribute
     body.sub!(/^\s*}\s*\z/, '}')
 
     @insn = insn
-    @name = "#{name} @ #{insn.name}"
+    @name = "attr #{name} @ #{insn.name}"
     @disp = "attr #{type} #{name} @ #{insn.pretty_name}"
     json  = {
       location: location,

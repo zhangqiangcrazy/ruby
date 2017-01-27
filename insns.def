@@ -77,6 +77,8 @@
 insn
 nop()()()
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { /* none */ }
 }
 
@@ -92,6 +94,8 @@ getlocal(idx, level)()(val)
     rb_num_t level;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { val = *(vm_get_ep(GET_EP(), level) - idx); }
 }
 
@@ -103,6 +107,8 @@ setlocal(idx, level)(val)()
     rb_num_t level;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { vm_env_write(vm_get_ep(GET_EP(), level), -(int)idx, val); }
 }
 
@@ -112,6 +118,8 @@ getspecial(key, type)()(val)
     rb_num_t key, type;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { val = vm_getspecial(th, GET_LEP(), key, type); }
 }
 
@@ -121,6 +129,8 @@ setspecial(key)(obj)()
     rb_num_t key;
     VALUE obj;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { lep_svar_set(th, GET_LEP(), key, obj); }
 }
 
@@ -227,6 +237,8 @@ insn
 putnil()()(val)
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { val = Qnil; }
 }
 
@@ -235,6 +247,8 @@ insn
 putself()()(val)
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { val = GET_SELF(); }
 }
 
@@ -244,6 +258,8 @@ insn
 putobject(val)()(val)
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { /* */ }
 }
 
@@ -253,6 +269,8 @@ putspecialobject(value_type)()(val)
     rb_num_t value_type;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl {
         enum vm_special_object_type type;
         type = (enum vm_special_object_type)value_type;
@@ -266,6 +284,8 @@ putiseq(iseq)()(ret)
     ISEQ iseq;
     VALUE ret;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { ret = (VALUE)iseq; }
 }
 
@@ -274,6 +294,8 @@ insn
 putstring(str)()(val)
     VALUE str, val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { val = rb_str_resurrect(str); }
 }
 
@@ -283,6 +305,7 @@ concatstrings(num)(...)(val)
     rb_num_t num;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return 1 - num; };
 
     impl { val = rb_str_concat_literals(num, STACK_ADDR_FROM_TOP(num)); }
@@ -293,6 +316,10 @@ insn
 tostring()(val)(val)
     VALUE val;
 {
+    attr enum insn_purity purity = {
+        return insn_is_not_pure; /* calls method */
+    };
+
     impl { val = rb_obj_as_string(val); }
 }
 
@@ -301,6 +328,8 @@ insn
 freezestring(debug_info)(str)(str)
     VALUE debug_info, str;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl {
         if (!NIL_P(debug_info)) {
             rb_ivar_set(str, id_debug_created_info, debug_info);
@@ -316,6 +345,9 @@ toregexp(opt, cnt)(...)(val)
     rb_num_t opt, cnt;
     VALUE val;
 {
+    attr enum insn_purity purity = {
+        return insn_is_not_pure; /* calls method */
+    };
     attr rb_num_t sp_inc = { return 1 - cnt; };
 
     impl {
@@ -333,6 +365,7 @@ newarray(num)(...)(val)
     rb_num_t num;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return 1 - num; };
 
     impl { val = rb_ary_new4(num, STACK_ADDR_FROM_TOP(num)); }
@@ -343,6 +376,8 @@ insn
 duparray(ary)()(val)
     VALUE ary, val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { val = rb_ary_resurrect(ary); }
 }
 
@@ -359,6 +394,9 @@ expandarray(num, flag)(..., ary)(...)
     rb_num_t num, flag;
     VALUE ary;
 {
+    attr enum insn_purity purity = {
+        return insn_is_not_pure; /* calls method */
+    };
     attr rb_num_t sp_inc = { return num - 1 + (flag & 1 ? 1 : 0); };
 
     impl { vm_expandarray(GET_CFP(), ary, num, (int)flag); }
@@ -369,6 +407,10 @@ insn
 concatarray()(ary1, ary2)(ary)
     VALUE ary1, ary2, ary;
 {
+    attr enum insn_purity purity = {
+        return insn_is_not_pure; /* calls method */
+    };
+
     impl { ary = vm_concat_array(ary1, ary2); }
 }
 
@@ -377,6 +419,10 @@ insn
 splatarray(flag)(ary)(obj)
     VALUE flag, ary, obj;
 {
+    attr enum insn_purity purity = {
+        return insn_is_not_pure; /* calls method */
+    };
+
     impl { obj = vm_splat_array(flag, ary); }
 }
 
@@ -386,6 +432,7 @@ newhash(num)(...)(val)
     rb_num_t num;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return 1 - num; };
 
     impl {
@@ -409,6 +456,8 @@ newrange(flag)(low, high)(val)
     rb_num_t flag;
     VALUE low, high, val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { val = rb_range_new(low, high, (int)flag); }
 }
 
@@ -421,6 +470,8 @@ insn
 pop()(val)()
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl {
         (void)val;
         /* none */
@@ -432,6 +483,8 @@ insn
 dup()(val)(val1, val2)
     VALUE val, val1, val2;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { val1 = val2 = val; }
 }
 
@@ -440,6 +493,7 @@ insn
 dupn(n)(...)(...)
     rb_num_t n;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return n; };
 
     /* :FIXME: This code overruns the stack pointer before extending
@@ -455,6 +509,8 @@ insn
 swap()(val, obj)(obj, val)
     VALUE val, obj;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { /* none */ }
 }
 
@@ -463,6 +519,7 @@ insn
 reverse(n)(...)(...)
     rb_num_t n;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return 0; };
 
     impl {
@@ -483,6 +540,7 @@ insn
 reput()(..., val)(val)
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return 0; };
 
     impl { /* none */ }
@@ -494,6 +552,7 @@ topn(n)(...)(val)
     rb_num_t n;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return 1; };
 
     impl { val = TOPN(n); }
@@ -505,6 +564,7 @@ setn(n)(..., val)(val)
     rb_num_t n;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return 0; };
 
     impl { TOPN(n) = val; }
@@ -515,6 +575,7 @@ insn
 adjuststack(n)(...)(...)
     rb_num_t n;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return - n; };
 
     impl { /* none */ }
@@ -530,6 +591,27 @@ defined(op_type, obj, needstr)(v)(val)
     rb_num_t op_type;
     VALUE obj, needstr, v, val;
 {
+    attr enum insn_purity purity = {
+        switch (op_type) {
+          case DEFINED_IVAR:
+          case DEFINED_IVAR2:
+          case DEFINED_GVAR:
+          case DEFINED_CVAR:
+          case DEFINED_YIELD:
+          case DEFINED_REF:
+            return insn_is_pure;
+          case DEFINED_CONST:
+            return insn_is_unpredictable; /* can kick autoload */
+          case DEFINED_FUNC:
+          case DEFINED_METHOD:
+            return insn_is_unpredictable; /* can kick respond_to_missing? */
+          case DEFINED_ZSUPER:
+            return insn_is_unpredictable; /* what if super is method missing? */
+          default:
+            rb_bug("unknown operand %ld: blame @shyouhei.", op_type);
+        }
+    };
+
     impl { val = vm_defined(th, GET_CFP(), op_type, obj, needstr, v); }
 }
 
@@ -546,6 +628,10 @@ checkmatch(flag)(target, pattern)(result)
     rb_num_t flag;
     VALUE target, pattern, result;
 {
+    attr enum insn_purity purity = {
+        return insn_is_not_pure; /* calls method */
+    };
+
     impl { result = vm_check_match(target, pattern, flag); }
 }
 
@@ -556,6 +642,8 @@ checkkeyword(kw_bits_index, keyword_index)()(ret)
     rb_num_t keyword_index;
     VALUE ret;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { ret = vm_check_keyword(kw_bits_index, keyword_index, GET_EP()); }
 }
 
@@ -564,6 +652,17 @@ insn
 trace(nf)()()
     rb_num_t nf;
 {
+    attr enum insn_purity purity = {
+        extern rb_thread_t *ruby_current_thread;
+
+        if (ruby_current_thread->vm->trace_running) {
+            return insn_is_not_pure;
+        }
+        else {
+            return insn_is_pure;
+        }
+    };
+
     impl {
         rb_event_flag_t flag = (rb_event_flag_t)nf;
 
@@ -607,6 +706,10 @@ defineclass(id, class_iseq, flags)(cbase, super)(val)
     rb_num_t flags;
     VALUE cbase, super, val;
 {
+    attr enum insn_purity purity = {
+        return insn_is_not_pure; /* global side effect */
+    };
+
     impl {
         /* val is dummy */
         VALUE klass = vm_find_or_create_class(id, class_iseq, flags,
@@ -639,6 +742,18 @@ send(ci, cc, blockiseq)(...)(val)
     ISEQ blockiseq;
     VALUE val;
 {
+    attr enum insn_purity purity = {
+        enum insn_purity p1 = purity_of_cc(cc);
+        enum insn_purity p2 = purity_of_iseq(blockiseq);
+
+        /* This is where "depends_block" dependency is resolved */
+        if (p1 == insn_depends_block) {
+            return p2;
+        }
+        else {
+            return purity_merge(p1, p2);
+        }
+    };
     attr rb_num_t sp_inc = {
         int yield_p = (ci->flag & VM_CALL_ARGS_BLOCKARG) ? 1 : 0;
         return - ci->orig_argc - yield_p;
@@ -657,6 +772,12 @@ insn
 opt_str_freeze(str)()(val)
     VALUE str, val;
 {
+    attr enum insn_purity purity = {
+        /* You can't say if it is pure when String#freeze is
+         * redefined.  Fall back to false for that case. */
+        return purity_of_BOP(BOP_FREEZE, STRING_REDEFINED_OP_FLAG);
+    };
+
     impl {
         if (BASIC_OP_UNREDEFINED_P(BOP_FREEZE, STRING_REDEFINED_OP_FLAG)) {
             val = str;
@@ -672,6 +793,14 @@ opt_newarray_max(num)(...)(val)
     rb_num_t num;
     VALUE val;
 {
+    attr enum insn_purity purity = {
+        /* This instruction typically has no side effects.  But it
+         * compares array contents each other by nature.  That part
+         * can have side effects when redefined.  No way to detect
+         * such redefinition beforehand.  We cannot but marke it being
+         * not pure. */
+        return insn_is_not_pure;
+    };
     attr rb_num_t sp_inc = { return 1 - num; };
 
     impl { val = vm_opt_newarray_max(num, STACK_ADDR_FROM_TOP(num)); }
@@ -682,6 +811,9 @@ opt_newarray_min(num)(...)(val)
     rb_num_t num;
     VALUE val;
 {
+    attr enum insn_purity purity = {
+        return insn_is_not_pure; /* same discussion as opt_newarray_max */
+    };
     attr rb_num_t sp_inc = { return 1 - num; };
 
     impl { val = vm_opt_newarray_min(num, STACK_ADDR_FROM_TOP(num)); }
@@ -694,6 +826,7 @@ opt_send_without_block(ci, cc)(...)(val)
     CALL_CACHE cc;
     VALUE val;
 {
+    attr enum insn_purity purity = { return purity_of_cc(cc); };
     attr rb_num_t sp_inc = { return -ci->orig_argc; };
 
     impl {
@@ -712,6 +845,18 @@ invokesuper(ci, cc, blockiseq)(...)(val)
     ISEQ blockiseq;
     VALUE val;
 {
+    attr enum insn_purity purity = {
+        enum insn_purity p1 = purity_of_cc(cc);
+        enum insn_purity p2 = purity_of_iseq(blockiseq);
+
+        /* This is where "depends_block" dependency is resolved */
+        if (p1 == insn_depends_block) {
+            return p2;
+        }
+        else {
+            return purity_merge(p1, p2);
+        }
+    };
     attr rb_num_t sp_inc = {
         int yield_p = (ci->flag & VM_CALL_ARGS_BLOCKARG) ? 1 : 0;
         return - ci->orig_argc - yield_p;
@@ -734,6 +879,7 @@ invokeblock(ci)(...)(val)
     CALL_INFO ci;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_depends_block; };
     attr rb_num_t sp_inc = { return 1 - ci->orig_argc; };
 
     impl {
@@ -755,6 +901,7 @@ insn
 leave()(..., val)(val)
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = {
         /* This instruction pops stack frame. */
         return 1;
@@ -795,6 +942,8 @@ throw(throw_state)(throwobj)(val)
     rb_num_t throw_state;
     VALUE throwobj, val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl {
         RUBY_VM_CHECK_INTS(th);
         val = vm_throw(th, GET_CFP(), throw_state, throwobj);
@@ -812,6 +961,8 @@ insn
 jump(dst)()()
     OFFSET dst;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl {
         RUBY_VM_CHECK_INTS(th);
         JUMP(dst);
@@ -824,6 +975,8 @@ branchif(dst)(val)()
     OFFSET dst;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl {
         if (RTEST(val)) {
             RUBY_VM_CHECK_INTS(th);
@@ -838,6 +991,8 @@ branchunless(dst)(val)()
     OFFSET dst;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl {
         if (!RTEST(val)) {
             RUBY_VM_CHECK_INTS(th);
@@ -852,6 +1007,8 @@ branchnil(dst)(val)()
     OFFSET dst;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl {
         if (NIL_P(val)) {
             RUBY_VM_CHECK_INTS(th);
@@ -871,6 +1028,8 @@ getinlinecache(dst, ic)()(val)
     IC ic;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl {
         val = vm_ic_hit_p(ic, GET_EP());
 
@@ -886,6 +1045,8 @@ setinlinecache(ic)(val)(val)
     IC ic;
     VALUE val;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { vm_ic_update(ic, val, GET_EP()); }
 }
 
@@ -896,6 +1057,11 @@ once(iseq, ic)()(val)
     IC ic;
     VALUE val;
 {
+    attr enum insn_purity purity = {
+        /* once can lock threads; thus have global side effects. */
+        return insn_is_not_pure;
+    };
+
     impl {
         union iseq_inline_storage_entry *is = (union iseq_inline_storage_entry *)ic;
 
@@ -931,6 +1097,7 @@ opt_case_dispatch(hash, else_offset)(..., key)()
     OFFSET else_offset;
     VALUE key;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
     attr rb_num_t sp_inc = { return -1; };
 
     impl {
@@ -951,6 +1118,8 @@ opt_plus(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_PLUS, cc); };
+
     impl {
         val = vm_opt_plus(recv, obj);
 
@@ -967,6 +1136,8 @@ opt_minus(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_MINUS, cc); };
+
     impl {
         val = vm_opt_minus(recv, obj);
 
@@ -983,6 +1154,8 @@ opt_mult(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_MULT, cc); };
+
     impl {
         val = vm_opt_mult(recv, obj);
 
@@ -999,6 +1172,8 @@ opt_div(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_DIV, cc); };
+
     impl {
         val = vm_opt_div(recv, obj);
 
@@ -1015,6 +1190,8 @@ opt_mod(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_MOD, cc); };
+
     impl {
         val = vm_opt_mod(recv, obj);
 
@@ -1031,6 +1208,29 @@ opt_eq(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = {
+        /* this is complicated */
+        if (cc_is_stale(cc)) {
+            /* cc not used, BOP in effect */
+            if (purity_of_BOP(BOP_EQ, ~0) == insn_is_pure) {
+                return insn_is_pure; /* yes it is */
+            }
+            else {
+                /* this caller site has never been reached yet */
+                return insn_is_unpredictable;
+            }
+        }
+        else {
+            /* cc filled, should honor that */
+            if (purity_cc_cfunc_is(cc, rb_obj_equal)) {
+                return insn_is_pure; /* yes it is */
+            }
+            else {
+                return purity_of_cc(cc);
+            }
+        }
+    };
+
     impl {
         val = opt_eq_func(recv, obj, ci, cc);
 
@@ -1048,6 +1248,21 @@ opt_neq(ci, cc, ci_eq, cc_eq)(recv, obj)(val)
     CALL_CACHE cc, cc_eq;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = {
+        /* this is even more complicated than opt_eq. */
+        extern VALUE rb_obj_not_equal(VALUE obj1, VALUE obj2);
+
+        if (cc_is_stale(cc)) {
+            return insn_is_unpredictable;
+        }
+        else if (purity_cc_cfunc_is(cc, rb_obj_not_equal)) {
+            return CALL_ATTRIBUTE(purity, opt_eq, ci_eq, cc_eq);
+        }
+        else {
+            return purity_of_cc(cc);
+        }
+    };
+
     impl {
         val = vm_opt_neq(ci, cc, ci_eq, cc_eq, recv, obj);
 
@@ -1065,6 +1280,8 @@ opt_lt(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_LT, cc); };
+
     impl {
         val = vm_opt_lt(recv, obj);
 
@@ -1081,6 +1298,8 @@ opt_le(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_LE, cc); };
+
     impl {
         val = vm_opt_le(recv, obj);
 
@@ -1097,6 +1316,8 @@ opt_gt(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_GT, cc); };
+
     impl {
         val = vm_opt_gt(recv, obj);
 
@@ -1113,6 +1334,8 @@ opt_ge(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_GE, cc); };
+
     impl {
         val = vm_opt_ge(recv, obj);
 
@@ -1129,6 +1352,8 @@ opt_ltlt(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_LTLT, cc); };
+
     impl {
         val = vm_opt_ltlt(recv, obj);
 
@@ -1145,6 +1370,8 @@ opt_aref(ci, cc)(recv, obj)(val)
     CALL_CACHE cc;
     VALUE recv, obj, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_AREF, cc); };
+
     impl {
         val = vm_opt_aref(recv, obj);
 
@@ -1161,6 +1388,8 @@ opt_aset(ci, cc)(recv, obj, set)(val)
     CALL_CACHE cc;
     VALUE recv, obj, set, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_ASET, cc); };
+
     impl {
         val = vm_opt_aset(recv, obj, set);
 
@@ -1177,6 +1406,8 @@ opt_aset_with(ci, cc, key)(recv, val)(val)
     CALL_CACHE cc;
     VALUE key, recv, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_ASET, cc); };
+
     impl {
         val = vm_opt_aset_with(recv, key, val);
 
@@ -1196,6 +1427,8 @@ opt_aref_with(ci, cc, key)(recv)(val)
     CALL_CACHE cc;
     VALUE key, recv, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_AREF, cc); };
+
     impl {
         val = vm_opt_aref_with(recv, key);
 
@@ -1213,6 +1446,8 @@ opt_length(ci, cc)(recv)(val)
     CALL_CACHE cc;
     VALUE recv, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_LENGTH, cc); };
+
     impl {
         val = vm_opt_length(recv, BOP_LENGTH);
 
@@ -1229,6 +1464,8 @@ opt_size(ci, cc)(recv)(val)
     CALL_CACHE cc;
     VALUE recv, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_SIZE, cc); };
+
     impl {
         val = vm_opt_length(recv, BOP_SIZE);
 
@@ -1245,6 +1482,8 @@ opt_empty_p(ci, cc)(recv)(val)
     CALL_CACHE cc;
     VALUE recv, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_EMPTY_P, cc); };
+
     impl {
         VALUE length = vm_opt_length(recv, BOP_EMPTY_P);
 
@@ -1267,6 +1506,8 @@ opt_succ(ci, cc)(recv)(val)
     CALL_CACHE cc;
     VALUE recv, val;
 {
+    attr enum insn_purity purity = { return purity_of_optinsn(BOP_SUCC, cc); };
+
     impl {
         val = vm_opt_succ(recv);
 
@@ -1283,6 +1524,18 @@ opt_not(ci, cc)(recv)(val)
     CALL_CACHE cc;
     VALUE recv, val;
 {
+    attr enum insn_purity purity = {
+        if (cc_is_stale(cc)) {
+            return insn_is_unpredictable;
+        }
+        else if (purity_cc_cfunc_is(cc, rb_obj_not)) {
+            return insn_is_pure;
+        }
+        else {
+            return purity_of_cc(cc);
+        }
+    };
+
     impl {
         val = vm_opt_not(ci, cc, recv);
 
@@ -1297,6 +1550,10 @@ insn
 opt_regexpmatch1(r)(obj)(val)
     VALUE r, obj, val;
 {
+    attr enum insn_purity purity = {
+        return purity_of_BOP(BOP_MATCH, REGEXP_REDEFINED_OP_FLAG);
+    };
+
     impl { val = vm_opt_regexpmatch1(r, obj); }
 }
 
@@ -1307,6 +1564,10 @@ opt_regexpmatch2(ci, cc)(obj2, obj1)(val)
     CALL_CACHE cc;
     VALUE obj2, obj1, val;
 {
+    attr enum insn_purity purity = {
+        return purity_of_optinsn(BOP_MATCH, cc);
+    };
+
     impl {
         val = vm_opt_regexpmatch2(obj2, obj1);
 
@@ -1321,6 +1582,10 @@ insn
 opt_call_c_function(funcptr)()()
     rb_insn_func_t funcptr;
 {
+    attr enum insn_purity purity = {
+        return insn_is_not_pure; /* don't know what happens inside. */
+    };
+
     impl {
         reg_cfp = (funcptr)(th, reg_cfp);
 
@@ -1340,6 +1605,8 @@ insn
 bitblt()()(ret)
     VALUE ret;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { ret = rb_str_new2("a bit of bacon, lettuce and tomato"); }
 }
 
@@ -1348,6 +1615,7 @@ insn
 answer()()(ret)
     VALUE ret;
 {
+    attr enum insn_purity purity = { return insn_is_pure; };
+
     impl { ret = INT2FIX(42); }
 }
-

@@ -20,7 +20,8 @@ grammer = %r'
     (?<ident>     \w+                                                      ){0}
     (?<C-expr>    \{ (?: \g<C-expr> | [^{}]+ )* \}                         ){0}
     (?<impl>      impl \g<ws>+ \g<C-expr>                                  ){0}
-    (?<type>      \g<ident>                                                ){0}
+    (?<typekw>    struct | union | enum | const | volatile                 ){0}
+    (?<type>      (?: \g<typekw> \g<ws>+ )* \g<ident>                      ){0}
     (?<attr>      attr \g<ws>+ \g<type> \g<ws>+
                       \g<ident> \g<ws>* = \g<ws>* \g<C-expr> ;             ){0}
     (?<vars>      (?: \w+ | \.\.\. ) (?: , \g<ws>* \g<vars> )?             ){0}
