@@ -13,6 +13,7 @@
 #include "internal.h"
 #include "gc.h"
 #include "iseq.h"
+#include "id_table.h"
 
 /* Proc.new with no block will raise an exception in the future
  * versions */
@@ -2941,6 +2942,21 @@ rb_method_curry(int argc, const VALUE *argv, VALUE self)
 }
 
 /*
+ *  call-seq:
+ *     meth.attributes -> hash
+ *
+ *  Returns annotated info, in Hash form, if any.
+ *
+ *  There is no way to annotate an iseq for now.  Stay tuned.
+ */
+static VALUE
+method_attributes(VALUE self)
+{
+    const rb_method_definition_t *def = method_def(self);
+    return rb_id_table_to_h(def->attributes);
+}
+
+/*
  *  Document-class: LocalJumpError
  *
  *  Raised when Ruby can't yield as requested.
@@ -3073,6 +3089,7 @@ Init_Proc(void)
     rb_define_method(rb_cMethod, "source_location", rb_method_location, 0);
     rb_define_method(rb_cMethod, "parameters", rb_method_parameters, 0);
     rb_define_method(rb_cMethod, "super_method", method_super_method, 0);
+    rb_define_method(rb_cMethod, "attributes", method_attributes, 0);
     rb_define_method(rb_mKernel, "method", rb_obj_method, 1);
     rb_define_method(rb_mKernel, "public_method", rb_obj_public_method, 1);
     rb_define_method(rb_mKernel, "singleton_method", rb_obj_singleton_method, 1);

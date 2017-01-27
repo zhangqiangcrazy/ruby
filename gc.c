@@ -4078,11 +4078,17 @@ rb_id_table_mark_generic_i(VALUE v, void *sp)
     return ID_TABLE_CONTINUE;
 }
 
-void
-rb_id_table_mark(struct rb_id_table *tbl)
+static void
+id_table_mark(rb_objspace_t *objspace, struct rb_id_table *tbl)
 {
     if (!tbl) return;
     rb_id_table_foreach_values(tbl, rb_id_table_mark_generic_i, &rb_objspace);
+}
+
+void
+rb_id_table_mark(struct rb_id_table *tbl)
+{
+    id_table_mark(&rb_objspace, tbl);
 }
 
 static void
@@ -4094,6 +4100,8 @@ mark_method_entry(rb_objspace_t *objspace, const rb_method_entry_t *me)
     gc_mark(objspace, me->defined_class);
 
     if (def) {
+        id_table_mark(objspace, def->attributes);
+
 	switch (def->type) {
 	  case VM_METHOD_TYPE_ISEQ:
 	    if (def->body.iseq.iseqptr) gc_mark(objspace, (VALUE)def->body.iseq.iseqptr);

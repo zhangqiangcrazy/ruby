@@ -166,6 +166,7 @@ typedef struct rb_method_definition_struct {
     } body;
 
     ID original_id;
+    struct rb_id_table *attributes;
 } rb_method_definition_t;
 
 #define UNDEFINED_METHOD_ENTRY_P(me) (!(me) || !(me)->def || (me)->def->type == VM_METHOD_TYPE_UNDEF)
@@ -209,5 +210,10 @@ const rb_callable_method_entry_t *rb_method_entry_complement_defined_class(const
 void rb_method_entry_copy(rb_method_entry_t *dst, const rb_method_entry_t *src);
 
 void rb_scope_visibility_set(rb_method_visibility_t);
+
+void rb_ment_annotate(const rb_method_entry_t *me, ID attr, VALUE argv);
+VALUE rb_ment_annotated_p(const rb_method_entry_t *me, ID attr);
+#define RB_MENT_ANNOTATE(me, attr, argv) rb_ment_annotate((me), rb_intern(#attr), (argv))
+#define RB_MENT_ANNOTATED_P(me, attr) rb_ment_annotated_p((me), rb_intern(#attr))
 
 #endif /* RUBY_METHOD_H */

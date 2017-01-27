@@ -159,6 +159,8 @@ rb_method_definition_release(rb_method_definition_t *def, int complemented)
 	VM_ASSERT(alias_count >= 0);
 	VM_ASSERT(complemented_count >= 0);
 
+        if (def->attributes) rb_id_table_free(def->attributes);
+
 	if (alias_count + complemented_count == 0) {
 	    if (METHOD_DEBUG) fprintf(stderr, "-%p-%s:%d,%d (remove)\n", def, rb_id2name(def->original_id), alias_count, complemented_count);
 	    xfree(def);
@@ -956,6 +958,50 @@ rb_resolve_refined_method_callable(VALUE refinements, const rb_callable_method_e
     }
     else {
 	return (const rb_callable_method_entry_t *)resolved_me;
+    }
+}
+
+void
+rb_ment_annotate(const rb_method_entry_t *me, ID k, VALUE v)
+{
+    struct rb_id_table *t;
+
+    if (!me) {
+	return;
+    }
+    else if (!me->def) {
+	return;
+    }
+    else if (! (t = me->def->attributes)) {
+	t = me->def->attributes = rb_id_table_create(1);
+    }
+
+    rb_id_table_insert(t, k, v);
+#if USE_RGENGC
+    RB_OBJ_WRITTEN(me, me->def->attributes, v);
+#endif
+}
+
+VALUE
+rb_ment_annotated_p(const rb_method_entry_t *me, ID k)
+{
+    struct rb_id_table *t;
+    VALUE ret;
+
+    if (!me) {
+	return Qundef;
+    }
+    else if (!me->def) {
+	return Qundef;
+    }
+    else if (! (t = me->def->attributes)) {
+	return Qnil;
+    }
+    else if (! rb_id_table_lookup(t, k, &ret)) {
+	return Qnil;
+    }
+    else {
+	return ret;
     }
 }
 

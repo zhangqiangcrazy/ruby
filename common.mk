@@ -2029,6 +2029,7 @@ proc.$(OBJEXT): {$(VPATH)}encoding.h
 proc.$(OBJEXT): {$(VPATH)}eval_intern.h
 proc.$(OBJEXT): {$(VPATH)}gc.h
 proc.$(OBJEXT): {$(VPATH)}id.h
+proc.$(OBJEXT): {$(VPATH)}id_table.h
 proc.$(OBJEXT): {$(VPATH)}intern.h
 proc.$(OBJEXT): {$(VPATH)}internal.h
 proc.$(OBJEXT): {$(VPATH)}io.h
