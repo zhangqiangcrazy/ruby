@@ -144,6 +144,27 @@ typedef struct rb_method_refined_struct {
     const VALUE owner;
 } rb_method_refined_t;
 
+/**
+ * The four kind of purity.
+ *
+ * - Pure and not pure are intuitive.
+ * - Unpredictable  means the  instruction is  unpredictable _at  that moment_,
+ *   maybe because  that instruction  has never been  executed.  Thus  when you
+ *   evaluate that part later, the purity of the instruction might vary time to
+ *   time.
+ * - Depends block  depends on  executing block.  This  makes sense  for method
+ *   calls.   When the  method  itself had  no side  effects,  there still  are
+ *   chances of breakage when the calling  block does something nasty.  But the
+ *   purity of such block can be  checked beforehand.  This means the purity of
+ *   the whole caller site depends on that block's purity.
+ */
+enum rb_purity {
+    rb_purity_is_unpredictable = 0, /* initial state */
+    rb_purity_is_not_pure,
+    rb_purity_is_pure,
+    rb_purity_depends_block
+};
+
 typedef struct rb_method_definition_struct {
     rb_method_type_t type :  8; /* method type */
     int alias_count       : 28;
@@ -166,6 +187,7 @@ typedef struct rb_method_definition_struct {
     } body;
 
     ID original_id;
+    enum rb_purity purity;
 } rb_method_definition_t;
 
 #define UNDEFINED_METHOD_ENTRY_P(me) (!(me) || !(me)->def || (me)->def->type == VM_METHOD_TYPE_UNDEF)
@@ -210,4 +232,18 @@ void rb_method_entry_copy(rb_method_entry_t *dst, const rb_method_entry_t *src);
 
 void rb_scope_visibility_set(rb_method_visibility_t);
 
+CONSTFUNC(MAYBE_UNUSED(static inline const char *name_of_purity(enum rb_purity purity)));
+
+const char *
+name_of_purity(enum rb_purity p)
+{
+    switch (p) {
+      case rb_purity_is_pure:          return "pure";
+      case rb_purity_is_not_pure:      return "notpure";
+      case rb_purity_is_unpredictable: return "unpredictable";
+      case rb_purity_depends_block:    return "dependsblock";
+      default:
+          rb_bug("unknown purity; blame @shyouhei: %d", (int)p);
+    }
+}
 #endif /* RUBY_METHOD_H */

@@ -9,7 +9,7 @@
 # conditions  mentioned in  the file  COPYING are  met.  Consult  the file  for
 # details.
 
-require_relative 'c_expr'
+require_relative '../helpers/c_escape'
 
 # An attribute  is a  (possibly inlined) function  attached to  an instruction.
 # Its body is normally somewhere inside  of insns.def but its name and function
@@ -25,27 +25,29 @@ class RubyVM::Attribute
     body.sub!(/^\s*}\s*\z/, '}')
 
     @insn = insn
-    @name = "#{name} @ #{insn.name}"
+    @name = as_tr_cpp "attr #{name} @ #{insn.name}"
     @disp = "attr #{type} #{name} @ #{insn.pretty_name}"
-    json  = {
-      location: location,
-      body: body,
-    }
-    @expr = RubyVM::CExpr.new json
+    @expr = RubyVM::CExpr.new location: location, body: body
     @type = type
   end
+
+  # methods used in view:
 
   def pretty_name
     @disp
   end
 
-  def signature
-    type = @type
-    name = as_tr_cpp @name
-    argv = @insn.opes.map do |o|
-      t = @insn.typeof o
-      next [t, o]
-    end
-    return [type, name, argv]
+  def prototype_declaration
+    args = argv.join ', '
+    sprintf "PUREFUNC(MAYBE_UNUSED(static %s %s(%s)));", @type, @name, args
+  end
+
+  def argv_maybe_unused
+    return argv.map {|o| "MAYBE_UNUSED(#{o})" }
+  end
+
+  private
+  def argv
+    return @insn.opes.map {|o| "#{@insn.typeof o} #{o}" }
   end
 end

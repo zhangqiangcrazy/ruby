@@ -57,6 +57,12 @@ class RubyVM::BareInstructions
     end
   end
 
+  def purity
+    return @attrs.fetch "purity" do |k|
+      return generate_attribute k, 'enum rb_purity', 'rb_purity_is_not_pure'
+    end
+  end
+
   def has_attribute? k
     @has_attribute.has_key? k
   end
@@ -64,6 +70,7 @@ class RubyVM::BareInstructions
   def attributes
     # need to generate predefined attribute defaults
     sp_inc
+    purity
     # other_attribute
     # ...
     return @attrs.values
@@ -74,7 +81,10 @@ class RubyVM::BareInstructions
   end
 
   def macros
-    return {}
+    return {
+      'NAME_OF_CURRENT_INSN' => [ '', @name, ],
+      # ... => ...
+    }
   end
 
   def preamble

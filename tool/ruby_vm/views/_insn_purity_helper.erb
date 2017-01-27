@@ -1,0 +1,326 @@
+%# -*- mode:c; style:ruby; coding: utf-8; indent-tabs-mode: nil -*-
+%# Copyright (c) 2017 Urabe, Shyouhei.  All rights reserved.
+%#
+%# This file is a part of  the programming language Ruby.  Permission is hereby
+%# granted, to either  redistribute and/or modify this file,  provided that the
+%# conditions mentioned  in the  file COPYING  are met.   Consult the  file for
+%# details.
+%#
+#include "internal.h"           /* MAYBE_UNUSED */
+#include "vm_core.h"            /* struct rb_call_cache */
+#include "method.h"             /* enum rb_purity */
+
+PUREFUNC(MAYBE_UNUSED(
+/**
+ * Purity of an ISeq as a whole.  An  ISeq is said to be pure if its conatining
+ * instructions are all pure.
+ *
+ * @param [in] iseq in question.
+ * @return the purity.
+ */
+static enum rb_purity purity_of_iseq(const struct rb_iseq_struct *iseq)));
+
+CONSTFUNC(MAYBE_UNUSED(
+/**
+ * Merge purity; a pure + pure is pure, pure + nonpure is nonpure, and so on.
+ *
+ * @param [in] p1 purity left hand side
+ * @param [in] p2 purity right hand side
+ * @return p1 + p2
+ */
+static enum rb_purity purity_merge(enum rb_purity p1, enum rb_purity p2)));
+
+PUREFUNC(MAYBE_UNUSED(
+/**
+ * Purity of the call cache's pointed entry.
+ *
+ * @param [in] cc call cache in question.
+ * @return purity of cc's method entry.
+ */
+static enum rb_purity purity_of_cc(const struct rb_call_cache *cc)));
+
+MAYBE_UNUSED(
+/**
+ * Purity might depend on global redefinition of basic methods.  This is to
+ * check those redefinitions.
+ *
+ * @param [in] op basic op
+ * @param [in] klass flags, ~0 means any class
+ * @return purity of the BOP
+ */
+static enum rb_purity purity_of_BOP(int op, unsigned klass));
+
+CONSTFUNC(MAYBE_UNUSED(
+/**
+ * Very polite cast from bool to purity
+ *
+ * @param [in] b bool value
+ * @return static_cast<enum rb_purity>(b);
+ */
+static enum rb_purity purity_of_bool(bool b)));
+
+PUREFUNC(MAYBE_UNUSED(
+/**
+ * Find an ISeq from inside of a method entry
+ *
+ * @param [in] cc call cache in question
+ * @return correspoinding ISeq if any, NULL otherwise.
+ */
+static const rb_iseq_t *iseq_of_me(const struct rb_callable_method_entry_struct *me)));
+
+MAYBE_UNUSED(
+/**
+ * Utility function.   A cache  entry can be  stale.  That's OK,  as far  as we
+ * don't touch the  stale cache contents because they can  already be GCed.  We
+ * need to check beforehand.
+ *
+ * @param [in] cc call cache in question
+ * @return true if it is dead.
+ */
+static bool cc_is_stale(const struct rb_call_cache *cc));
+
+PUREFUNC(MAYBE_UNUSED(
+/**
+ * Utility function to check if a cc points to a specific C function.
+ *
+ * @param [in] cc call cache in question.
+ * @param [in] func possile function that cc might resolves to.
+ */
+static bool purity_cc_cfunc_is(const struct rb_call_cache *cc, VALUE (*func)())));
+
+PUREFUNC(MAYBE_UNUSED(
+/**
+ * Utility function for general opt_* functions.
+ *
+ * @param [in] cc call cache.
+ * @param [in] bop basic op
+ */
+static enum rb_purity purity_of_optinsn(int bop, const struct rb_call_cache *cc)));
+
+#ifdef __OPTIMIZE__
+#define DONTCARE(p) UNREACHABLE;
+#else
+#define DONTCARE(p) \
+    rb_bug("unknown purity; blame @shyouhei: %d", (int)p);
+#endif
+
+enum rb_purity
+purity_of_bool(bool b)
+{
+#ifdef __OPTIMIZE__
+    return (enum rb_purity)b;
+#else
+    if (b) {
+        return rb_purity_is_pure;
+    }
+    else {
+        return rb_purity_is_not_pure;
+    }
+#endif
+}
+
+enum rb_purity
+purity_merge(enum rb_purity p1, enum rb_purity p2)
+{
+    /*
+     *       || NG | N/A | iter |  OK
+     * ======##====+=====+======+======
+     *   NG  || NG |  NG |  NG  |  NG
+     * ------++----+-----+------+------
+     *   N/A || NG | N/A |  N/A |  N/A
+     * ------++----+-----+------+------
+     *  iter || NG | N/A | iter | iter
+     * ------++----+-----+------+------
+     *   OK  || NG | N/A | iter |  OK
+     *
+     * OK:   rb_purity_is_pure
+     * NG:   rb_purity_is_not_pure
+     * N/A:  rb_purity_is_unpredictable
+     * iter: rb_purity_depends_block
+     */
+
+#ifdef __OPTIMIZE__ /* table lookup seems faster than using switch. */
+    static const char t[4][4] = {
+        /* TODO: ensure cacheline alignedness for max locality.  This
+         * array only takes 16 bytes, must fit into a cache line for
+         * most modern CPUs.  According to nm(1) output it is already
+         * aligned on my machine so postponed for now. */
+        {
+            rb_purity_is_not_pure,
+            rb_purity_is_not_pure,
+            rb_purity_is_not_pure,
+            rb_purity_is_not_pure,
+        }, {
+            rb_purity_is_not_pure,
+            rb_purity_is_unpredictable,
+            rb_purity_is_unpredictable,
+            rb_purity_is_unpredictable,
+        }, {
+            rb_purity_is_not_pure,
+            rb_purity_is_unpredictable,
+            rb_purity_depends_block,
+            rb_purity_depends_block,
+        }, {
+            rb_purity_is_not_pure,
+            rb_purity_is_unpredictable,
+            rb_purity_depends_block,
+            rb_purity_is_pure,
+        },
+    };
+
+    return t[p1][p2];
+#else
+    switch(p1) {
+      case rb_purity_is_not_pure:
+        switch(p2) {
+          case rb_purity_is_not_pure:
+            return rb_purity_is_not_pure;
+          case rb_purity_is_unpredictable:
+            return rb_purity_is_not_pure;
+          case rb_purity_depends_block:
+            return rb_purity_is_not_pure;
+          case rb_purity_is_pure:
+            return rb_purity_is_not_pure;
+          default:
+            DONTCARE(p2);
+        }
+
+      case rb_purity_is_unpredictable:
+        switch(p2) {
+          case rb_purity_is_not_pure:
+            return rb_purity_is_not_pure;
+          case rb_purity_is_unpredictable:
+            return rb_purity_is_unpredictable;
+          case rb_purity_depends_block:
+            return rb_purity_is_unpredictable;
+          case rb_purity_is_pure:
+            return rb_purity_is_unpredictable;
+          default:
+            DONTCARE(p2);
+        }
+
+      case rb_purity_depends_block:
+        switch(p2) {
+          case rb_purity_is_not_pure:
+            return rb_purity_is_not_pure;
+          case rb_purity_is_unpredictable:
+            return rb_purity_is_unpredictable;
+          case rb_purity_depends_block:
+            return rb_purity_depends_block;
+          case rb_purity_is_pure:
+            return rb_purity_depends_block;
+          default:
+            DONTCARE(p2);
+        }
+
+      case rb_purity_is_pure:
+        switch(p2) {
+          case rb_purity_is_not_pure:
+            return rb_purity_is_not_pure;
+          case rb_purity_is_unpredictable:
+            return rb_purity_is_unpredictable;
+          case rb_purity_depends_block:
+            return rb_purity_depends_block;
+          case rb_purity_is_pure:
+            return rb_purity_is_pure;
+          default:
+            DONTCARE(p2);
+        }
+
+      default:
+        DONTCARE(p1);
+    }
+#endif
+}
+
+#undef DONTCARE
+
+enum rb_purity
+purity_of_BOP(int bop, unsigned klass)
+{
+    return purity_of_bool(BASIC_OP_UNREDEFINED_P(bop, klass));
+}
+
+const rb_iseq_t *
+iseq_of_me(const struct rb_callable_method_entry_struct *me)
+{
+    const rb_method_definition_t *d = me->def;
+    switch (d->type) {
+      case VM_METHOD_TYPE_ISEQ:
+	return d->body.iseq.iseqptr;
+      case VM_METHOD_TYPE_BMETHOD:
+	return rb_proc_get_iseq(d->body.proc, 0);
+      default:
+	return NULL;
+    }
+}
+
+bool
+cc_is_stale(const struct rb_call_cache *cc)
+{
+    extern rb_serial_t ruby_vm_global_method_state;
+
+    if (! cc->me) {
+        return true;
+    }
+    if (cc->method_state != ruby_vm_global_method_state) {
+        return true;
+    }
+    else if (! cc->me->flags) {
+        return true;           /* me already GCed. */
+    }
+    else if (cc->class_serial != RCLASS_SERIAL(cc->me->defined_class)) {
+        return true;
+    }
+    else {
+        return false;
+    }
+}
+
+enum rb_purity
+purity_of_cc(const struct rb_call_cache *cc)
+{
+    const rb_iseq_t *i;
+    const rb_method_entry_t *m = (const rb_method_entry_t *)cc->me;
+
+    if (cc_is_stale(cc)) {
+        return rb_purity_is_unpredictable; /* method missing */
+    }
+    else if ((i = iseq_of_me(cc->me))) {
+        return i->body->purity;
+    }
+    else {
+        return m->def->purity;
+    }
+}
+
+bool
+purity_cc_cfunc_is(const struct rb_call_cache *cc, VALUE (*func)())
+{
+    const struct rb_method_definition_struct *def = cc->me->def;
+
+    if (def->type != VM_METHOD_TYPE_CFUNC) {
+        return false;
+    }
+    else if (def->body.cfunc.func != func) {
+        return false;
+    }
+    else {
+        return true;
+    }
+}
+
+enum rb_purity
+purity_of_optinsn(int bop, const struct rb_call_cache *cc)
+{
+    /* If cc is filled, that means this caller site is not for a basic class.
+     * That should be honored.  Otherwise check BOP. */
+    enum rb_purity p1 = purity_of_cc(cc);
+
+    if (p1 != rb_purity_is_unpredictable) {
+        return p1;
+    }
+    else {
+        return purity_of_BOP(bop, ~0);
+    }
+}

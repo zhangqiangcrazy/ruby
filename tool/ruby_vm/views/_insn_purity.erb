@@ -1,0 +1,45 @@
+%# -*- mode:c; style:ruby; coding: utf-8; indent-tabs-mode: nil -*-
+%# Copyright (c) 2017 Urabe, Shyouhei.  All rights reserved.
+%#
+%# This file is a part of  the programming language Ruby.  Permission is hereby
+%# granted, to either  redistribute and/or modify this file,  provided that the
+%# conditions mentioned  in the  file COPYING  are met.   Consult the  file for
+%# details.
+%#
+PUREFUNC(static enum rb_purity insn_purity_dispatch(enum ruby_vminsn_type insn, const VALUE *opes));
+
+enum rb_purity
+insn_purity_dispatch(enum ruby_vminsn_type insn, const VALUE *opes)
+{
+    switch(insn){
+    default:
+        UNREACHABLE;
+% RubyVM::Instructions.each do |i|
+    case <%= i.bin %>:
+        return CALL_ATTRIBUTE(purity, <%= i.name %><%=
+          i.opes.map.with_index do |v, j|
+            # note how opes are treated differently than sp_inc...
+            next ", (#{i.typeof v})opes[#{j}]"
+          end.join
+        %>);
+% end
+    }
+}
+
+enum rb_purity
+purity_of_iseq(const struct rb_iseq_struct *iseq)
+{
+    enum rb_purity purity   = rb_purity_is_pure;
+    const VALUE *ptr        = rb_iseq_original_iseq(iseq);
+    int i, j, k             = iseq->body->iseq_size;
+
+    for (i = j = 0; i < k; i += j) {
+        enum ruby_vminsn_type insn = (enum ruby_vminsn_type)ptr[i];
+        const VALUE *now           = &ptr[i + 1];
+        enum rb_purity p           = insn_purity_dispatch(insn, now);
+        j                          = insn_len(insn);
+        purity                     = purity_merge(purity, p);
+    }
+
+    return purity;
+}

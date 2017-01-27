@@ -34,12 +34,12 @@ insn_stack_increase_dispatch(enum ruby_vminsn_type insn, const VALUE *opes)
         UNREACHABLE;
 % RubyVM::Instructions.each do |i|
 %   next unless i.has_attribute?('sp_inc')
-%   _, f, a = i.sp_inc.signature
     case <%= i.bin %>:
-        return <%= f %>(<%=
-          a.map.with_index do |(_, v), j|
-            i.cast_from_VALUE v, "opes[#{j}]"
-          end.join(", ")
+        return CALL_ATTRIBUTE(sp_inc, <%= i.name %><%=
+          i.opes.map.with_index do |v, j|
+            k = i.cast_from_VALUE v, "opes[#{j}]"
+            next ", #{k}"
+          end.join
         %>);
 % end
     }

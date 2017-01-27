@@ -10,24 +10,25 @@ typedef unsigned long lindex_t;
 typedef VALUE GENTRY;
 typedef rb_iseq_t *ISEQ;
 
-% attrs = RubyVM::Instructions.map(&:attributes).flatten
+#define CALL_ATTRIBUTE(name, insn, ...) attr_ ## name ## _ ## insn(__VA_ARGS__)
+
+% attrs = RubyVM::Instructions.map(&:attributes).flatten.sort_by(&:name)
 %
-% attrs.sort_by(&:name).map(&:signature).each do |(t, f, a)|
-%   w = a.map {|(k, v)| "#{k} #{v}" }.join(', ')
-PUREFUNC(MAYBE_UNUSED(static <%= t %> <%= f %>(<%= w %>)));
+% attrs.each do |i|
+<%= i.prototype_declaration %>
 % end
 %
 % attrs.each do |i|
-%   t, f, a = i.signature
+%   a = i.argv_maybe_unused
 %   if a.empty?
 %     w = ''
 %   else
-%     w = a.map{|(k, v)| "MAYBE_UNUSED(#{k} #{v})" }.join(",\n    ")
+%     w = a.join(",\n    ")
 %     w = "\n    #{w}\n" if a.size > 1
 %   end
 
 /* <%= i.pretty_name %> */
-<%= t %>
-<%= f %>(<%= w %>)
+<%= i.type %>
+<%= i.name %>(<%= w %>)
 <%= render_c_expr i.expr -%>
 % end

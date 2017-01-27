@@ -385,6 +385,9 @@ struct rb_iseq_constant_body {
     unsigned int ci_kw_size;
     unsigned int line_info_size;
     unsigned int stack_max; /* for stack overflow check */
+
+    /* purity */
+    enum rb_purity purity;
 };
 
 /* T_IMEMO/iseq */

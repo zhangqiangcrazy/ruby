@@ -49,9 +49,8 @@ INSN_ENTRY(<%= name %>) {
     SET_SP(vm_saved_sp);
 % end
 %
-% _, sp_inc, v = insn.sp_inc.signature
-% argv = v.map {|(x, y)| y }.join(', ')
-    INC_SP(<%= sp_inc %>(<%= argv %>));
+% argv = insn.opes.map {|i| ", #{i}" }.join
+    INC_SP(CALL_ATTRIBUTE(sp_inc, <%= name %><%= argv %>));
 %
 % unless insn.rets.empty?
 %   insn.rets.reverse.each_with_index do |ret, i|
