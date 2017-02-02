@@ -97,6 +97,16 @@ PUREFUNC(MAYBE_UNUSED(
  */
 static enum rb_purity purity_of_optinsn(int bop, const struct rb_call_cache *cc)));
 
+PUREFUNC(MAYBE_UNUSED(
+/**
+ * Utility function to check fleshness of the ISeq's purity
+ *
+ * @param [in] iseq target sequence
+ * @return true if its current purity is considered valid.
+ */
+static bool
+iseq_purity_is_fixed_p(const rb_iseq_t *iseq)));
+
 #ifdef __OPTIMIZE__
 #define DONTCARE(p) UNREACHABLE;
 #else
@@ -322,5 +332,26 @@ purity_of_optinsn(int bop, const struct rb_call_cache *cc)
     }
     else {
         return purity_of_BOP(bop, ~0);
+    }
+}
+
+static enum rb_purity
+purity_of_iseq(const struct rb_iseq_struct *iseq)
+{
+    return iseq->body->purity;
+}
+
+bool
+iseq_purity_is_fixed_p(const rb_iseq_t *iseq)
+{
+    const struct rb_iseq_constant_body *b = iseq->body;
+    if (b->purity == rb_purity_is_unpredictable) {
+        return false;           /* not yet fixed */
+    }
+    else if (b->updated_at != ruby_vm_global_timestamp) {
+        return false;           /* stale */
+    }
+    else {
+        return true;
     }
 }

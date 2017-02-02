@@ -252,6 +252,9 @@ struct rb_call_cache {
 	enum method_missing_reason method_missing_reason; /* used by method_missing */
 	int inc_sp; /* used by cfunc */
     } aux;
+
+    /* hotspot detector */
+    signed char temperature;
 };
 
 #if 1
@@ -388,6 +391,9 @@ struct rb_iseq_constant_body {
 
     /* purity */
     enum rb_purity purity;
+
+    /* hotspot detector */
+    rb_serial_t updated_at;
 };
 
 /* T_IMEMO/iseq */

@@ -10,6 +10,8 @@
 
 /* finish iseq array */
 #include "insns.inc"
+#define USE_INSN_STACK_INCREASE 1
+#include "insns_info.inc"
 #include <math.h>
 #include "constant.h"
 #include "internal.h"
@@ -1227,7 +1229,7 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, rb_num_t num, int flag)
 
 static VALUE vm_call_general(rb_thread_t *th, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, const struct rb_call_info *ci, struct rb_call_cache *cc);
 
-static void
+static bool
 vm_search_method(const struct rb_call_info *ci, struct rb_call_cache *cc, VALUE recv)
 {
     VALUE klass = CLASS_OF(recv);
@@ -1240,7 +1242,7 @@ vm_search_method(const struct rb_call_info *ci, struct rb_call_cache *cc, VALUE 
 	/* cache hit! */
 	VM_ASSERT(cc->call != NULL);
 	RB_DEBUG_COUNTER_INC(mc_inline_hit);
-	return;
+	return (cc->temperature >= 0) && INC_SATURATED_P(cc->temperature);
     }
     RB_DEBUG_COUNTER_INC(mc_inline_miss);
 #endif
@@ -1250,6 +1252,8 @@ vm_search_method(const struct rb_call_info *ci, struct rb_call_cache *cc, VALUE 
 #if OPT_INLINE_METHOD_CACHE
     cc->method_state = GET_GLOBAL_METHOD_STATE();
     cc->class_serial = RCLASS_SERIAL(klass);
+    cc->temperature = 0;
+    return false;
 #endif
 }
 
@@ -2355,7 +2359,7 @@ vm_super_outside(void)
     rb_raise(rb_eNoMethodError, "super called outside of method");
 }
 
-static void
+static bool
 vm_search_super_method(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 		       struct rb_calling_info *calling, struct rb_call_info *ci, struct rb_call_cache *cc)
 {
@@ -2406,6 +2410,7 @@ vm_search_super_method(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 	cc->me = rb_callable_method_entry(klass, ci->mid);
 	CI_SET_FASTPATH(cc, vm_call_super_method, 1);
     }
+    return INC_SATURATED_P(cc->temperature);
 }
 
 /* yield */
@@ -3589,5 +3594,23 @@ vm_opt_regexpmatch2(VALUE recv, VALUE obj)
     }
     else {
 	return Qundef;
+    }
+}
+
+static void
+vm_propagate_purity(const rb_iseq_t *iseq, const struct rb_call_cache *cc)
+{
+    const rb_iseq_t *jseq;
+
+    if (iseq->body->purity != rb_purity_is_unpredictable) {
+	/* already */
+	return;
+    }
+    else if (cc->me->def->purity != rb_purity_is_unpredictable) {
+	/* OK, take this */
+	return;
+    }
+    else if (jseq = iseq_of_me(cc->me)) {
+	iseq_update_purity(jseq);
     }
 }

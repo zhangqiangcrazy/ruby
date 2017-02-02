@@ -6,7 +6,8 @@
 %# conditions mentioned  in the  file COPYING  are met.   Consult the  file for
 %# details.
 %#
-PUREFUNC(static enum rb_purity insn_purity_dispatch(enum ruby_vminsn_type insn, const VALUE *opes));
+PUREFUNC(MAYBE_UNUSED(static enum rb_purity insn_purity_dispatch(enum ruby_vminsn_type insn, const VALUE *opes)));
+MAYBE_UNUSED(static enum rb_purity iseq_update_purity(const rb_iseq_t *iseq));
 
 enum rb_purity
 insn_purity_dispatch(enum ruby_vminsn_type insn, const VALUE *opes)
@@ -27,19 +28,62 @@ insn_purity_dispatch(enum ruby_vminsn_type insn, const VALUE *opes)
 }
 
 enum rb_purity
-purity_of_iseq(const struct rb_iseq_struct *iseq)
+iseq_update_purity(const rb_iseq_t *iseq)
 {
-    enum rb_purity purity   = rb_purity_is_pure;
-    const VALUE *ptr        = rb_iseq_original_iseq(iseq);
-    int i, j, k             = iseq->body->iseq_size;
-
-    for (i = j = 0; i < k; i += j) {
-        enum ruby_vminsn_type insn = (enum ruby_vminsn_type)ptr[i];
-        const VALUE *now           = &ptr[i + 1];
-        enum rb_purity p           = insn_purity_dispatch(insn, now);
-        j                          = insn_len(insn);
-        purity                     = purity_merge(purity, p);
+    if (iseq_purity_is_fixed_p(iseq)) {
+	return iseq->body->purity;
     }
+    else {
+	int i, j, k                      = iseq->body->iseq_size;
+	const VALUE *ptr                 = rb_iseq_original_iseq(iseq);
+	const struct iseq_catch_table *c = iseq->body->catch_table;
+	enum rb_purity p                 = rb_purity_is_pure;
 
-    return purity;
+	if (c) {
+	    int n = c->size;
+
+	    for (i = 0; i < n; i++) {
+		const rb_iseq_t *jseq = (const rb_iseq_t *)c->entries[i].iseq;
+
+		if (jseq) {
+		    enum rb_purity q = iseq_update_purity(jseq);
+
+		    if ((p = purity_merge(p, q)) == rb_purity_is_not_pure) {
+			goto bail_out;
+		    }
+		}
+	    }
+	}
+
+	for (i = j = 0; i < k; i += j) {
+	    int l;
+	    enum rb_purity q;
+	    enum ruby_vminsn_type insn = (enum ruby_vminsn_type)ptr[i];
+	    const VALUE *now           = &ptr[i + 1];
+	    const char *s              = insn_op_types(insn);
+	    j                          = insn_len(insn);
+
+	    for (l = 0; l < j; l++) {
+		if (s[l] == TS_ISEQ) {
+		    rb_iseq_t *jseq = (rb_iseq_t *)ptr[i + l + 1];
+
+		    iseq_update_purity(jseq);
+		}
+	    }
+
+	    /* purity of this insn might depend on jseq's purity above. */
+	    /* must check after traversing jseq. */
+	    q = insn_purity_dispatch(insn, now);
+	    if ((p = purity_merge(p, q)) == rb_purity_is_not_pure) {
+		goto bail_out;
+	    }
+	}
+
+    bail_out:
+	/* use memcpy to reroute const */
+	memcpy((void *)&iseq->body->purity, &p, sizeof(p));
+	memcpy((void *)&iseq->body->updated_at,
+	       &ruby_vm_global_timestamp, sizeof(ruby_vm_global_timestamp));
+	return p;
+    }
 }

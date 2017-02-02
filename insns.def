@@ -764,9 +764,11 @@ send(ci, cc, blockiseq)(...)(val)
 
     impl {
         struct rb_calling_info calling;
+        bool b;
 
         vm_caller_setup_arg_block(th, reg_cfp, &calling, ci, blockiseq, FALSE);
-        vm_search_method(ci, cc, calling.recv = TOPN(calling.argc = ci->orig_argc));
+        b = vm_search_method(ci, cc, calling.recv = TOPN(calling.argc = ci->orig_argc));
+        if (b) vm_propagate_purity(GET_ISEQ(), cc);
         CALL_METHOD(&calling, ci, cc);
     }
 }
@@ -834,8 +836,11 @@ opt_send_without_block(ci, cc)(...)(val)
 
     impl {
         struct rb_calling_info calling;
+        bool b;
+
         calling.block_handler = VM_BLOCK_HANDLER_NONE;
-        vm_search_method(ci, cc, calling.recv = TOPN(calling.argc = ci->orig_argc));
+        b = vm_search_method(ci, cc, calling.recv = TOPN(calling.argc = ci->orig_argc));
+        if (b) vm_propagate_purity(GET_ISEQ(), cc);
         CALL_METHOD(&calling, ci, cc);
     }
 }
@@ -867,11 +872,13 @@ invokesuper(ci, cc, blockiseq)(...)(val)
 
     impl {
         struct rb_calling_info calling;
+        bool b;
         calling.argc = ci->orig_argc;
 
         vm_caller_setup_arg_block(th, reg_cfp, &calling, ci, blockiseq, TRUE);
         calling.recv = GET_SELF();
-        vm_search_super_method(th, GET_CFP(), &calling, ci, cc);
+        b = vm_search_super_method(th, GET_CFP(), &calling, ci, cc);
+        if (b) vm_propagate_purity(GET_ISEQ(), cc);
         CALL_METHOD(&calling, ci, cc);
     }
 }
