@@ -3574,3 +3574,51 @@ vm_opt_regexpmatch2(VALUE recv, VALUE obj)
 	return Qundef;
     }
 }
+
+void
+rb_iseq_update_purity(rb_iseq_t *iseq)
+{
+    if (!iseq) {
+	return;
+    }
+    else if (!iseq->body) {
+	return;
+    }
+    else {
+        int i, j, k                      = iseq->body->iseq_size;
+        const VALUE *ptr                 = rb_iseq_original_iseq(iseq);
+        const struct iseq_catch_table *c = iseq->body->catch_table;
+        enum insn_purity purity          = insn_is_pure;
+
+        if (c) {
+            int n = c->size;
+            for (i = 0; i < n; i++) {
+                rb_iseq_t *jseq = (rb_iseq_t *)c->entries[i].iseq;
+
+                rb_iseq_update_purity(jseq);
+            }
+        }
+
+        for (i = j = 0; i < k; i += j) {
+            int l;
+            enum ruby_vminsn_type insn = (enum ruby_vminsn_type)ptr[i];
+            const VALUE *now           = &ptr[i + 1];
+            enum insn_purity p         = insn_purity_dispatch(insn, now);
+            const char *s              = insn_op_types(insn);
+            j                          = insn_len(insn);
+            purity                     = purity_merge(purity, p);
+
+            for (l = 0; l < j; l++) {
+                if (s[l] == TS_ISEQ) {
+                    rb_iseq_t *jseq = (rb_iseq_t *)ptr[i + l + 1];
+
+                    rb_iseq_update_purity(jseq);
+                }
+            }
+        }
+
+        RB_ISEQ_ANNOTATE(iseq, core::purity, VALUE_of_purity(purity));
+        RB_ISEQ_ANNOTATE(iseq, core::updated_at,
+                         SERIAL2NUM(ruby_vm_global_timestamp));
+    }
+}
