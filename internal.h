@@ -363,6 +363,154 @@ ntz_intptr(uintptr_t x)
 #endif
 }
 
+#if defined(HAVE_BUILTIN___BUILTIN_ADD_OVERFLOW_P)
+# define INC_SATURATED_P(x) ({                      \
+    bool b = __builtin_add_overflow_p((x), 1, (x)); \
+    if (!b) ++ (x);                                 \
+    b;                                              \
+})
+
+#elif defined(HAVE_BUILTIN___BUILTIN_ADD_OVERFLOW)
+# define INC_SATURATED_P(x) ({                   \
+    __typeof__(x) y = (x);                       \
+    bool b = __builtin_add_overflow((x), 1, &x); \
+    if (b) (x) = y;                              \
+    b;                                           \
+})
+
+#elif defined(__GNUC__)
+# define __maxof__(x) \
+    __builtin_choose_expr(__builtin_types_compatible_p(x,   int8_t),   INT8_MAX, \
+    __builtin_choose_expr(__builtin_types_compatible_p(x,  uint8_t),  UINT8_MAX, \
+    __builtin_choose_expr(__builtin_types_compatible_p(x,  int16_t),  INT16_MAX, \
+    __builtin_choose_expr(__builtin_types_compatible_p(x, uint16_t), UINT16_MAX, \
+    __builtin_choose_expr(__builtin_types_compatible_p(x,  int32_t),  INT32_MAX, \
+    __builtin_choose_expr(__builtin_types_compatible_p(x, uint32_t), UINT32_MAX, \
+    __builtin_choose_expr(__builtin_types_compatible_p(x,  int64_t),  INT64_MAX, \
+    __builtin_choose_expr(__builtin_types_compatible_p(x, uint64_t), UINT64_MAX, \
+    __builtin_trap()))))))))
+# define INC_SATURATED_P(x)  ({               \
+    bool b = (x) >= __maxof__(__typeof__(x)); \
+    if (!b) ++ (x);                           \
+    b;                                        \
+})
+
+#elif defined(__cplusplus)
+# include <limits>
+template<typename T> inline auto
+INC_SATURATED_P(T& x)
+{
+    auto const max = std::numeric_limits<T>::max();
+    auto saturated_p = (x >= max);
+
+    if (! saturated_p) ++ x;
+    return saturated_p;
+}
+
+#elif __STDC_VERSION__ >= 201112L
+# define INC_SATURED_P(x) _Generic( &(x),        \
+      int8_t*: INC_SATURATED_P_for_int8(&(x)),   \
+     uint8_t*: INC_SATURATED_P_for_uint8(&(x)),  \
+     int16_t*: INC_SATURATED_P_for_int16(&(x)),  \
+    uint16_t*: INC_SATURATED_P_for_uint16(&(x)), \
+     int32_t*: INC_SATURATED_P_for_int32(&(x)),  \
+    uint32_t*: INC_SATURATED_P_for_uint32(&(x)), \
+     int64_t*: INC_SATURATED_P_for_int64(&(x)),  \
+    uint64_t*: INC_SATURATED_P_for_uint64(&(x)))
+
+static inlne bool
+INC_SATURATED_P_for_int8_t(int8_t *x)
+{
+    const int8_t max = INT8_MAX;
+    bool saturated_p = (*x >= max);
+
+    if (! saturated_p) ++ *x;
+    return saturated_p;
+}
+
+static inlne bool
+INC_SATURATED_P_for_uint8_t(uint8_t *x)
+{
+    const uint8_t max = UINT8_MAX;
+    bool saturated_p = (*x >= max);
+
+    if (! saturated_p) ++ *x;
+    return saturated_p;
+}
+
+static inlne bool
+INC_SATURATED_P_for_int16_t(int16_t *x)
+{
+    const int16_t max = INT16_MAX;
+    bool saturated_p = (*x >= max);
+
+    if (! saturated_p) ++ *x;
+    return saturated_p;
+}
+
+static inlne bool
+INC_SATURATED_P_for_uint16_t(uint16_t *x)
+{
+    const uint16_t max = UINT16_MAX;
+    bool saturated_p = (*x >= max);
+
+    if (! saturated_p) ++ *x;
+    return saturated_p;
+}
+
+static inlne bool
+INC_SATURATED_P_for_int32_t(int32_t *x)
+{
+    const int32_t max = INT32_MAX;
+    bool saturated_p = (*x >= max);
+
+    if (! saturated_p) ++ *x;
+    return saturated_p;
+}
+
+static inlne bool
+INC_SATURATED_P_for_uint32_t(uint32_t *x)
+{
+    const uint32_t max = UINT32_MAX;
+    bool saturated_p = (*x >= max);
+
+    if (! saturated_p) ++ *x;
+    return saturated_p;
+}
+
+static inlne bool
+INC_SATURATED_P_for_int64_t(int64_t *x)
+{
+    const int64_t max = INT64_MAX;
+    bool saturated_p = (*x >= max);
+
+    if (! saturated_p) ++ *x;
+    return saturated_p;
+}
+
+static inlne bool
+INC_SATURATED_P_for_uint64_t(uint64_t *x)
+{
+    const uint64_t max = UINT64_MAX;
+    bool saturated_p = (*x >= max);
+
+    if (! saturated_p) ++ *x;
+    return saturated_p;
+}
+
+#else
+/* this part is imperfect */
+/* I guess MSVC has a better way, just don't know how. */
+/* All I want to do is "add $1, %rax; jo".  Maybe inline assembly? */
+# define __maxof__(x) (\
+    (sizeof(x) == sizeof( int8_t)) ?  INT8_MAX : \
+    (sizeof(x) == sizeof(int16_t)) ? INT16_MAX : \
+    (sizeof(x) == sizeof(int32_t)) ? INT32_MAX : \
+    (sizeof(x) == sizeof(int64_t)) ? INT64_MAX : \
+    INTMAX_MAX)
+# define INC_SATURATED_P(x) ((x) >= __maxof__(x) ? true : (++ (x), false))
+#endif
+
 #if HAVE_LONG_LONG && SIZEOF_LONG * 2 <= SIZEOF_LONG_LONG
 # define DLONG LONG_LONG
 # define DL2NUM(x) LL2NUM(x)
