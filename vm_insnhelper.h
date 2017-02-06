@@ -175,9 +175,11 @@ enum vm_regan_acttype {
 
 #define CALL_SIMPLE_METHOD(recv_) do { \
     struct rb_calling_info calling; \
+    bool b; \
     calling.block_handler = VM_BLOCK_HANDLER_NONE; \
     calling.argc = ci->orig_argc; \
-    vm_search_method(ci, cc, calling.recv = (recv_)); \
+    b = vm_search_method(ci, cc, calling.recv = (recv_)); \
+    if (b) vm_propagate_purity(GET_ISEQ(), cc); \
     CALL_METHOD(&calling, ci, cc); \
 } while (0)
 

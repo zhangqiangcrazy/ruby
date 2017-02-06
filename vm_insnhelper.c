@@ -10,6 +10,8 @@
 
 /* finish iseq array */
 #include "insns.inc"
+#define USE_INSN_STACK_INCREASE 1
+#include "insns_info.inc"
 #include <math.h>
 #include "constant.h"
 #include "internal.h"
@@ -1212,7 +1214,7 @@ vm_expandarray(rb_control_frame_t *cfp, VALUE ary, rb_num_t num, int flag)
 
 static VALUE vm_call_general(rb_thread_t *th, rb_control_frame_t *reg_cfp, struct rb_calling_info *calling, const struct rb_call_info *ci, struct rb_call_cache *cc);
 
-static void
+static bool
 vm_search_method(const struct rb_call_info *ci, struct rb_call_cache *cc, VALUE recv)
 {
     VALUE klass = CLASS_OF(recv);
@@ -1221,7 +1223,7 @@ vm_search_method(const struct rb_call_info *ci, struct rb_call_cache *cc, VALUE 
     if (LIKELY(GET_GLOBAL_METHOD_STATE() == cc->method_state && RCLASS_SERIAL(klass) == cc->class_serial)) {
 	/* cache hit! */
 	VM_ASSERT(cc->call != NULL);
-	return;
+        return (cc->temperature >= 0) && INC_SATURATED_P(cc->temperature);
     }
 #endif
 
@@ -1231,6 +1233,8 @@ vm_search_method(const struct rb_call_info *ci, struct rb_call_cache *cc, VALUE 
 #if OPT_INLINE_METHOD_CACHE
     cc->method_state = GET_GLOBAL_METHOD_STATE();
     cc->class_serial = RCLASS_SERIAL(klass);
+    cc->temperature = 0;
+    return false;
 #endif
 }
 
@@ -2336,7 +2340,7 @@ vm_super_outside(void)
     rb_raise(rb_eNoMethodError, "super called outside of method");
 }
 
-static void
+static bool
 vm_search_super_method(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 		       struct rb_calling_info *calling, struct rb_call_info *ci, struct rb_call_cache *cc)
 {
@@ -2387,6 +2391,7 @@ vm_search_super_method(rb_thread_t *th, rb_control_frame_t *reg_cfp,
 	cc->me = rb_callable_method_entry(klass, ci->mid);
 	CI_SET_FASTPATH(cc, vm_call_super_method, 1);
     }
+    return INC_SATURATED_P(cc->temperature);
 }
 
 /* yield */
@@ -3575,50 +3580,97 @@ vm_opt_regexpmatch2(VALUE recv, VALUE obj)
     }
 }
 
-void
+enum insn_purity
 rb_iseq_update_purity(rb_iseq_t *iseq)
 {
-    if (!iseq) {
-	return;
-    }
-    else if (!iseq->body) {
-	return;
-    }
-    else {
-        int i, j, k                      = iseq->body->iseq_size;
-        const VALUE *ptr                 = rb_iseq_original_iseq(iseq);
-        const struct iseq_catch_table *c = iseq->body->catch_table;
-        enum insn_purity purity          = insn_is_pure;
+    int i, j, k;
+    const VALUE *ptr;
+    const struct iseq_catch_table *c;
+    enum insn_purity pnew, pnow;
+    VALUE vnow;
+    VALUE t, u;
 
-        if (c) {
-            int n = c->size;
-            for (i = 0; i < n; i++) {
-                rb_iseq_t *jseq = (rb_iseq_t *)c->entries[i].iseq;
+    VM_ASSERT(iseq);
+    VM_ASSERT(iseq->body);
+
+    t = SERIALT2NUM(ruby_vm_global_timestamp);
+    u = RB_ISEQ_ANNOTATED_P(iseq, core::updated_at);
+    if (t == u) {
+        vnow = RB_ISEQ_ANNOTATED_P(iseq, core::purity);
+        if (FIXNUM_P(vnow)) {
+            pnow = purity_of_VALUE(vnow);
+            if (pnow != insn_is_unpredictable) {
+                /* already fixed */
+                return pnow;
+            }
+        }
+    }
+
+    k    = iseq->body->iseq_size;
+    ptr  = rb_iseq_original_iseq(iseq);
+    c    = iseq->body->catch_table;
+    pnew = insn_is_pure;
+
+    if (c) {
+        int n = c->size;
+        for (i = 0; i < n; i++) {
+            rb_iseq_t *jseq = (rb_iseq_t *)c->entries[i].iseq;
+
+            if (jseq) {
+                enum insn_purity p = rb_iseq_update_purity(jseq);
+
+                pnew = purity_merge(pnew, p);
+            }
+        }
+    }
+
+    for (i = j = 0; i < k; i += j) {
+        int l;
+        enum insn_purity p;
+        enum ruby_vminsn_type insn = (enum ruby_vminsn_type)ptr[i];
+        const VALUE *now           = &ptr[i + 1];
+        const char *s              = insn_op_types(insn);
+        j                          = insn_len(insn);
+
+        for (l = 0; l < j; l++) {
+            if (s[l] == TS_ISEQ) {
+                rb_iseq_t *jseq = (rb_iseq_t *)ptr[i + l + 1];
 
                 rb_iseq_update_purity(jseq);
             }
         }
 
-        for (i = j = 0; i < k; i += j) {
-            int l;
-            enum ruby_vminsn_type insn = (enum ruby_vminsn_type)ptr[i];
-            const VALUE *now           = &ptr[i + 1];
-            enum insn_purity p         = insn_purity_dispatch(insn, now);
-            const char *s              = insn_op_types(insn);
-            j                          = insn_len(insn);
-            purity                     = purity_merge(purity, p);
-
-            for (l = 0; l < j; l++) {
-                if (s[l] == TS_ISEQ) {
-                    rb_iseq_t *jseq = (rb_iseq_t *)ptr[i + l + 1];
-
-                    rb_iseq_update_purity(jseq);
-                }
-            }
+        /* purity of this insn might depend on jseq's purity above. */
+        /* must check after traversing jseq. */
+        p    = insn_purity_dispatch(insn, now);
+        pnew = purity_merge(pnew, p);
+        if (pnew == insn_is_not_pure) {
+            break;              /* bail out */
         }
+    }
 
-        RB_ISEQ_ANNOTATE(iseq, core::purity, VALUE_of_purity(purity));
-        RB_ISEQ_ANNOTATE(iseq, core::updated_at,
-                         SERIAL2NUM(ruby_vm_global_timestamp));
+    RB_ISEQ_ANNOTATE(iseq, core::purity, VALUE_of_purity(pnew));
+    RB_ISEQ_ANNOTATE(iseq, core::updated_at,
+                     SERIALT2NUM(ruby_vm_global_timestamp));
+    return pnew;
+}
+
+static void
+vm_propagate_purity(const rb_iseq_t *iseq, const struct rb_call_cache *cc)
+{
+    const rb_iseq_t *jseq;
+    const void *me = cc->me;
+    VALUE vi = RB_ISEQ_ANNOTATED_P(iseq, core::purity);
+
+    if (FIXNUM_P(vi) && (FIX2LONG(vi) != insn_is_unpredictable)) {
+        /* already */
+        return;
+    }
+    else if (FIXNUM_P(RB_MENT_ANNOTATED_P(me, core::purity))) {
+        /* OK, take this */
+        return;
+    }
+    else if (jseq = iseq_of_me(me)) {
+        rb_iseq_update_purity((rb_iseq_t *)jseq);
     }
 }

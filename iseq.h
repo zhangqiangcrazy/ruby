@@ -98,7 +98,6 @@ VALUE *rb_iseq_original_iseq(const rb_iseq_t *iseq);
 void rb_iseq_build_from_ary(rb_iseq_t *iseq, VALUE misc,
 			    VALUE locals, VALUE args,
 			    VALUE exception, VALUE body);
-void rb_iseq_update_purity(rb_iseq_t *iseq);
 
 /* iseq.c */
 void rb_iseq_add_mark_object(const rb_iseq_t *iseq, VALUE obj);
