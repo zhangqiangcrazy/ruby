@@ -76,6 +76,9 @@ rb_iseq_free(const rb_iseq_t *iseq)
 	    ruby_xfree((void *)iseq->body->iseq_encoded);
 	    ruby_xfree((void *)iseq->body->line_info_table);
 	    ruby_xfree((void *)iseq->body->local_table);
+	    if (iseq->body->local_characteristics) {
+		ruby_xfree((void *)iseq->body->local_characteristics);
+	    }
 	    ruby_xfree((void *)iseq->body->is_entries);
 
 	    if (iseq->body->ci_entries) {
@@ -1488,6 +1491,25 @@ iseq_inspect(const rb_iseq_t *iseq)
     }
 }
 
+static const char *
+iseq_lvar_characteristics_description(const rb_iseq_t *iseq, lindex_t i)
+{
+
+    if (! iseq->body->local_characteristics) {
+        return NULL;
+    }
+    else {
+        static const char *t[255] = {
+            NULL, "r", "w", "rw",
+            /* remaining parts are reserved for future extensions */
+        };
+        int n = iseq->body->local_table_size + VM_ENV_DATA_SIZE - 1 - i;
+        unsigned char c = iseq->body->local_characteristics[n];
+
+        return t[c];
+    }
+}
+
 VALUE
 rb_iseq_disasm(const rb_iseq_t *iseq)
 {
@@ -1558,6 +1580,7 @@ rb_iseq_disasm(const rb_iseq_t *iseq)
 	    VALUE name = id_to_name(tbl[i], 0);
 	    char argi[0x100] = "";
 	    char opti[0x100] = "";
+	    const char *usage = iseq_lvar_characteristics_description(iseq, i);
 
 	    if (iseq->body->param.flags.has_opt) {
 		int argc = iseq->body->param.lead_num;
@@ -1575,7 +1598,9 @@ rb_iseq_disasm(const rb_iseq_t *iseq)
 		     (iseq->body->param.flags.has_post && iseq->body->param.post_start <= li && li < iseq->body->param.post_start + iseq->body->param.post_num) ? "Post" : "",
 		     (iseq->body->param.flags.has_block && iseq->body->param.block_start == li) ? "Block" : "");
 
-	    rb_str_catf(str, "[%2d] ", iseq->body->local_table_size - i);
+	    rb_str_catf(str, "[%2d", iseq->body->local_table_size - i);
+	    if (usage) rb_str_catf(str, ":%s", usage);
+	    rb_str_cat2(str, "] ");
 	    width = RSTRING_LEN(str) + 11;
 	    if (name)
 		rb_str_append(str, name);

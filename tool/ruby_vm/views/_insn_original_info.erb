@@ -1,0 +1,82 @@
+%# -*- mode:c; style:ruby; coding: utf-8; indent-tabs-mode: nil -*-
+%# Copyright (c) 2017 Urabe, Shyouhei.  All rights reserved.
+%#
+%# This file is a part of  the programming language Ruby.  Permission is hereby
+%# granted, to either  redistribute and/or modify this file,  provided that the
+%# conditions mentioned  in the  file COPYING  are met.   Consult the  file for
+%# details.
+MAYBE_UNUSED(static enum ruby_vminsn_type insn_original_name(enum ruby_vminsn_type i));
+MAYBE_UNUSED(static rb_num_t insn_lvar_level_dispatch(const VALUE *argv));
+MAYBE_UNUSED(static rb_num_t insn_lvar_index_dispatch(const VALUE *argv));
+
+enum ruby_vminsn_type
+insn_original_name(enum ruby_vminsn_type i)
+{
+    static const enum ruby_vminsn_type t[] = {
+% RubyVM::Instructions.each do |i|
+%   case i when RubyVM::OperandsUnifications then
+        <%= i.original.bin %>,
+%   else
+        <%= i.bin %>,
+%   end
+% end
+    };
+
+    return t[i];
+}
+
+rb_num_t
+insn_lvar_level_dispatch(const VALUE *pc)
+{
+% a = RubyVM::Instructions.select {|i| /local/ =~ i.name }
+% a.map! do |i|
+%   if n = i.opes.find_index {|j| j == 'level'}
+%     next [i, "pc[#{n+1}]"]
+%   elsif n = i.unified_operands['level']
+%     next [i, n]
+%   else
+%     raise [i.name, i.unified_operands].inspect
+%   end
+% end
+%
+% if a.map {|i, x| x }.uniq.size == 1
+    return <%= a.first.last %>;
+% else
+    switch(pc[0]) {
+    default:
+        UNREACHABLE;
+%   a.each do |i, x|
+    case <%= i.bin %>:
+        return <%= x %>;
+%   end
+    }
+% end
+}
+
+rb_num_t
+insn_lvar_index_dispatch(const VALUE *pc)
+{
+% a = RubyVM::Instructions.select {|i| /local/ =~ i.name }
+% a.map! do |i|
+%   if n = i.opes.find_index {|j| j == 'idx'}
+%     next [i, "pc[#{n+1}]"]
+%   elsif n = i.unified_operands['idx']
+%     next [i, n]
+%   else
+%     raise [i.name, i.unified_operands].inspect
+%   end
+% end
+%
+% if a.map {|i, x| x }.uniq.size == 1
+    return <%= a.first.last %>;
+% else
+    switch(pc[0]) {
+    default:
+        UNREACHABLE;
+%   a.each do |i, x|
+    case <%= i.bin %>:
+        return <%= x %>;
+%   end
+    }
+% end
+}

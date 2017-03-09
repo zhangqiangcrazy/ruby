@@ -737,6 +737,62 @@ rb_iseq_original_iseq(const rb_iseq_t *iseq) /* cold path */
     return original_code;
 }
 
+static const rb_iseq_t *
+iseq_get_parent_of(const rb_iseq_t *iseq, rb_num_t level)
+{
+    unsigned i;
+    const rb_iseq_t *jseq;
+
+    for (i = 0, jseq = iseq; i < level; i++) {
+	jseq = jseq->body->parent_iseq;
+    }
+    return jseq;
+}
+
+void
+iseq_collect_lvar_usages(const rb_iseq_t *iseq)
+{
+    int i, j, k = iseq->body->iseq_size;
+    const VALUE *ptr = rb_iseq_original_iseq(iseq);
+
+    for (i = j = 0; i < k; i += j) {
+	unsigned char c;
+	enum ruby_vminsn_type insn = (enum ruby_vminsn_type)ptr[i];
+	enum ruby_vminsn_type jnsn = insn_original_name(insn);
+	j = insn_len(insn);
+
+	switch (jnsn) {
+	case BIN(setlocal):
+	    c = RB_LVAR_WR;
+	    break;
+	case BIN(getlocal):
+	    c = RB_LVAR_RD;
+	    break;
+	default:
+	    c = 0;
+	    break;
+	}
+
+	if (c) {
+	    const VALUE *pc = &ptr[i];
+	    rb_num_t level = insn_lvar_level_dispatch(pc);
+	    lindex_t index = insn_lvar_index_dispatch(pc);
+	    const rb_iseq_t *jseq = iseq_get_parent_of(iseq, level);
+	    const unsigned char *buf = jseq->body->local_characteristics;
+	    unsigned char d;
+
+	    if (! buf) {
+		rb_num_t n = jseq->body->local_table_size + VM_ENV_DATA_SIZE;
+		buf = ZALLOC_N(unsigned char, n);
+		jseq->body->local_characteristics = buf;
+	    }
+	    d = buf[index] | c;
+	    /* deconst needed here */
+	    memcpy((unsigned char *)&buf[index], &d, 1);
+	}
+    }
+}
+
 /*********************************************/
 /* definition of data structure for compiler */
 /*********************************************/
@@ -1173,6 +1229,9 @@ iseq_setup(rb_iseq_t *iseq, LINK_ANCHOR *const anchor)
 
     debugs("[compile step 5 (iseq_translate_threaded_code)] \n");
     if (!rb_iseq_translate_threaded_code(iseq)) return COMPILE_NG;
+
+    debugs("[compile step 6 (iseq_collect_lvar_usages)] \n");
+    iseq_collect_lvar_usages(iseq);
 
     if (compile_debug > 1) {
 	VALUE str = rb_iseq_disasm(iseq);
@@ -7741,6 +7800,23 @@ ibf_load_ci_entries(const struct ibf_load *load, const struct rb_iseq_constant_b
     return ci_entries;
 }
 
+static const unsigned char *
+ibf_dump_local_characteristics(struct ibf_dump *dump, const rb_iseq_t *iseq)
+{
+    const struct rb_iseq_constant_body *body = iseq->body;
+    const int size = body->local_table_size;
+    const unsigned char *ptr = body->local_characteristics;
+    return IBF_W(ptr, unsigned char, size);
+}
+
+static const unsigned char *
+ibf_load_local_characteristics(const struct ibf_load *load, const struct rb_iseq_constant_body *body)
+{
+    const int size = body->local_table_size;
+    const unsigned char *ptr = body->local_characteristics;
+    return IBF_R(ptr, unsigned char, size);
+}
+
 static ibf_offset_t
 ibf_dump_iseq_each(struct ibf_dump *dump, const rb_iseq_t *iseq)
 {
@@ -7764,6 +7840,8 @@ ibf_dump_iseq_each(struct ibf_dump *dump, const rb_iseq_t *iseq)
     dump_body.ci_entries =      ibf_dump_ci_entries(dump, iseq);
     dump_body.cc_entries =      NULL;
     dump_body.mark_ary =        ISEQ_FLIP_CNT(iseq);
+
+    dump_body.local_characteristics = ibf_dump_local_characteristics(dump, iseq);
 
     return ibf_dump_write(dump, &dump_body, sizeof(dump_body));
 }
@@ -7815,6 +7893,8 @@ ibf_load_iseq_each(const struct ibf_load *load, rb_iseq_t *iseq, ibf_offset_t of
     load_body->local_iseq      = ibf_load_iseq(load, body->local_iseq);
 
     load_body->iseq_encoded    = ibf_load_code(load, iseq, body);
+
+    load_body->local_characteristics = ibf_load_local_characteristics(load, body);
 
     rb_iseq_translate_threaded_code(iseq);
 }

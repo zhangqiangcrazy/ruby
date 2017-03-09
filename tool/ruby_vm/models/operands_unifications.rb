@@ -22,9 +22,10 @@ require_relative 'opt_operand_def'
 class RubyVM::OperandsUnifications < RubyVM::BareInstructions
   include RubyVM::CEscape
 
-  attr_reader :preamble, :original
+  attr_reader :preamble, :original, :unified_operands
 
   def initialize location:, signature:
+    @unified_operands = {}
     name             = signature[0]
     template         = RubyVM::InsnsDef.fetch name # Misshit is fatal
     parts            = compose location, signature, template[:signature]
@@ -102,6 +103,7 @@ class RubyVM::OperandsUnifications < RubyVM::BareInstructions
             location: location,
             body: "    #{k} = #{j};"
           }
+          @unified_operands[k] = j
         end
       end
       src.map! {|i| RubyVM::CExpr.new i }

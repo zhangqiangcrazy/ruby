@@ -365,6 +365,25 @@ struct rb_iseq_constant_body {
 
     const ID *local_table;		/* must free */
 
+    /* :TODO: other possible characteristics:
+     *
+     * - if a local variable is accessed from children iseq: possibly
+     *   this info makes lambda lightweight.
+     *
+     * - if a local variable is "write once, read once": if that is
+     *   the case, we can skip storing local variable and replace into
+     *   putobject.
+     *
+     * - if a local variable is "read before written": that initial
+     *   read must be possible to strength-reduce into putnil.
+     *
+     * - if a local variable is "written-read-written-(end)": the
+     *   second occurrence of write can be eliminated.
+     */
+    #define RB_LVAR_RD 1
+    #define RB_LVAR_WR 2
+    const unsigned char* local_characteristics; /* must free */
+
     /* catch table */
     const struct iseq_catch_table *catch_table;
 
