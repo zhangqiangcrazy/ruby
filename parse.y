@@ -37,7 +37,7 @@
 #include "probes.h"
 
 #ifndef WARN_PAST_SCOPE
-# define WARN_PAST_SCOPE 0
+# define WARN_PAST_SCOPE 1
 #endif
 
 #define TAB_WIDTH 8
