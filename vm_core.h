@@ -284,6 +284,9 @@ struct rb_call_cache {
 	enum method_missing_reason method_missing_reason; /* used by method_missing */
 	int inc_sp; /* used by cfunc */
     } aux;
+
+    rb_serial_t updated_at;
+    VALUE purity;
 };
 
 #if 1
@@ -468,6 +471,10 @@ struct rb_iseq_constant_body {
     struct rb_mjit_unit *jit_unit;
 #endif
     char catch_except_p; /* If a frame of this ISeq may catch exception, set TRUE */
+
+    rb_serial_t updated_at;
+    VALUE purity;
+    bool iter_lev;
 };
 
 /* T_IMEMO/iseq */

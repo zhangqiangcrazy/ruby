@@ -162,6 +162,7 @@ class RubyVM::BareInstructions
     generate_attribute 'rb_snum_t', 'sp_inc', rets.size - pops.size
     generate_attribute 'bool', 'handles_sp', default_definition_of_handles_sp
     generate_attribute 'bool', 'leaf', default_definition_of_leaf
+    generate_attribute 'enum rb_insn_purity', 'purity', default_definition_of_purity
   end
 
   def default_definition_of_handles_sp
@@ -177,6 +178,17 @@ class RubyVM::BareInstructions
       return "! #{call_attribute 'handles_sp'}"
     else
       return true
+    end
+  end
+
+  def default_definition_of_purity
+    case @attrs.fetch('leaf').expr.expr
+    when /\b(false|0)\b/ then
+      return 'rb_insn_is_not_pure'
+    when /\b(true|1)\b/ then
+      return 'rb_insn_is_pure'
+    else
+      return "purity_of_bool(#{call_attribute 'leaf'})"
     end
   end
 
