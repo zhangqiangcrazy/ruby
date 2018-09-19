@@ -1364,17 +1364,6 @@ opt_not
     }
 }
 
-/* optimized regexp match */
-DEFINE_INSN
-opt_regexpmatch1
-(VALUE recv)
-(VALUE obj)
-(VALUE val)
-// attr bool leaf = BASIC_OP_UNREDEFINED_P(BOP_MATCH, REGEXP_REDEFINED_OP_FLAG);
-{
-    val = vm_opt_regexpmatch1(recv, obj);
-}
-
 /* optimized regexp match 2 */
 DEFINE_INSN
 opt_regexpmatch2
