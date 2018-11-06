@@ -389,11 +389,10 @@ get_id_entry(rb_id_serial_t num, const enum id_entry_type t)
     return 0;
 }
 
+MAYBE_UNUSED(
 static inline ID
-#ifdef __GNUC__
-__attribute__((unused))
-#endif
 rb_id_serial_to_id(rb_id_serial_t num)
+)
 {
     if (is_notop_id((ID)num)) {
 	VALUE sym = get_id_entry(num, ID_ENTRY_SYM);

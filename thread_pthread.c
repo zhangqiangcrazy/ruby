@@ -805,8 +805,10 @@ space_size(size_t stack_size)
 }
 
 #ifdef __linux__
-static __attribute__((noinline)) void
+NOINLINE(
+static void
 reserve_stack(volatile char *limit, size_t size)
+)
 {
 # ifdef C_ALLOCA
 #   error needs alloca()

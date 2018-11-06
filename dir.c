@@ -1763,10 +1763,11 @@ join_path(const char *path, size_t len, int dirsep, const char *name, size_t nam
 static int
 is_case_sensitive(DIR *dirp, const char *path)
 {
-    struct {
+    PACKED_STRUCT(struct attrbuf {
 	u_int32_t length;
 	vol_capabilities_attr_t cap[1];
-    } __attribute__((aligned(4), packed)) attrbuf[1];
+    });
+    RUBY_ALIGNAS(4) struct attrbuf attrbuf[1];
     struct attrlist al = {ATTR_BIT_MAP_COUNT, 0, 0, ATTR_VOL_INFO|ATTR_VOL_CAPABILITIES};
     const vol_capabilities_attr_t *const cap = attrbuf[0].cap;
     const int idx = VOL_CAPABILITIES_FORMAT;
@@ -1787,12 +1788,13 @@ is_case_sensitive(DIR *dirp, const char *path)
 static char *
 replace_real_basename(char *path, long base, rb_encoding *enc, int norm_p, int flags, rb_pathtype_t *type)
 {
-    struct {
+    PACKED_STRUCT(struct {
 	u_int32_t length;
 	attrreference_t ref[1];
 	fsobj_type_t objtype;
 	char path[MAXPATHLEN * 3];
-    } __attribute__((aligned(4), packed)) attrbuf[1];
+    });
+    RUBY_ALIGNAS(4) struct attrbuf attrbuf[1];
     struct attrlist al = {ATTR_BIT_MAP_COUNT, 0, ATTR_CMN_NAME|ATTR_CMN_OBJTYPE};
     const attrreference_t *const ar = attrbuf[0].ref;
     const char *name;

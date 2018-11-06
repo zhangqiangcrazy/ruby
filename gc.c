@@ -3737,11 +3737,10 @@ gc_sweep_start_heap(rb_objspace_t *objspace, rb_heap_t *heap)
     heap->freelist = NULL;
 }
 
-#if defined(__GNUC__) && __GNUC__ == 4 && __GNUC_MINOR__ == 4
-__attribute__((noinline))
-#endif
+NOINLINE(
 static void
 gc_sweep_start(rb_objspace_t *objspace)
+)
 {
     gc_mode_transition(objspace, gc_mode_sweeping);
     gc_sweep_start_heap(objspace, heap_eden);
