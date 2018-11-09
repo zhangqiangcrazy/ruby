@@ -217,7 +217,12 @@ static void
 bitset_invert_to(BitSetRef from, BitSetRef to)
 {
   int i;
-  for (i = 0; i < BITSET_SIZE; i++) { to[i] = ~(from[i]); }
+  for (i = 0; i < BITSET_SIZE; i++) {
+      signed char c = from[i];
+      signed int d = ~c;
+      unsigned int e = d & 0xFF;
+      to[i] = e;
+  }
 }
 
 static void
@@ -387,6 +392,7 @@ str_end_cmp(st_data_t xp, st_data_t yp)
   return 0;
 }
 
+NO_SANITIZE("unsigned-integer-overflow", static st_index_t str_end_hash(st_data_t xp));
 static st_index_t
 str_end_hash(st_data_t xp)
 {
@@ -1713,8 +1719,8 @@ add_code_range_to_buf0(BBuf** pbuf, ScanEnv* env, OnigCodePoint from, OnigCodePo
    * data[(high-1)*2+1] <= to << data[high*2]
    */
 
-  inc_n = low + 1 - high;
-  if (n + inc_n > ONIG_MAX_MULTI_BYTE_RANGES_NUM)
+  inc_n = (int)low + 1 - (int)high;
+  if (inc_n > 0 && (n + inc_n > ONIG_MAX_MULTI_BYTE_RANGES_NUM))
     return ONIGERR_TOO_MANY_MULTI_BYTE_RANGES;
 
   if (inc_n != 1) {
@@ -1746,7 +1752,10 @@ add_code_range_to_buf0(BBuf** pbuf, ScanEnv* env, OnigCodePoint from, OnigCodePo
   BBUF_ENSURE_SIZE(bbuf, pos + SIZE_CODE_POINT * 2);
   BBUF_WRITE_CODE_POINT(bbuf, pos, from);
   BBUF_WRITE_CODE_POINT(bbuf, pos + SIZE_CODE_POINT, to);
-  n += inc_n;
+  if (inc_n > 0)
+      n += inc_n;
+  else
+      n -= -inc_n;
   BBUF_WRITE_CODE_POINT(bbuf, 0, n);
 
   return 0;

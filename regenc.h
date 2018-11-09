@@ -224,7 +224,7 @@ ONIG_EXTERN const unsigned short OnigEncAsciiCtypeTable[];
 
 /* Check if the code is in the range. (from <= code && code <= to) */
 #define ONIGENC_IS_IN_RANGE(code, from, to) \
-  ((OnigCodePoint )((code) - (from)) <= (OnigCodePoint )((to) - (from)))
+  ((from) <= (code) && (code) <= (to))
 
 
 #ifdef ONIG_ENC_REGISTER
