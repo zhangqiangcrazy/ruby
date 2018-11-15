@@ -239,7 +239,7 @@ again:
 	    v = rb_funcall(v, id_to_r, 0);
 	    goto again;
 	}
-	if (1/d < 0.0) {
+	if (signbit(d)) {
 	    return VpCreateRbObject(prec, "-0");
 	}
 	return VpCreateRbObject(prec, "0");
@@ -3720,20 +3720,10 @@ VpSetRoundMode(unsigned short n)
     return VpGetRoundMode();
 }
 
-/*
- *  0.0 & 1.0 generator
- *    These gZero_..... and gOne_..... can be any name
- *    referenced from nowhere except Zero() and One().
- *    gZero_..... and gOne_..... must have global scope
- *    (to let the compiler know they may be changed in outside
- *    (... but not actually..)).
- */
-volatile const double gOne_ABCED9B4_CE73__00400511F31D  = 1.0;
-
 static double
 One(void)
 {
-    return gOne_ABCED9B4_CE73__00400511F31D;
+    return 1.0;
 }
 
 /*
