@@ -378,6 +378,7 @@ etc_getpwent(VALUE obj)
 }
 
 #ifdef HAVE_GETGRENT
+NO_SANITIZE("alignment", static VALUE setup_group(struct group *));
 static VALUE
 setup_group(struct group *grp)
 {
