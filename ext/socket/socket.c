@@ -1016,6 +1016,7 @@ sock_s_gethostbyname(VALUE obj, VALUE host)
     return rsock_make_hostent(host, res, sock_sockaddr);
 }
 
+NO_SANITIZE("undefined", static VALUE sock_s_gethostbyaddr(int argc, VALUE *argv));
 /*
  * call-seq:
  *   Socket.gethostbyaddr(address_string [, address_family]) => hostent

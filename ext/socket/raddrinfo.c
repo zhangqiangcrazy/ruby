@@ -648,6 +648,7 @@ struct hostent_arg {
     VALUE (*ipaddr)(struct sockaddr*, socklen_t);
 };
 
+NO_SANITIZE("undefined", static VALUE make_hostent_internal(struct hostent_arg *arg));
 static VALUE
 make_hostent_internal(struct hostent_arg *arg)
 {
