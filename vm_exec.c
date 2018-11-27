@@ -165,3 +165,20 @@ vm_exec_core(rb_execution_context_t *ec, VALUE initial)
     }
 }
 #endif
+
+MJIT_FUNC_EXPORTED VALUE
+vm_LABEL_PTR(enum ruby_vminsn_type bin)
+{
+#if OPT_TOKEN_THREADED_CODE || \
+    OPT_DIRECT_THREADED_CODE || \
+    OPT_CALL_THREADED_CODE
+    static const void **ptr = NULL;
+
+    if (UNLIKELY(! ptr)) {
+        ptr = rb_vm_get_insns_address_table();
+    }
+    return (VALUE)ptr[bin];
+#else  /* no-threaded */
+    return (VALUE)bin;
+#endif
+}

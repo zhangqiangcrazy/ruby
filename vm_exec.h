@@ -209,4 +209,7 @@ default:                        \
 #define INSN_LABEL2(insn, name) INSN_LABEL_ ## insn ## _ ## name
 #define INSN_LABEL(x) INSN_LABEL2(NAME_OF_CURRENT_INSN, x)
 
+enum ruby_vminsn_type;
+PUREFUNC(MAYBE_UNUSED(MJIT_FUNC_EXPORTED VALUE vm_LABEL_PTR(enum ruby_vminsn_type))); /* in vm_exec.c */
+
 #endif /* RUBY_VM_EXEC_H */
