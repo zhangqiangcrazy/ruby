@@ -1527,6 +1527,27 @@ opt_regexpmatch2
     }
 }
 
+/* optimized RubyVM.return_value_is_used?
+ *
+ * This method involves the caller's CFP.  Specialised instruction is
+ * much lightweight than lifting up a new frame to run a C function
+ * then look underneath from there.
+ */
+DEFINE_INSN
+opt_RubyVM_return_value_is_used_
+(CALL_INFO ci, CALL_CACHE cc)
+(VALUE recv)
+(VALUE val)
+{
+    if (vm_method_cfunc_is(ci, cc, recv,
+            rb_whether_the_return_value_is_used_p_m)) {
+        val = VM_ENV_FLAGS(GET_EP(), VM_FRAME_FLAG_POPPED) ? Qfalse : Qtrue;
+    }
+    else {
+        DISPATCH_ORIGINAL_INSN(opt_send_without_block);
+    }
+}
+
 /* call native compiled method */
 DEFINE_INSN
 opt_call_c_function
