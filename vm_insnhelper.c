@@ -2373,7 +2373,7 @@ vm_call_rb_obj_dummy(
         EXEC_EVENT_HOOK(ec, RUBY_EVENT_C_RETURN, recv, oid, mid, owner, Qnil);
         RUBY_DTRACE_CMETHOD_RETURN_HOOK(ec, owner, oid);
 
-        DEC_SP(1);              /* pop the receriver */
+        DEC_SP(1);              /* pop the receiver */
         return Qnil;
     }
 }
@@ -3454,12 +3454,12 @@ vm_sendish(
     VALUE val;
     int argc = ci->orig_argc;
     VALUE recv = TOPN(argc);
-    struct rb_calling_info calling;
-
-    calling.block_handler = block_handler;
-    calling.recv = recv;
-    calling.argc = argc;
-    calling.popped = popped;
+    struct rb_calling_info calling = {
+        .block_handler = block_handler,
+        .recv = recv,
+        .argc = argc,
+        .popped = popped,
+    };
 
     method_explorer(GET_CFP(), ci, cc, recv);
 
