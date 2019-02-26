@@ -247,6 +247,7 @@ struct rb_call_info {
     ID mid;
     unsigned int flag;
     int orig_argc;
+    unsigned int compiled_frame_bits;
 };
 
 struct rb_call_info_kw_arg {
@@ -263,7 +264,7 @@ struct rb_calling_info {
     VALUE block_handler;
     VALUE recv;
     int argc;
-    int popped;
+    unsigned int compiled_frame_bits;
 };
 
 struct rb_call_cache;

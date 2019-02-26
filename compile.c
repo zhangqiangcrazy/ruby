@@ -3651,6 +3651,26 @@ iseq_sendpop_optimization_phase3(const LINK_ANCHOR *anchor, int do_si)
     }
 }
 
+static void
+iseq_construct_compiled_frame_bits(const LINK_ANCHOR *anchor)
+{
+    for (const LINK_ELEMENT *e = FIRST_ELEMENT(anchor); e->next; e = e->next) {
+        struct rb_call_info *ci = elem2ci(e);
+
+        if (ci) {
+            const LINK_ELEMENT *i = get_next_insn((INSN *)e);
+            ci->compiled_frame_bits = 0;
+
+            if (i && IS_INSN_ID(i, pop)) {
+                ci->compiled_frame_bits |= VM_FRAME_FLAG_POPPED;
+            }
+            if (ci->flag & VM_CALL_POPIT) {
+                ci->compiled_frame_bits |= VM_FRAME_FLAG_POPIT;
+            }
+        }
+    }
+}
+
 static int
 iseq_optimize(rb_iseq_t *iseq, LINK_ANCHOR *const anchor)
 {
@@ -3673,7 +3693,7 @@ iseq_optimize(rb_iseq_t *iseq, LINK_ANCHOR *const anchor)
 	    }
 	    if (do_si) {
 		iseq_specialized_instruction(iseq, (INSN *)list);
-		iseq_sendpop_optimization_phase2((INSN *)list);
+                iseq_sendpop_optimization_phase2((INSN *)list);
 	    }
 	    if (do_ou) {
 		insn_operands_unification((INSN *)list);
@@ -3695,6 +3715,7 @@ iseq_optimize(rb_iseq_t *iseq, LINK_ANCHOR *const anchor)
 
     iseq_sendpop_optimization_phase3(anchor, do_si);
     iseq_insert_bailouts(iseq, anchor);
+    iseq_construct_compiled_frame_bits(anchor);
     return COMPILE_OK;
 }
 
